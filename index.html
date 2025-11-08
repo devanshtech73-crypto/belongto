@@ -2,283 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>ShrinkEarn — Complete ShrinkMe Tasks & Earn Points</title>
-  <meta name="description" content="Simulated ShrinkMe task board: open shortened links, complete tasks, earn points (front-end demo)." />
-  <!--
-    ShrinkEarn - single-file demo
-    - Features: task list with ShrinkMe-like links, points system (stored in localStorage), About / Privacy / Contact pages, responsive UI.
-    - How to use: Save this file as shrink-earn.html and open in your browser. This is a frontend demo only (no real verification of offers).
-    - Customize: edit the `TASKS` array in the script to add real ShrinkMe links or other offers.
-  -->
+  <meta name="description" content="ShrinkEarn task board: complete ShrinkMe links, earn points (10s timer demo)." />
   <style>
     :root{
-      --bg:#f7fbf7;
-      --card:#ffffff;
-      --accent:#06b64e; /* vibrant green */
-      --muted:#6b7280;
-      --glass: rgba(255,255,255,0.7);
-      --radius:14px;
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      --bg:#f7fbf7;--card:#fff;--accent:#06b64e;--muted:#6b7280;--radius:14px;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;
     }
     *{box-sizing:border-box}
     body{margin:0;background:linear-gradient(180deg,var(--bg),#f0fdf4);color:#0f172a}
     .container{max-width:1100px;margin:36px auto;padding:20px}
-
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
     .brand{display:flex;align-items:center;gap:12px}
     .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#00a86b);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;box-shadow:0 8px 24px rgba(6,182,78,0.18)}
     h1{font-size:20px;margin:0}
     p.lead{margin:0;color:var(--muted)}
-
     .points{background:var(--card);padding:12px 18px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
     .points .val{font-weight:700;font-size:20px;color:var(--accent)}
-
     main{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:22px}
-    @media (max-width:980px){main{grid-template-columns:1fr} .right{order:2}}
-
+    @media(max-width:900px){main{grid-template-columns:1fr}.points{width:100%;justify-content:space-between}}
     .card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.05)}
     .tasks-list{display:flex;flex-direction:column;gap:12px}
-    .task{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#fbfffc);border:1px solid rgba(6,182,78,0.06)}
-    .task .left{max-width:76%}
+    .task{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#fbfffc);border:1px solid rgba(6,182,78,0.06);flex-wrap:wrap}
+    .task .left{flex:1;min-width:200px}
     .task h3{margin:0;font-size:15px}
     .task p{margin:6px 0 0;font-size:13px;color:var(--muted)}
-    .task .actions{display:flex;gap:8px;align-items:center}
-    .btn{border:0;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer}
+    .task .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .btn{border:0;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer;transition:opacity .2s}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
     .btn-primary{background:linear-gradient(90deg,var(--accent),#00a86b);color:white}
     .btn-outline{background:transparent;border:1px solid rgba(15,23,42,0.06)}
     .small{font-size:13px;padding:6px 10px}
     .muted{color:var(--muted);font-size:13px}
-
-    .right .card{position:sticky;top:20px}
-    .history{max-height:300px;overflow:auto;padding-right:6px}
-    .history li{padding:8px 6px;border-bottom:1px dashed #f1fdf2;list-style:none}
-
     footer{margin-top:26px;text-align:center;color:var(--muted);font-size:13px}
-
-    /* header nav */
-    nav{display:flex;gap:10px;align-items:center}
-    nav a{color:var(--muted);text-decoration:none;font-weight:600}
-    nav a:hover{color:var(--accent)}
-
-    /* modal */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,6,6,0.35);z-index:50}
     .modal.open{display:flex}
     .modal .panel{width:min(720px,96%);background:var(--card);padding:20px;border-radius:12px}
-
-    /* tiny helpers */
-    .flex{display:flex;gap:12px;align-items:center}
-    .badge{background:rgba(6,182,78,0.1);color:var(--accent);padding:6px 8px;border-radius:999px;font-weight:700}
   </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div class="brand">
-        <div class="logo">SE</div>
-        <div>
-          <h1>ShrinkEarn</h1>
-          <p class="lead">Open shortened links, complete tasks, earn points — demo UI (frontend only)</p>
-        </div>
-      </div>
-
-      <div class="points">
-        <div>
-          <div class="muted">Balance</div>
-          <div class="val" id="points">0</div>
-        </div>
-        <div style="min-width:140px;text-align:right">
-          <div class="muted">Redeem</div>
-          <div><button class="btn btn-outline small" id="redeemBtn">Redeem Points</button></div>
-        </div>
-      </div>
-    </header>
-
-    <main>
-      <section>
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h2 style="margin:0">Available Tasks</h2>
-            <div class="muted">Tip: open links in a new tab, then click "Mark as Completed" after you finish</div>
-          </div>
-
-          <div class="tasks-list" id="tasks"></div>
-
-        </div>
-
-        <div class="card" style="margin-top:14px">
-          <h3 style="margin-top:0">How it works</h3>
-          <ol style="margin:8px 0 0;padding-left:18px;color:var(--muted)">
-            <li>Click a task's "Open" — it will open the shortened link (simulated) in a new tab.</li>
-            <li>Complete the required action on the offer page (if this were a live offer).</li>
-            <li>Return here and click "Mark as Completed" to receive points.</li>
-          </ol>
-          <p class="muted" style="margin-top:10px">This demo does not verify external pages. For production you must implement server-side verification or use network callbacks to validate conversions.</p>
-        </div>
-      </section>
-
-      <aside class="right">
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <div>
-              <div class="muted">Your Points</div>
-              <div style="font-size:22px;font-weight:800" id="pointsBig">0</div>
-            </div>
-            <div class="badge">Verified</div>
-          </div>
-
-          <hr style="border:none;border-top:1px dashed #eefdeb;margin:14px 0">
-
-          <h4 style="margin:0 0 8px 0">Recent Activity</h4>
-          <ul class="history" id="history"></ul>
-
-          <div style="margin-top:12px;display:flex;gap:8px">
-            <button class="btn btn-primary" id="refreshBtn">Refresh Tasks</button>
-            <button class="btn btn-outline" id="aboutBtn">About</button>
-            <button class="btn btn-outline" id="contactBtn">Contact</button>
-          </div>
-        </div>
-
-        <div style="height:14px"></div>
-
-        <div class="card">
-          <h4 style="margin:0 0 10px 0">Quick Stats</h4>
-          <div class="muted">Tasks available: <strong id="taskCount">0</strong></div>
-          <div class="muted">Estimated CPM: <strong>Varies by geo</strong></div>
-          <p class="muted" style="margin-top:8px">Remember: incentive traffic and auto-clicks may be restricted by ad networks. Always follow network policies.</p>
-        </div>
-      </aside>
-    </main>
-
-    <footer>
-      <div>© <strong>ShrinkEarn</strong> — Demo UI • Not affiliated with ShrinkMe.io</div>
-      <div style="margin-top:6px">Made for quick testing & prototyping — customize the tasks in the file.</div>
-    </footer>
+<div class="container">
+<header>
+  <div class="brand">
+    <div class="logo">SE</div>
+    <div><h1>ShrinkEarn</h1><p class="lead">Open ShrinkMe links, wait 10s, earn points</p></div>
   </div>
+  <div class="points"><div><div class="muted">Balance</div><div class="val" id="points">0</div></div></div>
+</header>
 
-  <!-- Modal panels -->
-  <div class="modal" id="modal">
-    <div class="panel" id="modalPanel"></div>
+<main>
+<section>
+  <div class="card">
+    <h2 style="margin-top:0">Available Tasks</h2>
+    <div class="tasks-list" id="tasks"></div>
   </div>
+</section>
+<aside>
+  <div class="card">
+    <h3>About</h3>
+    <p class="muted">This demo shows how to integrate ShrinkMe tasks with a 10s stay timer before claiming points. All actions are stored in localStorage only.</p>
+  </div>
+</aside>
+</main>
 
-  <script>
-    // ----- CONFIG: Edit TASKS to add/remove links -----
-    const TASKS = [
-      { id: 't1', title: 'Open Shortened Link (Example US)', desc: 'Visit a shortened link and stay for 10s', url: 'https://shrinkme.io/example1', points: 15 },
-      { id: 't2', title: 'Complete Simple Survey', desc: 'Finish a short survey', url: 'https://shrinkme.io/example2', points: 25 },
-      { id: 't3', title: 'Install APK (Simulated)', desc: 'Install mobile app and open it', url: 'https://shrinkme.io/example3', points: 40 },
-      { id: 't4', title: 'Follow Social Page', desc: 'Follow our social page and return', url: 'https://shrinkme.io/example4', points: 10 }
-    ];
-    // -----------------------------------------------
+<footer>© ShrinkEarn — Demo UI • Not affiliated with ShrinkMe.io</footer>
+</div>
+<div class="modal" id="modal"><div class="panel" id="modalPanel"></div></div>
+<script>
+const TASKS = Array.from({length:5},(_,i)=>({id:'task'+i,title:`Visit ShrinkMe Link #${i+1}`,desc:'Open and stay for 10 seconds',url:'https://shrinkme.click/2xAJt2S',points:10}));
+const LS_POINTS='se_points',LS_DONE='se_done';
+const tasksEl=document.getElementById('tasks');
+const pointsEl=document.getElementById('points');
+function getPoints(){return +localStorage.getItem(LS_POINTS)||0}
+function setPoints(v){localStorage.setItem(LS_POINTS,v);pointsEl.textContent=v}
+function getDone(){return JSON.parse(localStorage.getItem(LS_DONE)||'{}')}
+function setDone(o){localStorage.setItem(LS_DONE,JSON.stringify(o))}
+function render(){const done=getDone();tasksEl.innerHTML='';TASKS.forEach(t=>{const el=document.createElement('div');el.className='task';const dis=done[t.id];el.innerHTML=`<div class='left'><h3>${t.title}</h3><p>${t.desc} · <span class='muted'>${t.points} pts</span></p></div><div class='actions'><button class='btn small btn-outline' data-open='${t.id}'>Open</button><button class='btn small btn-primary' data-complete='${t.id}' ${dis?'disabled':''}>${dis?'Completed':'Mark as Completed'}</button><span class='muted timer' id='timer-${t.id}'></span></div>`;tasksEl.appendChild(el)});}
+render();pointsEl.textContent=getPoints();
+const timers={};
+function startTimer(id){let sec=10;const timerEl=document.getElementById('timer-'+id);timerEl.textContent='Wait 10s';timers[id]=setInterval(()=>{sec--;timerEl.textContent=sec>0?`Wait ${sec}s`:'Done! You can complete now';if(sec<=0){clearInterval(timers[id]);}},1000)}
 
-    // localStorage keys
-    const LS_POINTS = 'shrinkearn_points_v1';
-    const LS_HISTORY = 'shrinkearn_history_v1';
-    const LS_COMPLETED = 'shrinkearn_completed_v1';
-
-    // initial setup
-    const tasksEl = document.getElementById('tasks');
-    const pointsEl = document.getElementById('points');
-    const pointsBig = document.getElementById('pointsBig');
-    const historyEl = document.getElementById('history');
-    const taskCountEl = document.getElementById('taskCount');
-
-    function getPoints(){return Number(localStorage.getItem(LS_POINTS) || 0)}
-    function setPoints(v){localStorage.setItem(LS_POINTS, String(v));updatePointsUI()}
-    function getHistory(){return JSON.parse(localStorage.getItem(LS_HISTORY) || '[]')}
-    function addHistory(entry){const h=getHistory();h.unshift(entry);localStorage.setItem(LS_HISTORY,JSON.stringify(h.slice(0,50)));renderHistory()}
-    function getCompleted(){return JSON.parse(localStorage.getItem(LS_COMPLETED) || '{}')}
-    function markCompleted(id){const c=getCompleted();c[id]=true;localStorage.setItem(LS_COMPLETED,JSON.stringify(c));renderTasks()}
-
-    function updatePointsUI(){const p=getPoints();pointsEl.textContent=p;pointsBig.textContent=p}
-
-    function renderTasks(){
-      tasksEl.innerHTML='';
-      const completed=getCompleted();
-      TASKS.forEach(task=>{
-        const div=document.createElement('div');div.className='task';
-        div.innerHTML=`
-          <div class="left">
-            <h3>${escapeHtml(task.title)}</h3>
-            <p>${escapeHtml(task.desc)} · <span class="muted">${task.points} pts</span></p>
-          </div>
-          <div class="actions">
-            <button class="btn small btn-outline" data-open="${task.id}">Open</button>
-            <button class="btn small btn-primary" data-complete="${task.id}" ${completed[task.id] ? 'disabled' : ''}>${completed[task.id] ? 'Completed' : 'Mark as Completed'}</button>
-          </div>
-        `;
-        tasksEl.appendChild(div);
-      });
-      taskCountEl.textContent = TASKS.length;
-    }
-
-    function renderHistory(){
-      historyEl.innerHTML='';
-      const h=getHistory();
-      if(h.length===0){historyEl.innerHTML='<li class="muted">No activity yet</li>';return}
-      h.forEach(item=>{
-        const li=document.createElement('li');
-        li.innerHTML=`<div style="display:flex;justify-content:space-between"><div>${escapeHtml(item.text)}</div><div class="muted">${escapeHtml(item.time)}</div></div>`;
-        historyEl.appendChild(li);
-      })
-    }
-
-    // helpers
-    function escapeHtml(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')}
-
-    // Events: open link
-    document.addEventListener('click',e=>{
-      const open = e.target.closest('[data-open]');
-      const comp = e.target.closest('[data-complete]');
-      if(open){
-        const id=open.getAttribute('data-open');
-        const task = TASKS.find(t=>t.id===id);
-        if(task){
-          // open in new tab
-          window.open(task.url,'_blank');
-          addHistory({text:`Opened: ${task.title}`, time: new Date().toLocaleString()});
-        }
-      }
-      if(comp){
-        const id=comp.getAttribute('data-complete');
-        const task = TASKS.find(t=>t.id===id);
-        if(task){
-          // simple front-end simulation of verification. In production use server-side callbacks.
-          const confirmed = confirm(`Mark "${task.title}" as completed and claim ${task.points} pts?`);
-          if(!confirmed) return;
-          // award points
-          const current = getPoints();
-          setPoints(current + task.points);
-          markCompleted(task.id);
-          addHistory({text:`Completed: ${task.title} (+${task.points} pts)`, time: new Date().toLocaleString()});
-          alert('Points awarded!');
-        }
-      }
-    })
-
-    // small UI buttons
-    document.getElementById('refreshBtn').addEventListener('click',()=>{renderTasks();alert('Tasks refreshed')});
-    document.getElementById('aboutBtn').addEventListener('click',()=>openModal('<h2>About ShrinkEarn</h2><p>This is a front-end demo for a ShrinkMe-like task board. It simulates opening shortened links and awarding points in the browser (localStorage). For production you must implement server-side validation and follow ad network policies.</p><p><strong>Not affiliated with ShrinkMe.io.</strong></p>'));
-    document.getElementById('contactBtn').addEventListener('click',()=>openModal('<h2>Contact</h2><p>Developer: devansh (demo). For integration help, include your web domain and what traffic types you plan to run.</p>'));
-    document.getElementById('redeemBtn').addEventListener('click',()=>{
-      const p=getPoints();
-      if(p<100){alert('You need at least 100 points to redeem.');return}
-      const confirmRedeem = confirm(`Redeem ${p} points? This demo will reset your balance.`);
-      if(confirmRedeem){localStorage.setItem(LS_POINTS,'0');addHistory({text:`Redeemed ${p} pts`,time:new Date().toLocaleString()});updatePointsUI();alert('Redeemed — in a real app you would create a payout request to your server.')}});
-
-    // modal helpers
-    const modal = document.getElementById('modal');
-    const modalPanel = document.getElementById('modalPanel');
-    function openModal(html){modalPanel.innerHTML=html + '<div style="margin-top:12px;text-align:right"><button class="btn btn-outline" id="closeModal">Close</button></div>';modal.classList.add('open');document.getElementById('closeModal').addEventListener('click',closeModal)}
-    function closeModal(){modal.classList.remove('open');modalPanel.innerHTML=''}
-    modal.addEventListener('click',e=>{if(e.target===modal)closeModal()})
-
-    // bootstrap
-    (function init(){
-      if(!localStorage.getItem(LS_POINTS)) localStorage.setItem(LS_POINTS,'0');
-      renderTasks();renderHistory();updatePointsUI();
-    })();
-
-  </script>
+document.addEventListener('click',e=>{
+  const open=e.target.closest('[data-open]');const comp=e.target.closest('[data-complete]');
+  if(open){const id=open.dataset.open;const t=TASKS.find(x=>x.id===id);window.open(t.url,'_blank');startTimer(id);} 
+  if(comp){const id=comp.dataset.complete;const t=TASKS.find(x=>x.id===id);const timerEl=document.getElementById('timer-'+id);if(timerEl.textContent.includes('Wait')){alert('Please wait full 10 seconds before completing.');return;}const done=getDone();if(done[id])return;done[id]=true;setDone(done);setPoints(getPoints()+t.points);render();alert(`+${t.points} points added!`);}
+});
+</script>
 </body>
 </html>

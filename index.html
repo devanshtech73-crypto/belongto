@@ -5,59 +5,74 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>ShrinkEarn — Trusted Rewards</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-  <meta name="color-scheme" content="light dark">
   <style>
-    /* Reset & base */
-    :root{--bg:#f7fbf7;--card:#ffffff;--accent1:#00c853;--accent2:#00e5ff;--muted:#6b7280;--radius:14px;--maxw:1100px}
+    :root{
+      --bg:#f7fbf7; --card:#ffffff; --accent1:#00c853; --accent2:#00e5ff;
+      --muted:#6b7280; --radius:14px; --maxw:1100px;
+      --page-pad:16px;
+    }
     *{box-sizing:border-box}
-    html,body{height:100%;width:100%;overflow-x:hidden;margin:0;padding:0;font-family:'Poppins',system-ui,Arial;background:linear-gradient(180deg,var(--bg),#f0fdf4);color:#0b1220;-webkit-text-size-adjust:100%}
+    html,body{height:100%;width:100%;margin:0;padding:0;font-family:'Poppins',system-ui,Arial;background:linear-gradient(180deg,var(--bg),#f0fdf4);color:#0b1220;-webkit-text-size-adjust:100%}
     a{color:inherit}
-    /* Header / Nav */
+    /* Header */
     header{position:fixed;inset:0 0 auto 0;height:72px;background:linear-gradient(90deg,var(--accent1),var(--accent2));display:flex;align-items:center;z-index:1200;box-shadow:0 6px 30px rgba(2,6,23,0.08)}
-    .nav-inner{max-width:var(--maxw);margin:0 auto;width:100%;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .brand{display:flex;align-items:center;gap:12px}
+    .nav-inner{max-width:var(--maxw);margin:0 auto;width:100%;padding:12px var(--page-pad);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
     .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent1),#00a86b);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;box-shadow:0 8px 24px rgba(6,182,78,0.18)}
-    .title{color:#fff;font-weight:700;letter-spacing:0.2px}
-    nav{display:flex;align-items:center;gap:10px}
-    nav a{color:#fff;text-decoration:none;padding:8px 10px;border-radius:10px;font-weight:600;transition:background .18s,opacity .18s}
-    nav a:hover{opacity:.92}
-    nav a.active{background:rgba(255,255,255,0.12)}
+    .title-wrap{min-width:0}
+    .title{color:#fff;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .subtitle{color:rgba(255,255,255,0.95);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .verified-badge{background:#fff;color:var(--accent1);padding:6px 8px;border-radius:8px;font-weight:700;margin-left:8px;font-size:13px}
 
-    /* Mobile hamburger */
+    /* Nav (scrollable on x axis if needed) */
+    nav{display:flex;align-items:center}
+    #nav-links{display:flex;gap:8px;align-items:center;overflow:auto;white-space:nowrap;padding:6px;border-radius:10px}
+    #nav-links a{display:inline-block;color:#fff;text-decoration:none;padding:8px 12px;border-radius:10px;font-weight:600;flex:0 0 auto}
+    #nav-links a.active{background:rgba(255,255,255,0.12)}
+    #nav-links::-webkit-scrollbar{height:6px} /* small scrollbar when scrollable */
+    #nav-links::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.16);border-radius:6px}
+
     .hamburger{display:none;width:38px;height:38px;border-radius:10px;align-items:center;justify-content:center;cursor:pointer}
     .hamburger div{width:22px;height:2px;background:#fff;border-radius:2px;margin:3px 0}
 
     /* Layout */
-    main{max-width:var(--maxw);margin:92px auto 28px;padding:18px;width:100%}
+    main{max-width:var(--maxw);margin:92px auto 28px;padding:var(--page-pad);width:100%}
     .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
     @media(max-width:980px){.grid{grid-template-columns:1fr}}
-    @media(max-width:720px){.nav-inner{padding:10px}; .hamburger{display:flex}; nav ul{display:none;position:absolute;top:72px;right:12px;background:linear-gradient(90deg,var(--accent1),var(--accent2));padding:12px;border-radius:10px;box-shadow:0 8px 30px rgba(2,6,23,0.12)} nav ul.active{display:flex;flex-direction:column;gap:8px}}
+    @media(max-width:720px){
+      .nav-inner{padding:10px var(--page-pad)}
+      .hamburger{display:flex}
+      /* keep horizontal nav but also allow modal-like menu for small devices if needed */
+    }
     .card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.05)}
     h1,h2,h3{margin:0 0 8px 0}
-    p{margin:0 0 10px 0;color:var(--muted);line-height:1.5}
+    p{margin:0 0 10px 0;color:var(--muted);line-height:1.6;overflow-wrap:break-word;word-break:break-word;hyphens:auto}
 
     /* Buttons */
     .btn{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#fff;border:0;padding:10px 14px;border-radius:10px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.45;cursor:not-allowed}
 
-    /* Tasks list */
+    /* Tasks */
     .tasks-list{display:flex;flex-direction:column;gap:12px}
     .task{display:flex;justify-content:space-between;align-items:center;padding:12px;border-radius:12px;background:linear-gradient(180deg,#fff,#fbfffc);border:1px solid rgba(6,182,78,0.06);gap:12px;flex-wrap:wrap}
-    .task .left{min-width:180px;flex:1}
+    .task .left{min-width:160px;flex:1}
     .muted{color:var(--muted)}
     .timer{font-weight:700;color:#0b1220}
 
-    /* feedback carousel */
+    /* feedback */
     .feedback{display:flex;gap:12px;overflow:auto;padding-bottom:6px}
     .feedback .item{min-width:180px;background:#fff;padding:12px;border-radius:10px;box-shadow:0 6px 20px rgba(2,6,23,0.04)}
     .stars{color:#ffc107;font-weight:800}
 
-    /* footer */
+    /* redemption history lists */
+    ul{padding-left:18px;color:var(--muted)}
+    li{margin-bottom:8px}
+
     footer{max-width:var(--maxw);margin:0 auto;padding:18px;text-align:center;color:var(--muted)}
 
-    /* utility */
+    /* small utilities */
     .small{font-size:13px}
+    .nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   </style>
 </head>
 <body>
@@ -65,116 +80,99 @@
     <div class="nav-inner">
       <div class="brand">
         <div class="logo">SE</div>
-        <div>
+        <div class="title-wrap">
           <div class="title">ShrinkEarn</div>
-          <div class="small" style="color:rgba(255,255,255,0.95)">Trusted rewards • Fast payouts</div>
+          <div class="subtitle small">Trusted rewards • Transparent payouts</div>
         </div>
         <span class="verified-badge">Verified</span>
       </div>
 
       <div style="display:flex;align-items:center;gap:12px">
         <nav>
-          <ul id="nav-links" style="display:flex;gap:8px;align-items:center">
-            <li><a href="#home" data-route>Home</a></li>
-            <li><a href="#tasks" data-route>Tasks</a></li>
-            <li><a href="#redeem" data-route>Redeem</a></li>
-            <li><a href="#about" data-route>About</a></li>
-            <li><a href="#privacy" data-route>Privacy</a></li>
-          </ul>
+          <div id="nav-links" role="navigation" aria-label="Main menu">
+            <a href="#home" data-route>Home</a>
+            <a href="#tasks" data-route>Tasks</a>
+            <a href="#redeem" data-route>Redeem</a>
+            <a href="#about" data-route>About</a>
+            <a href="#privacy" data-route>Privacy</a>
+          </div>
         </nav>
+
         <div class="hamburger" id="hamburger" aria-label="menu" title="menu"><div></div><div></div><div></div></div>
       </div>
     </div>
   </header>
 
-  <main id="view">
-    <!-- SPA content rendered here -->
+  <main id="view" aria-live="polite">
+    <!-- SPA content will render here -->
   </main>
 
   <footer>
-    © 2025 ShrinkEarn — Secure payments and verified redemptions. All stored locally unless you request payout.
+    © 2025 ShrinkEarn — Secure, transparent redemptions. Points and history are stored locally unless you request payout.
   </footer>
 
 <script>
-/* ------------------------- Configuration ------------------------- */
+/* ---------------- Config ---------------- */
 const SHRINK_LINK = 'https://shrinkme.click/2xAJt2S';
-const POPUNDER_URL = 'https://www.effectivegatecpm.com/mc9c9nw9?key=122cc1bc5317a8a708ca5708e6e02dc5';
+const SMARTLINK = 'https://www.effectivegatecpm.com/mc9c9nw9?key=122cc1bc5317a8a708ca5708e6e02dc5';
 const VERIFY_SECONDS = 10;
 const TASK_COUNT = 6;
-/* ------------------------- Storage keys ------------------------- */
-const LS_POINTS = 'se_points_v3';
-const LS_DONE = 'se_done_v3';
-const LS_PENDING = 'se_pending_v3';
-const LS_REDEEM = 'se_redeem_v3';
 
-/* ------------------------- App state ------------------------- */
-const TASKS = Array.from({length:TASK_COUNT}, (_,i)=>({
-  id: 't'+(i+1),
-  title: `Visit Offer #${i+1}`,
-  desc: 'Open the shortened link and return. Stay time is verified before claiming.',
-  url: SHRINK_LINK,
-  points: 10
-}));
+/* Storage keys */
+const LS_POINTS = 'se_points_v4';
+const LS_DONE = 'se_done_v4';
+const LS_PENDING = 'se_pending_v4';
+const LS_REDEEM = 'se_redeem_v4';
 
-function getPoints(){return Number(localStorage.getItem(LS_POINTS) || 0)}
-function setPoints(v){localStorage.setItem(LS_POINTS, String(v)); updateHeaderPoints();}
-function getDone(){return JSON.parse(localStorage.getItem(LS_DONE) || '{}')}
-function setDone(o){localStorage.setItem(LS_DONE, JSON.stringify(o))}
-function getPending(){return JSON.parse(localStorage.getItem(LS_PENDING) || '{}')}
-function setPending(o){localStorage.setItem(LS_PENDING, JSON.stringify(o))}
-function getRedeems(){return JSON.parse(localStorage.getItem(LS_REDEEM) || '[]')}
-function setRedeems(v){localStorage.setItem(LS_REDEEM, JSON.stringify(v))}
+/* Build tasks: alternate between ShrinkMe and SmartLink to keep both integrated */
+const TASKS = Array.from({length:TASK_COUNT}, (_,i)=>{
+  const isSmart = i % 2 === 0; // even -> smartlink, odd -> shrink
+  return {
+    id: 't'+(i+1),
+    title: isSmart ? `Visit Smart Offer #${i+1}` : `Visit ShrinkMe Offer #${i+1}`,
+    desc: isSmart ? 'Open the SmartLink offer and return. Verified stay time required.' : 'Open the ShrinkMe shortlink and return. Verified stay time required.',
+    url: isSmart ? SMARTLINK : SHRINK_LINK,
+    points: 10
+  };
+});
 
-/* header points */
-function updateHeaderPoints(){
-  // show points next to brand (update small element)
-  const el = document.querySelector('.title');
-  // also show a small overlay inside header (we'll show as title subtitle)
-  const small = document.querySelector('.brand .small');
-  if(small) small.textContent = `Balance: ${getPoints()} pts • Trusted payouts`;
+/* Utilities for storage */
+function getPoints(){ return Number(localStorage.getItem(LS_POINTS) || 0); }
+function setPoints(v){ localStorage.setItem(LS_POINTS, String(v)); updateHeaderBalance(); }
+function getDone(){ return JSON.parse(localStorage.getItem(LS_DONE) || '{}'); }
+function setDone(obj){ localStorage.setItem(LS_DONE, JSON.stringify(obj)); }
+function getPending(){ return JSON.parse(localStorage.getItem(LS_PENDING) || '{}'); }
+function setPending(obj){ localStorage.setItem(LS_PENDING, JSON.stringify(obj)); }
+function getRedeems(){ return JSON.parse(localStorage.getItem(LS_REDEEM) || '[]'); }
+function setRedeems(arr){ localStorage.setItem(LS_REDEEM, JSON.stringify(arr)); }
+
+function updateHeaderBalance(){
+  const sub = document.querySelector('.subtitle');
+  if(sub) sub.textContent = `Balance: ${getPoints()} pts • Trusted payouts`;
 }
 
-/* ------------------------- Router & UI ------------------------- */
+/* ---------------- Router & rendering ---------------- */
 const view = document.getElementById('view');
 function setActiveNav(){
   const hash = location.hash || '#home';
-  document.querySelectorAll('[data-route]').forEach(a=>{
+  document.querySelectorAll('#nav-links a').forEach(a=>{
     a.classList.toggle('active', a.getAttribute('href') === hash);
   });
 }
 function router(){
   setActiveNav();
   const hash = location.hash || '#home';
-  if(hash === '#home') return renderHome();
-  if(hash === '#tasks') return renderTasks();
-  if(hash === '#redeem') return renderRedeem();
-  if(hash === '#about') return renderAbout();
-  if(hash === '#privacy') return renderPrivacy();
-  renderHome();
+  if(hash === '#home') renderHome();
+  else if(hash === '#tasks') renderTasks();
+  else if(hash === '#redeem') renderRedeem();
+  else if(hash === '#about') renderAbout();
+  else if(hash === '#privacy') renderPrivacy();
+  else renderHome();
 }
+window.addEventListener('hashchange', router);
 
-/* ------------------------- Popunder logic (once per session) ------------------------- */
-function openPopunderOnce(){
-  try {
-    if(sessionStorage.getItem('pop_opened')) return;
-    // Open ad in new window and then focus back to main window to emulate popunder
-    const adWin = window.open(POPUNDER_URL, '_blank', 'noopener,noreferrer');
-    // Some browsers block immediate focus shifts; try to blur the ad then focus main
-    setTimeout(()=>{ try{ window.focus(); }catch(e){} }, 300);
-    sessionStorage.setItem('pop_opened', '1');
-  } catch(e){ /* ignore */ }
-}
-
-/* ------------------------- Timer & Verification ------------------------- */
+/* ---------------- Timer / verification ---------------- */
 let activeCountdowns = {};
-function formatTimerTextForPending(pendTs){
-  const now = Date.now();
-  const elapsed = Math.floor((now - pendTs)/1000);
-  if(elapsed >= VERIFY_SECONDS) return 'Ready to complete';
-  const remain = VERIFY_SECONDS - elapsed;
-  return `Returned — waiting ${remain}s`;
-}
-
 function onUserReturn(){
   const pending = getPending();
   Object.keys(pending).forEach(id=>{
@@ -189,7 +187,7 @@ function onUserReturn(){
     if(elapsed >= VERIFY_SECONDS){
       timerEl.textContent = 'Ready to complete';
       completeBtn.disabled = false;
-      // clear pending to avoid re-check
+      // clear pending entry so it doesn't re-trigger
       const p = getPending(); delete p[id]; setPending(p);
       return;
     }
@@ -209,32 +207,29 @@ function onUserReturn(){
     }, 1000);
   });
 }
-
-/* detect return from other tab */
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') onUserReturn(); });
 window.addEventListener('focus', onUserReturn);
 
-/* ------------------------- Page renderers ------------------------- */
+/* ---------------- Pages ---------------- */
 
-/* Each page contains 3 paragraphs (~100-180 words total) written to sound professional */
 function renderHome(){
   view.innerHTML = `
     <div class="grid">
       <div>
         <div class="card">
           <h1>Welcome to ShrinkEarn</h1>
-          <p>ShrinkEarn is designed for users who want a straightforward and transparent way to earn rewards for performing simple verified actions. Our workflow prioritizes fairness and clarity: tasks are visible, rewards are displayed clearly, and the verification mechanism ensures that only legitimate interactions result in payouts. We operate with clear terms and processes so users understand how earnings are tracked and how redemptions are processed.</p>
-          <p>We invest in protecting the integrity of the platform and answering user questions promptly. The platform keeps a precise record of completed tasks and redemption requests within the user’s browser, and it displays clear status updates so every user can see the history of their activity and withdrawals. This approach keeps operations simple while maintaining a trustworthy experience for everyone who participates.</p>
-          <p>Users can view recent feedback, check redemption status, and read our privacy overview directly from the site. The design focuses on clarity and usability so that both new and experienced users can quickly begin earning and reliably request payouts when they reach the threshold.</p>
+          <p>ShrinkEarn provides a clear path to earn points by completing verified tasks. Each task lists a reward and a verification rule — complete the required steps, return, and claim your reward. The system balances quality and fairness to keep offers valuable and ensure timely payouts to active users with genuine activity.</p>
+          <p>The verification mechanism helps protect advertisers and users alike: we confirm time-on-offer for each task before granting points. This reduces fraudulent claims and keeps payouts sustainable so that users who follow the instructions consistently receive their rewards without unexpected delays.</p>
+          <p>Use the Tasks page to begin earning, and visit Redeem when you reach the threshold for withdrawal. The interface provides a record of your activity and an easy redemption history so you can track requests and confirmations.</p>
         </div>
 
         <div class="card" style="margin-top:12px">
           <h2>Recent Feedback</h2>
           <div class="feedback">
-            <div class="item"><b>Rohit</b><div class="stars">★★★★★</div><p class="small">Fast payout and a simple experience — recommended.</p></div>
-            <div class="item"><b>Ananya</b><div class="stars">★★★★☆</div><p class="small">Clear steps and prompt support for my redemption.</p></div>
-            <div class="item"><b>Vikram</b><div class="stars">★★★★★</div><p class="small">I used the UPI option and it arrived quickly.</p></div>
-            <div class="item"><b>Neha</b><div class="stars">★★★★★</div><p class="small">Solid platform for simple tasks and payouts.</p></div>
+            <div class="item"><b>Rohit</b><div class="stars">★★★★★</div><p class="small">Fast and clear payouts — very reliable experience.</p></div>
+            <div class="item"><b>Ananya</b><div class="stars">★★★★☆</div><p class="small">Useful tasks and quick support during redemption.</p></div>
+            <div class="item"><b>Vikram</b><div class="stars">★★★★★</div><p class="small">Used the SmartLink option and received payout promptly.</p></div>
+            <div class="item"><b>Neha</b><div class="stars">★★★★★</div><p class="small">Intuitive interface and good verification flow.</p></div>
           </div>
         </div>
       </div>
@@ -243,22 +238,26 @@ function renderHome(){
         <div class="card">
           <h3>Your Balance</h3>
           <div style="font-size:20px;font-weight:800">${getPoints()} pts</div>
-          <p class="small">Earn more by visiting Tasks. Redemptions are processed promptly after verification.</p>
+          <p class="small">Visit Tasks to earn more points. Redeem when you reach the threshold.</p>
         </div>
       </aside>
     </div>
   `;
-  updateHeaderPoints();
+  updateHeaderBalance();
 }
 
 function renderTasks(){
   const done = getDone();
   const pending = getPending();
-  let html = `<div class="card"><h2>Available Tasks</h2><p>Complete tasks to earn points. Each task requires following the link, staying on the offer page for the verification period, and returning here to claim your reward. The verification ensures that offers are legitimately viewed to maintain payer confidence and allow payouts to genuine users.</p><p>To begin, click 'Open' on any task. The system will record your open time and after you return it will verify the time spent. If you returned after the required duration, the action will be eligible to claim immediately. If not, a short countdown will run to the remaining seconds.</p><p>We limit repeated rapid claims and take steps to ensure quality traffic; please follow the task instructions exactly to guarantee your earnings are accepted and processed.</p><div class="tasks-list">`;
+  let html = `<div class="card"><h2>Available Tasks</h2>
+    <p>Complete a listed task by opening its offer, spending the required time on the offer page, and returning to claim the reward. Verification is automatic and shows a short countdown if you return early.</p>
+    <p>Open a task; the offer will open in a new tab. When you return, the system checks your time away — once it meets the verification threshold the 'Mark as Completed' button becomes available.</p>
+    <p>Follow the instructions precisely for best results. Repeated rapid attempts may be restricted to ensure offer quality for advertisers and reliability for users.</p>
+    <div class="tasks-list">`;
 
   TASKS.forEach(t=>{
     const isDone = !!done[t.id];
-    const timerText = pending[t.id] ? formatTimerTextForPending(pending[t.id]) : '';
+    const timerText = pending[t.id] ? formatPendingText(pending[t.id]) : '';
     html += `
       <div class="task" id="task-${t.id}">
         <div class="left">
@@ -268,7 +267,7 @@ function renderTasks(){
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
           <div style="display:flex;gap:8px">
             <button class="btn" ${isDone ? 'disabled' : ''} data-open="${t.id}">Open</button>
-            <button class="btn" id="complete-${t.id}" ${isDone ? 'disabled' : 'disabled'}>Mark as Completed</button>
+            <button class="btn" id="complete-${t.id}" disabled>Mark as Completed</button>
           </div>
           <div class="muted timer" id="timer-${t.id}">${timerText}</div>
         </div>
@@ -278,25 +277,23 @@ function renderTasks(){
 
   html += `</div></div>`;
   view.innerHTML = html;
-  // attach events
+
+  // Attach open event listeners
   document.querySelectorAll('[data-open]').forEach(btn=>{
     btn.addEventListener('click', e=>{
       const id = e.currentTarget.getAttribute('data-open');
-      // record pending timestamp only on user's click
+      const task = TASKS.find(x=>x.id === id);
+      if(!task) return;
+      // record pending timestamp only on direct user click
       const p = getPending(); p[id] = Date.now(); setPending(p);
-      // open Shrink link in new tab
-      window.open(TASKS.find(x=>x.id===id).url, '_blank');
-      // open popunder once per session
-      openPopunderOnce();
-      // ensure tasks page shows updated timer
-      setTimeout(()=>{ // small timeout to allow UI update
-        const tEl = document.getElementById('timer-'+id);
-        if(tEl) tEl.textContent = 'Opened — return to verify';
-      }, 200);
+      // open the task URL (SmartLink or ShrinkMe) in a new tab
+      window.open(task.url, '_blank');
+      // update UI (small delay)
+      setTimeout(()=>{ const tEl = document.getElementById('timer-'+id); if(tEl) tEl.textContent = 'Opened — return to verify'; }, 200);
     });
   });
 
-  // complete buttons: enable/disable based on pending/time (checked on visibilitychange)
+  // Attach complete listeners for each task (they will check pending/time)
   TASKS.forEach(t=>{
     const cbtn = document.getElementById('complete-'+t.id);
     if(cbtn){
@@ -312,17 +309,26 @@ function renderTasks(){
           alert(`Please return and wait ${VERIFY_SECONDS - elapsed} more seconds before claiming.`);
           return;
         }
-        // award points
-        const done = getDone(); done[t.id] = true; setDone(done);
+        const done = getDone();
+        done[t.id] = true;
+        setDone(done);
         setPoints(getPoints() + t.points);
-        // remove pending
+        // clear pending and stop any countdowns
         const p = getPending(); delete p[t.id]; setPending(p);
-        // refresh tasks view
+        if(activeCountdowns[t.id]){ clearInterval(activeCountdowns[t.id]); delete activeCountdowns[t.id]; }
+        // refresh view
         renderTasks();
         alert(`Success — you earned ${t.points} pts`);
       });
     }
   });
+}
+
+function formatPendingText(ts){
+  const now = Date.now();
+  const elapsed = Math.floor((now - ts)/1000);
+  if(elapsed >= VERIFY_SECONDS) return 'Ready to complete';
+  return `Returned — waiting ${VERIFY_SECONDS - elapsed}s`;
 }
 
 function renderRedeem(){
@@ -331,9 +337,10 @@ function renderRedeem(){
   view.innerHTML = `
     <div class="card">
       <h2>Redeem Points</h2>
-      <p>When you reach the redemption threshold you may request a payout. Choose from the available methods and follow the verification steps. Our system shows a clear status for each request and keeps a visible history for your records.</p>
-      <p>Requests are processed after verification and usually complete within the stated processing window. When you submit a request you will be asked to confirm using a short verification code. This helps keep payouts secure and ensures funds are processed to the right account.</p>
-      <p>Minimum redemption amount is 100 points. Enter the payout method and confirm to request processing.</p>
+      <p>When you reach the redemption threshold you may request a payout. Choose a method, confirm with the verification code, and the request will be queued for processing.</p>
+      <p>Verification keeps redemptions secure and helps ensure funds reach the correct destination. Status updates are visible in your redemption history.</p>
+      <p>Minimum redemption amount: 100 points. Enter your preferred method and confirm to request processing.</p>
+
       <div style="margin-top:12px">
         <div class="small">Current balance: <strong>${getPoints()} pts</strong></div>
         <div style="margin-top:10px">
@@ -351,14 +358,11 @@ function renderRedeem(){
 
     <div class="card">
       <h3>Redemption History</h3>
-      <ul>
-        ${listHtml}
-      </ul>
+      <ul>${listHtml}</ul>
     </div>
   `;
 
-  document.getElementById('requestRedeem')?.addEventListener('click', ()=> {
-    // show OTP modal-like flow inside page
+  document.getElementById('requestRedeem')?.addEventListener('click', ()=>{
     const method = document.getElementById('method').value;
     showOtpFlow(method);
   });
@@ -368,8 +372,7 @@ function showOtpFlow(method){
   view.innerHTML = `
     <div class="card">
       <h2>Verification</h2>
-      <p>To confirm the redemption request for 100 points, enter the 4-digit verification code shown. For security, each request requires confirmation to proceed.</p>
-      <p class="small">Method: <strong>${method}</strong></p>
+      <p>To confirm your redemption request for 100 points, enter the 4-digit verification code. This step helps ensure security and prevent unauthorized requests.</p>
       <div style="margin-top:8px;">
         <input id="otpInput" maxlength="4" placeholder="Enter 4-digit code" style="padding:10px;border-radius:8px;border:1px solid #e6e6e6;font-size:16px">
         <div style="height:12px"></div>
@@ -377,35 +380,33 @@ function showOtpFlow(method){
       </div>
     </div>
   `;
-  document.getElementById('confirmOtp').addEventListener('click', ()=>{
+  document.getElementById('confirmOtp').onclick = ()=>{
     const code = document.getElementById('otpInput').value.trim();
     if(code.length !== 4){ alert('Enter a 4-digit code'); return; }
-    // process redemption
     const redeems = getRedeems();
     const now = new Date().toLocaleString();
-    redeems.unshift({method,amount:'₹100',date:now});
+    redeems.unshift({method, amount: '₹100', date: now});
     setRedeems(redeems);
     setPoints(Math.max(0, getPoints() - 100));
-    // show confirmation
     view.innerHTML = `
       <div class="card">
         <h2>Request Submitted</h2>
-        <p>Your redemption request for ₹100 via ${method} was submitted on ${now}. The request is queued and will be processed as per platform policies. You can check the redemption history to view the request status.</p>
+        <p>Your redemption request for ₹100 via ${method} was submitted on ${now}. The request is queued and will be processed within the stated timeframe. You can check the redemption history for status updates.</p>
         <div style="height:12px"></div>
         <button id="backHome" class="btn">Back to Home</button>
       </div>
     `;
     document.getElementById('backHome').addEventListener('click', ()=>{ location.hash = '#home'; router(); });
-  });
+  };
 }
 
 function renderAbout(){
   view.innerHTML = `
     <div class="card">
       <h2>About ShrinkEarn</h2>
-      <p>ShrinkEarn connects users with straightforward tasks that pay fair rewards for verified interactions. The platform is built to present offers clearly, ensure verification of views, and enable users to redeem earnings reliably. We focus on transparency: every task lists its reward, and every action taken by the user is recorded in a way that is visible to them so they can track progress and redemptions.</p>
-      <p>Maintaining high standards ensures advertisers receive quality interactions, which keeps payouts sustainable. Because of this, our verification uses a brief stay period and visible confirmation, reducing abuse and protecting both advertisers and users. The system design prioritizes user clarity and swift processing.</p>
-      <p>We provide multiple redeem options and keep a local record so users can verify their redemptions. Our interface emphasizes readability and trust, presenting status updates and feedback so users know what to expect at every stage.</p>
+      <p>ShrinkEarn connects users to verified offers and credits points for legitimate interactions. Tasks are presented with clear instructions and reward amounts, and the verification process confirms time-on-offer to preserve advertiser trust while rewarding genuine users. The platform prioritizes durability and transparency: users can always inspect their activity log and redemption history.</p>
+      <p>Maintaining high quality interaction is central to sustainable payouts. The verification safeguards reduce abuse, improve campaign effectiveness for advertisers, and protect the ecosystem for users who consistently follow the rules. We surface clear messages and status updates so users know what to expect from the start of a task to the completion of a redemption.</p>
+      <p>Our goal is to provide a predictable, user-friendly experience where rewards are attainable and redemptions are processed responsibly. If you have questions about any process or need assistance, consult the privacy and support sections for contact options and further guidance.</p>
     </div>
   `;
 }
@@ -414,36 +415,44 @@ function renderPrivacy(){
   view.innerHTML = `
     <div class="card">
       <h2>Privacy & Policy</h2>
-      <p>Your privacy is important. This platform stores minimal transactional state locally in your browser: points balance, completed tasks, pending verifications, and redemption history. No personal contact information is stored by default. When a user requests a payout, only the minimal data entered for the payout is stored to complete that request (within the local redemption record).</p>
-      <p>We do not transmit personal data unless you provide it explicitly as part of a redemption request. The design keeps most data client-side, giving users direct visibility and control. If you decide to export or share redemption details for support, you choose what to reveal.</p>
-      <p>For any questions about data handling, feel free to contact the platform administrator. We are committed to handling user requests and respecting user privacy in accordance with fair-use principles.</p>
+      <p>Your privacy is treated with care. The platform stores transaction state locally in your browser (points, completed tasks, pending verifications, redemption history). No personal contact data is stored by default unless you submit it as part of a redemption request; you control what you share.</p>
+      <p>We do not transmit personal data unless explicitly provided for payout completion. Local storage gives users full visibility of their balances and redemption requests while minimizing unnecessary data transfer. If you opt to request support, you may choose to provide minimal details for verification.</p>
+      <p>If you have any concerns about data handling, please review the site policies or contact the platform administrator for clarification. We aim to be transparent and responsive regarding user privacy and data protection.</p>
     </div>
   `;
 }
 
-/* ------------------------- Router init ------------------------- */
-function router(){ setActiveNav(); const hash = location.hash || '#home'; if(hash === '#home') renderHome(); else if(hash === '#tasks') renderTasks(); else if(hash === '#redeem') renderRedeem(); else if(hash === '#about') renderAbout(); else if(hash === '#privacy') renderPrivacy(); else renderHome(); }
-window.addEventListener('hashchange', router);
-
-/* ------------------------- Mobile menu ------------------------- */
-document.getElementById('hamburger').addEventListener('click', ()=>{
-  const ul = document.getElementById('nav-links');
-  if(ul.classList.contains('active')) ul.classList.remove('active'); else ul.classList.add('active');
-});
-
-/* ------------------------- Init ------------------------- */
-(function init(){
-  // ensure storage defaults
+/* ---------------- Initialization & helpers ---------------- */
+function initStorageDefaults(){
   if(!localStorage.getItem(LS_POINTS)) localStorage.setItem(LS_POINTS, '0');
   if(!localStorage.getItem(LS_DONE)) localStorage.setItem(LS_DONE, '{}');
   if(!localStorage.getItem(LS_PENDING)) localStorage.setItem(LS_PENDING, '{}');
   if(!localStorage.getItem(LS_REDEEM)) localStorage.setItem(LS_REDEEM, '[]');
-  updateHeaderPoints();
-  // initial route
+  updateHeaderBalance();
+}
+function setActiveNav(){
+  const hash = location.hash || '#home';
+  document.querySelectorAll('#nav-links a').forEach(a=>{
+    a.classList.toggle('active', a.getAttribute('href') === hash);
+  });
+}
+
+/* small util */
+function getDone(){ return JSON.parse(localStorage.getItem(LS_DONE) || '{}'); }
+function setDone(obj){ localStorage.setItem(LS_DONE, JSON.stringify(obj)); }
+
+/* ---------------- Mobile hamburger (just toggles nav visibility class) ---------------- */
+document.getElementById('hamburger').addEventListener('click', ()=>{
+  const nav = document.getElementById('nav-links');
+  nav.classList.toggle('active');
+});
+
+/* ---------------- Start router ---------------- */
+(function bootstrap(){
+  initStorageDefaults();
   if(!location.hash) location.hash = '#home';
   router();
 })();
-
 </script>
 </body>
 </html>

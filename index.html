@@ -3,91 +3,277 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>ShrinkEarn — Complete ShrinkMe Tasks & Earn Points</title>
-  <meta name="description" content="ShrinkEarn task board: complete ShrinkMe links, earn points (10s timer demo)." />
+  <title>ShrinkEarn SPA — Tasks, About, Redeem, Privacy</title>
+  <meta name="description" content="ShrinkEarn single-file SPA: tasks with ShrinkMe links and 10s verification, About, Redeem, Privacy pages." />
   <style>
-    :root{
-      --bg:#f7fbf7;--card:#fff;--accent:#06b64e;--muted:#6b7280;--radius:14px;
-      font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;
-    }
+    :root{--bg:#f7fbf7;--card:#fff;--accent:#06b64e;--muted:#6b7280;--radius:14px;--maxw:1100px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial}
     *{box-sizing:border-box}
     body{margin:0;background:linear-gradient(180deg,var(--bg),#f0fdf4);color:#0f172a}
-    .container{max-width:1100px;margin:36px auto;padding:20px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .app{max-width:var(--maxw);margin:28px auto;padding:16px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
     .brand{display:flex;align-items:center;gap:12px}
     .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#00a86b);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:20px;box-shadow:0 8px 24px rgba(6,182,78,0.18)}
-    h1{font-size:20px;margin:0}
-    p.lead{margin:0;color:var(--muted)}
-    .points{background:var(--card);padding:12px 18px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
-    .points .val{font-weight:700;font-size:20px;color:var(--accent)}
-    main{display:grid;grid-template-columns:1fr 360px;gap:20px;margin-top:22px}
-    @media(max-width:900px){main{grid-template-columns:1fr}.points{width:100%;justify-content:space-between}}
-    .card{background:var(--card);border-radius:var(--radius);padding:18px;box-shadow:0 8px 30px rgba(2,6,23,0.05)}
-    .tasks-list{display:flex;flex-direction:column;gap:12px}
+    nav{display:flex;gap:10px;align-items:center}
+    nav a{color:var(--muted);text-decoration:none;padding:8px 10px;border-radius:10px;font-weight:700}
+    nav a.active{color:white;background:linear-gradient(90deg,var(--accent),#00a86b)}
+    .points{background:var(--card);padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    .points .val{font-weight:800;font-size:18px;color:var(--accent)}
+    main{margin-top:20px}
+    .card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:0 8px 30px rgba(2,6,23,0.05)}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+    @media(max-width:980px){.grid{grid-template-columns:1fr}} 
+    .tasks-list{display:flex;flex-direction:column;gap:12px;margin-top:10px}
     .task{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border-radius:10px;background:linear-gradient(180deg,#ffffff,#fbfffc);border:1px solid rgba(6,182,78,0.06);flex-wrap:wrap}
-    .task .left{flex:1;min-width:200px}
+    .task .left{flex:1;min-width:160px}
     .task h3{margin:0;font-size:15px}
     .task p{margin:6px 0 0;font-size:13px;color:var(--muted)}
-    .task .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .btn{border:0;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer;transition:opacity .2s}
+    .actions{display:flex;gap:8px;align-items:center}
+    .btn{border:0;padding:8px 12px;border-radius:10px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.5;cursor:not-allowed}
     .btn-primary{background:linear-gradient(90deg,var(--accent),#00a86b);color:white}
     .btn-outline{background:transparent;border:1px solid rgba(15,23,42,0.06)}
-    .small{font-size:13px;padding:6px 10px}
     .muted{color:var(--muted);font-size:13px}
     footer{margin-top:26px;text-align:center;color:var(--muted);font-size:13px}
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(6,6,6,0.35);z-index:50}
     .modal.open{display:flex}
     .modal .panel{width:min(720px,96%);background:var(--card);padding:20px;border-radius:12px}
+    /* small helpers */
+    .row{display:flex;gap:12px;align-items:center}
+    .center{display:flex;align-items:center;justify-content:center}
   </style>
 </head>
 <body>
-<div class="container">
-<header>
-  <div class="brand">
-    <div class="logo">SE</div>
-    <div><h1>ShrinkEarn</h1><p class="lead">Open ShrinkMe links, wait 10s, earn points</p></div>
-  </div>
-  <div class="points"><div><div class="muted">Balance</div><div class="val" id="points">0</div></div></div>
-</header>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">SE</div>
+      <div>
+        <div style="font-weight:800">ShrinkEarn</div>
+        <div style="font-size:13px;color:var(--muted)">Single-file SPA — Tasks, About, Redeem, Privacy</div>
+      </div>
+    </div>
 
-<main>
-<section>
-  <div class="card">
-    <h2 style="margin-top:0">Available Tasks</h2>
-    <div class="tasks-list" id="tasks"></div>
-  </div>
-</section>
-<aside>
-  <div class="card">
-    <h3>About</h3>
-    <p class="muted">This demo shows how to integrate ShrinkMe tasks with a 10s stay timer before claiming points. All actions are stored in localStorage only.</p>
-  </div>
-</aside>
-</main>
+    <nav id="nav"></nav>
 
-<footer>© ShrinkEarn — Demo UI • Not affiliated with ShrinkMe.io</footer>
+    <div class="points"><div style="text-align:right"><div class="muted">Balance</div><div class="val" id="points">0</div></div></div>
+  </header>
+
+  <main id="view" style="margin-top:18px"></main>
+
+  <footer>© ShrinkEarn — Demo UI • Not affiliated with ShrinkMe.io</footer>
 </div>
-<div class="modal" id="modal"><div class="panel" id="modalPanel"></div></div>
-<script>
-const TASKS = Array.from({length:5},(_,i)=>({id:'task'+i,title:`Visit ShrinkMe Link #${i+1}`,desc:'Open and stay for 10 seconds',url:'https://shrinkme.click/2xAJt2S',points:10}));
-const LS_POINTS='se_points',LS_DONE='se_done';
-const tasksEl=document.getElementById('tasks');
-const pointsEl=document.getElementById('points');
-function getPoints(){return +localStorage.getItem(LS_POINTS)||0}
-function setPoints(v){localStorage.setItem(LS_POINTS,v);pointsEl.textContent=v}
-function getDone(){return JSON.parse(localStorage.getItem(LS_DONE)||'{}')}
-function setDone(o){localStorage.setItem(LS_DONE,JSON.stringify(o))}
-function render(){const done=getDone();tasksEl.innerHTML='';TASKS.forEach(t=>{const el=document.createElement('div');el.className='task';const dis=done[t.id];el.innerHTML=`<div class='left'><h3>${t.title}</h3><p>${t.desc} · <span class='muted'>${t.points} pts</span></p></div><div class='actions'><button class='btn small btn-outline' data-open='${t.id}'>Open</button><button class='btn small btn-primary' data-complete='${t.id}' ${dis?'disabled':''}>${dis?'Completed':'Mark as Completed'}</button><span class='muted timer' id='timer-${t.id}'></span></div>`;tasksEl.appendChild(el)});}
-render();pointsEl.textContent=getPoints();
-const timers={};
-function startTimer(id){let sec=10;const timerEl=document.getElementById('timer-'+id);timerEl.textContent='Wait 10s';timers[id]=setInterval(()=>{sec--;timerEl.textContent=sec>0?`Wait ${sec}s`:'Done! You can complete now';if(sec<=0){clearInterval(timers[id]);}},1000)}
 
-document.addEventListener('click',e=>{
-  const open=e.target.closest('[data-open]');const comp=e.target.closest('[data-complete]');
-  if(open){const id=open.dataset.open;const t=TASKS.find(x=>x.id===id);window.open(t.url,'_blank');startTimer(id);} 
-  if(comp){const id=comp.dataset.complete;const t=TASKS.find(x=>x.id===id);const timerEl=document.getElementById('timer-'+id);if(timerEl.textContent.includes('Wait')){alert('Please wait full 10 seconds before completing.');return;}const done=getDone();if(done[id])return;done[id]=true;setDone(done);setPoints(getPoints()+t.points);render();alert(`+${t.points} points added!`);}
+<div class="modal" id="modal"><div class="panel" id="modalPanel"></div></div>
+
+<script>
+// ----------------- CONFIG -----------------
+const SHRINK_LINK = 'https://shrinkme.click/2xAJt2S';
+const TASK_COUNT = 6; // how many tasks to show
+const VERIFY_SECONDS = 10; // required seconds on offer
+// ------------------------------------------
+
+// SPA routes
+const ROUTES = [
+  {path:'/', title:'Home', render:renderHome},
+  {path:'/tasks', title:'Tasks', render:renderTasks},
+  {path:'/redeem', title:'Redeem', render:renderRedeem},
+  {path:'/about', title:'About', render:renderAbout},
+  {path:'/privacy', title:'Privacy', render:renderPrivacy}
+];
+
+// State + storage keys
+const LS_POINTS='se_points_v2';
+const LS_DONE='se_done_v2';
+const LS_PENDING='se_pending_v2'; // stores pending open timestamps {taskId: timestamp}
+
+// Generate tasks
+const TASKS = Array.from({length:TASK_COUNT},(_,i)=>({
+  id:'t'+(i+1),
+  title:`Visit ShrinkMe Link #${i+1}`,
+  desc:'Open the shortened link and return. You must stay for 10 seconds to verify.',
+  url:SHRINK_LINK,
+  points:10
+}));
+
+// ---------- Helpers ----------
+function $(sel){return document.querySelector(sel)}
+function setPoints(v){localStorage.setItem(LS_POINTS, String(v));updatePointsUI()}
+function getPoints(){return Number(localStorage.getItem(LS_POINTS)||0)}
+function getDone(){return JSON.parse(localStorage.getItem(LS_DONE)||'{}')}
+function setDone(o){localStorage.setItem(LS_DONE, JSON.stringify(o))}
+function getPending(){return JSON.parse(localStorage.getItem(LS_PENDING)||'{}')}
+function setPending(o){localStorage.setItem(LS_PENDING, JSON.stringify(o))}
+function updatePointsUI(){$('#points').textContent = getPoints()}
+
+// Router
+function navLink(route){const a=document.createElement('a');a.href = '#'+route.path; a.textContent=route.title; a.addEventListener('click',()=>setActiveNav()); return a}
+function renderNav(){const nav = $('#nav');nav.innerHTML='';ROUTES.forEach(r=>nav.appendChild(navLink(r)));setActiveNav()}
+function setActiveNav(){const hash = location.hash.replace('#','')||'/';document.querySelectorAll('#nav a').forEach(a=>a.classList.remove('active')); const a = Array.from(document.querySelectorAll('#nav a')).find(x=>x.getAttribute('href')===('#'+hash)); if(a) a.classList.add('active')}
+function route(){const path = location.hash.replace('#','')||'/';const r = ROUTES.find(x=>x.path===path); if(r) r.render(); else renderNotFound()}
+window.addEventListener('hashchange', route);
+
+// ---------- Views ----------
+function renderHome(){$('#view').innerHTML = `
+  <div class="grid">
+    <div>
+      <div class="card"><h2>Welcome to ShrinkEarn</h2><p class="muted">Use the <strong>Tasks</strong> page to open ShrinkMe links, stay for ${VERIFY_SECONDS}s and claim points. This is a front-end demo. For production, implement server-side verification and follow ad network policies.</p></div>
+      <div style="height:12px"></div>
+      <div class="card"><h3>How it works</h3><ol style="color:var(--muted)"><li>Go to Tasks & click Open (opens ShrinkMe in new tab).</li><li>Return here — the app detects your return and checks time spent away.</li><li>If you spent ≥ ${VERIFY_SECONDS}s, you can mark completed and receive points.</li></ol></div>
+    </div>
+    <aside>
+      <div class="card"><h4>Your Balance</h4><div style="font-size:24px;font-weight:800">${getPoints()} pts</div><div style="margin-top:8px"><a class="btn btn-primary" href="#/redeem">Redeem Points</a></div></div>
+      <div style="height:12px"></div>
+      <div class="card"><h4>Quick Links</h4><div style="display:flex;flex-direction:column;gap:8px;margin-top:10px"><a class="btn btn-outline" href="#/tasks">Tasks</a><a class="btn btn-outline" href="#/about">About</a><a class="btn btn-outline" href="#/privacy">Privacy</a></div></div>
+    </aside>
+  </div>
+`}
+
+function renderTasks(){const done=getDone();const pending=getPending();let html = `<div class="card"><h2>Available Tasks</h2><div class="tasks-list">`;
+  TASKS.forEach(t=>{
+    const isDone = !!done[t.id];
+    const pend = pending[t.id];
+    const timerText = pend ? computeTimerText(pend) : '';
+    html += `
+      <div class="task" id="task-${t.id}">
+        <div class="left"><h3>${t.title}</h3><p class="muted">${t.desc} · <strong>${t.points} pts</strong></p></div>
+        <div class="actions">
+          <button class="btn btn-outline" data-open="${t.id}">Open</button>
+          <button class="btn btn-primary" data-complete="${t.id}" ${isDone? 'disabled': ''}>${isDone? 'Completed':'Mark as Completed'}</button>
+          <div class="muted" id="timer-${t.id}">${timerText}</div>
+        </div>
+      </div>
+    `;
+  });
+  html += '</div></div>';
+  $('#view').innerHTML = html;
+}
+
+function renderRedeem(){$('#view').innerHTML = `<div class="card"><h2>Redeem Points</h2><p class="muted">This demo shows a mock redeem flow. You need at least 100 pts to request payout.</p><div style="margin-top:12px">Current balance: <strong>${getPoints()} pts</strong></div><div style="margin-top:12px"><button class="btn btn-primary" id="reqRedeem">Request Redeem</button></div></div>`}
+function renderAbout(){$('#view').innerHTML = `<div class="card"><h2>About ShrinkEarn</h2><p class="muted">ShrinkEarn is a demo UI for ShrinkMe-style shortlink tasks. It simulates time-based verification and local payouts. Not affiliated with ShrinkMe.io.</p></div>`}
+function renderPrivacy(){$('#view').innerHTML = `<div class="card"><h2>Privacy & Terms</h2><p class="muted">This demo stores only minimal data in browser localStorage: points, completed tasks, and pending opens. No data leaves the browser in this demo.</p></div>`}
+function renderNotFound(){$('#view').innerHTML = `<div class="card"><h2>Not Found</h2><p class="muted">Page not found</p></div>`}
+
+// ---------- Timer / Verification logic ----------
+// Behavior:
+// 1) When user clicks Open -> we record pending[t.id] = Date.now() and open link in new tab.
+// 2) When user returns (visibilitychange to visible or window focus), we check pending timestamp and compute timeAway = now - pending.
+//    - If timeAway >= VERIFY_SECONDS -> allow immediate completion (timer text 'Ready').
+//    - If timeAway < VERIFY_SECONDS -> show countdown for remaining seconds, then mark ready. Timer runs only after return.
+// 3) If user clicks Complete before returning or before remaining seconds elapsed, block with alert.
+
+let activeCountdowns = {}; // per-task countdown intervals
+
+function computeTimerText(pendingTs){
+  const now = Date.now();
+  const elapsedSec = Math.floor((now - pendingTs)/1000);
+  if(elapsedSec >= VERIFY_SECONDS) return 'Ready to complete';
+  const remain = VERIFY_SECONDS - elapsedSec;
+  return `Returned — waiting ${remain}s`;
+}
+
+function onUserReturn(){
+  const pending = getPending();
+  Object.keys(pending).forEach(id=>{
+    if(activeCountdowns[id]) return; // already counting
+    const pendTs = pending[id];
+    if(!pendTs) return;
+    const now = Date.now();
+    const elapsed = Math.floor((now - pendTs)/1000);
+    const timerEl = document.getElementById('timer-'+id);
+    if(!timerEl) return; // not on tasks page
+    if(elapsed >= VERIFY_SECONDS){
+      timerEl.textContent = 'Ready to complete';
+      return;
+    }
+    // start countdown for remaining seconds
+    let remain = VERIFY_SECONDS - elapsed;
+    timerEl.textContent = `Waiting ${remain}s`;
+    activeCountdowns[id] = setInterval(()=>{
+      remain--;
+      if(remain<=0){
+        clearInterval(activeCountdowns[id]); delete activeCountdowns[id];
+        timerEl.textContent = 'Ready to complete';
+        // clear pending to avoid repeated countdowns
+        const p = getPending(); delete p[id]; setPending(p);
+      } else {
+        timerEl.textContent = `Waiting ${remain}s`;
+      }
+    },1000);
+  });
+}
+
+// Listen for visibility/focus to detect user returning from the opened tab
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') onUserReturn(); });
+window.addEventListener('focus', onUserReturn);
+
+// ---------- Event delegation for buttons ----------
+document.addEventListener('click',(e)=>{
+  const openBtn = e.target.closest('[data-open]');
+  const compBtn = e.target.closest('[data-complete]');
+  if(openBtn){
+    const id = openBtn.getAttribute('data-open');
+    const task = TASKS.find(t=>t.id===id);
+    if(!task) return;
+    // set pending timestamp only when opening the link
+    const p = getPending(); p[id] = Date.now(); setPending(p);
+    // open external link in new tab
+    window.open(task.url, '_blank');
+    // update UI: ensure timer element exists and shows 'Opened — return to verify'
+    // If we're not on tasks view, navigate there
+    if(location.hash.replace('#','')!=='/tasks') location.hash = '/tasks';
+    setTimeout(()=>{ // small delay to allow tasks to render
+      const timerEl = document.getElementById('timer-'+id);
+      if(timerEl) timerEl.textContent = 'Opened — return to verify';
+    },250);
+  }
+  if(compBtn){
+    const id = compBtn.getAttribute('data-complete');
+    const task = TASKS.find(t=>t.id===id);
+    if(!task) return;
+    const done = getDone(); if(done[id]) return;
+    // Check if ready: either timer text 'Ready' or we can compute based on pending timestamp
+    const timerEl = document.getElementById('timer-'+id);
+    const pending = getPending();
+    const pendTs = pending[id];
+    const now = Date.now();
+    if(pendTs){
+      const elapsed = Math.floor((now - pendTs)/1000);
+      if(elapsed < VERIFY_SECONDS){
+        alert(`Please return from the opened link and wait ${VERIFY_SECONDS} seconds before completing. You have ${VERIFY_SECONDS - elapsed}s left.`); return;
+      }
+      // if elapsed >= VERIFY_SECONDS, proceed
+    } else {
+      // No pending recorded: user didn't open link from here — block
+      alert('Please open the task link first (click Open) before claiming.'); return;
+    }
+    // Award points
+    done[id] = true; setDone(done);
+    setPoints(getPoints() + task.points);
+    // clear any pending entry and countdown
+    const p = getPending(); delete p[id]; setPending(p);
+    if(activeCountdowns[id]){ clearInterval(activeCountdowns[id]); delete activeCountdowns[id]; }
+    alert(`Success — you earned ${task.points} pts!`);
+    // re-render tasks to update buttons and timers
+    if(location.hash.replace('#','')==='/tasks') renderTasks();
+    updatePointsUI();
+  }
+  const redeemBtn = e.target.closest('#reqRedeem');
+  if(redeemBtn){
+    const pts = getPoints();
+    if(pts < 100){ alert('You need at least 100 pts to redeem (demo).'); return; }
+    const confirmRedeem = confirm(`Request redeem of ${pts} pts? This demo will reset your balance.`);
+    if(confirmRedeem){ setPoints(0); alert('Redeem requested (demo). Balance reset).'); if(location.hash.replace('#','')==='/redeem') renderRedeem(); }
+  }
 });
+
+// Init
+function init(){
+  renderNav(); updatePointsUI();
+  // default route
+  if(!location.hash) location.hash = '/';
+  route();
+}
+init();
 </script>
 </body>
 </html>

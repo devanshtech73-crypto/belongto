@@ -1,229 +1,169 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Earnify - Follow to Earn</title>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
-body{background:#f6fff9;color:#111;overflow-x:hidden;}
-header{position:fixed;top:0;left:0;width:100%;background:linear-gradient(90deg,#00c853,#00e676);color:#fff;z-index:10;box-shadow:0 2px 6px rgba(0,0,0,0.2);}
-.logo-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 15px;}
-.logo-text{font-size:22px;font-weight:700;letter-spacing:0.5px;}
-.points{font-weight:600;font-size:15px;}
-nav{display:flex;overflow-x:auto;white-space:nowrap;background:#00c853;}
-nav::-webkit-scrollbar{display:none;}
-nav a{display:inline-block;padding:15px 20px;color:#fff;text-decoration:none;font-weight:600;flex-shrink:0;}
-nav a.active,nav a:hover{background:rgba(255,255,255,0.2);}
-main{padding:130px 20px 60px;max-width:900px;margin:auto;}
-section{display:none;}
-section.active{display:block;animation:fadeIn .3s;}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-h1{color:#00c853;margin-bottom:10px;}
-p{margin-bottom:15px;line-height:1.6;word-wrap:break-word;}
-.task{background:#fff;border-radius:10px;padding:15px;margin:15px 0;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
-.btn{display:inline-block;background:#00c853;color:#fff;padding:10px 18px;border:none;border-radius:8px;text-decoration:none;cursor:pointer;font-weight:600;transition:.3s;margin-right:10px;}
-.btn:hover{background:#00b34a;}
-.msg{background:#e8f5e9;border-left:5px solid #00c853;padding:10px;border-radius:6px;margin-top:10px;}
-.redeem-form input{width:100%;padding:10px;margin:8px 0;border:1px solid #ccc;border-radius:6px;}
-.logos{display:flex;gap:10px;margin:10px 0;flex-wrap:wrap;}
-.logos img{height:40px;border-radius:6px;}
-footer{background:#00c853;color:#fff;text-align:center;padding:12px;font-size:14px;}
-
-/* Skeleton Loader */
-.skeleton{background:#e0e0e0;border-radius:6px;margin-bottom:10px;animation:shine 1.2s infinite linear;}
-.skeleton.text{height:16px;width:80%;}
-.skeleton.title{height:22px;width:60%;}
-.skeleton.box{height:100px;width:100%;border-radius:10px;}
-@keyframes shine{0%{background-position:-200px 0;}100%{background-position:200px 0;}}
-
-/* Responsive tweaks */
-@media(max-width:600px){
-  .logo-text{font-size:20px;}
-  nav a{padding:12px;}
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BelongsTo | Earn Points by Completing Tasks</title>
+  <style>
+    * {margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
+    body {background:linear-gradient(135deg,#00bfa5,#00e676);color:#fff;overflow-x:hidden;}
+    header {position:fixed;top:0;left:0;width:100%;background:#004d40;z-index:100;overflow-x:auto;white-space:nowrap;}
+    header::-webkit-scrollbar {display:none;}
+    header a {display:inline-block;color:#fff;text-decoration:none;padding:15px 25px;font-weight:600;}
+    header a:hover {background:rgba(255,255,255,0.2);}
+    .container {padding:100px 20px 60px;min-height:100vh;transition:opacity 0.5s;}
+    footer {background:#004d40;text-align:center;padding:15px 10px;font-size:14px;color:#c8e6c9;}
+    .hidden {display:none;}
+    .points {background:#fff;color:#004d40;padding:4px 10px;border-radius:20px;font-weight:700;margin-left:8px;}
+    .task {background:rgba(255,255,255,0.1);padding:15px;border-radius:12px;margin:10px 0;}
+    .task button {background:#fff;color:#004d40;border:none;padding:8px 15px;border-radius:10px;font-weight:600;cursor:pointer;}
+    .task button:disabled {opacity:0.6;}
+    .review {background:rgba(255,255,255,0.1);padding:10px;border-radius:10px;margin:8px 0;}
+    .stars {color:gold;}
+    .loader {width:40px;height:40px;border:4px solid #fff;border-top-color:#004d40;border-radius:50%;margin:100px auto;animation:spin 1s linear infinite;}
+    @keyframes spin {to{transform:rotate(360deg);}}
+    input,select {padding:8px;border:none;border-radius:8px;width:100%;margin:8px 0;}
+    .btn {background:#fff;color:#004d40;padding:10px 15px;border:none;border-radius:10px;font-weight:600;margin-top:10px;cursor:pointer;}
+  </style>
 </head>
 <body>
 
-<header>
-  <div class="logo-bar">
-    <div class="logo-text">Earnify</div>
-    <div class="points">Points: <span id="points">0</span></div>
-  </div>
-  <nav id="navbar">
-    <a href="#home" class="active">Home</a>
-    <a href="#tasks">Tasks</a>
-    <a href="#redeem">Redeem</a>
-    <a href="#about">About</a>
-    <a href="#privacy">Privacy</a>
-  </nav>
+<header id="navbar">
+  <a href="#" onclick="loadPage('home')">🏠 BelongsTo</a>
+  <a href="#" onclick="loadPage('tasks')">🧩 Tasks</a>
+  <a href="#" onclick="loadPage('redeem')">💰 Redeem</a>
+  <a href="#" onclick="loadPage('about')">ℹ️ About</a>
+  <a href="#" onclick="loadPage('privacy')">🔒 Privacy</a>
 </header>
 
-<main id="mainContent">
-  <!-- Skeleton loader -->
-  <div id="skeletonLoader">
-    <div class="skeleton title"></div>
-    <div class="skeleton text"></div>
-    <div class="skeleton box"></div>
-    <div class="skeleton text"></div>
-    <div class="skeleton text"></div>
-  </div>
+<div id="loader" class="loader hidden"></div>
 
-  <!-- Home Section -->
-  <section id="home" class="active">
-    <h1>Welcome to Earnify</h1>
-    <p>Earnify helps you earn points by completing short tasks from trusted links. Each task gives real value to both you and advertisers.</p>
-    <p>With our new system, you can complete ShrinkMe and SmartLink tasks and see your points increase instantly. Points are stored securely in your browser, even if you close it.</p>
-    <p>When you reach 1000 points, you can withdraw easily using your preferred payment method such as Paytm, UPI, or bank transfer.</p>
-    <p>Start earning now and make your time online truly rewarding.</p>
-  </section>
+<div id="content" class="container"></div>
 
-  <!-- Tasks Section -->
-  <section id="tasks">
-    <h1>Available Tasks</h1>
-    <div id="taskList"></div>
-  </section>
-
-  <!-- Redeem Section -->
-  <section id="redeem">
-    <h1>Redeem Your Points</h1>
-    <div class="logos">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/4/42/Paytm_logo.png" alt="Paytm">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/f/f1/Google_Pay_Logo.svg" alt="GPay">
-      <img src="https://upload.wikimedia.org/wikipedia/commons/3/3b/PhonePe_Logo.svg" alt="PhonePe">
-    </div>
-    <form class="redeem-form" onsubmit="redeemPoints(event)">
-      <input type="text" id="name" placeholder="Full Name" required>
-      <input type="text" id="phone" placeholder="Phone Number" required>
-      <input type="text" id="upi" placeholder="Paytm / UPI ID" required>
-      <input type="number" id="amount" placeholder="Amount (₹)" required>
-      <input type="text" id="otp" placeholder="Enter 4-digit OTP" required>
-      <button class="btn" type="submit">Redeem Now</button>
-      <span class="points" id="redeemPointsLabel">Points: <span id="redeemPointsValue">0</span></span>
-      <div id="redeemMsg"></div>
-    </form>
-  </section>
-
-  <!-- About -->
-  <section id="about">
-    <h1>About Earnify</h1>
-    <p>We created Earnify to provide a fair platform for online users who value transparency and trust. Every click helps advertisers and earns you points.</p>
-    <p>Our advanced verification and instant tracking ensure that your efforts are rewarded accurately. You can rely on fast payouts and honest statistics every time.</p>
-  </section>
-
-  <!-- Privacy -->
-  <section id="privacy">
-    <h1>Privacy Policy</h1>
-    <p>We store only essential data such as your task progress and points using secure browser storage. Your information is not shared or sold.</p>
-    <p>You can clear your data anytime from your browser settings to start fresh.</p>
-  </section>
-</main>
-
-<footer>© 2025 Earnify — Trusted Smart Earning Platform</footer>
+<footer>© 2025 BelongsTo — Earn more, grow more.</footer>
 
 <script>
-const navLinks=document.querySelectorAll('nav a');
-const sections=document.querySelectorAll('main section');
-const pointsDisplay=document.getElementById('points');
-const redeemPointsValue=document.getElementById('redeemPointsValue');
-let points=parseInt(localStorage.getItem('points'))||0;
-pointsDisplay.innerText=points;
-redeemPointsValue.innerText=points;
+  const content = document.getElementById("content");
+  const loader = document.getElementById("loader");
+  let points = 0;
 
-const skeleton=document.getElementById('skeletonLoader');
-const mainContent=document.getElementById('mainContent');
+  function showLoader() {
+    content.classList.add("hidden");
+    loader.classList.remove("hidden");
+    setTimeout(() => {
+      loader.classList.add("hidden");
+      content.classList.remove("hidden");
+    }, 2000);
+  }
 
-// Show skeleton loader for 2s
-function showSkeleton(){
-  skeleton.style.display='block';
-  sections.forEach(s=>s.style.display='none');
-  setTimeout(()=>{
-    skeleton.style.display='none';
-    document.querySelector('section.active').style.display='block';
-  },2000);
-}
+  function loadPage(page) {
+    showLoader();
+    setTimeout(() => {
+      if (page === "home") homePage();
+      else if (page === "tasks") taskPage();
+      else if (page === "redeem") redeemPage();
+      else if (page === "about") aboutPage();
+      else privacyPage();
+    }, 2000);
+  }
 
-// Initial load
-showSkeleton();
+  function homePage() {
+    content.innerHTML = `
+      <h1>Welcome to BelongsTo</h1>
+      <p>Earn rewards by completing small online tasks daily. BelongsTo connects you with trusted partners and pays you for engagement.</p>
+      <div class="review"><b>⭐ User Reviews</b><br>
+        <div class="stars">★★★★★</div>
+        "I earned my first ₹500 in 3 days. Totally real!" – Riya P.
+      </div>
+      <div class="review">
+        <div class="stars">★★★★★</div>
+        "Transparent and easy-to-use. Love the timer tasks!" – Aman G.
+      </div>
+      <div class="review">
+        <div class="stars">★★★★☆</div>
+        "Nice UI and instant redeem process!" – Sanya M.
+      </div>
+    `;
+  }
 
-navLinks.forEach(link=>{
-  link.addEventListener('click',()=>{
-    navLinks.forEach(l=>l.classList.remove('active'));
-    link.classList.add('active');
-    const target=link.getAttribute('href').substring(1);
-    sections.forEach(s=>s.classList.remove('active'));
-    document.getElementById(target).classList.add('active');
-    showSkeleton();
-    window.scrollTo(0,0);
-  });
-});
+  function taskPage() {
+    let html = `<h2>Available Tasks</h2><p>Each task gives you points based on its duration. Complete and earn instantly!</p>`;
+    const smartLink = "https://www.effectivegatecpm.com/mc9c9nw9?key=122cc1bc5317a8a708ca5708e6e02dc5";
+    const shrinkLink = "https://shrinkme.click/2xAJt2S";
+    for (let i = 1; i <= 30; i++) {
+      let time = 10 + i * 2;
+      let pts = i % 2 === 0 ? 30 : 20;
+      let link = i % 2 === 0 ? shrinkLink : smartLink;
+      html += `
+        <div class="task" id="task${i}">
+          <b>Task ${i}</b> - Visit for <b>${time}s</b> 
+          <span class="points">+${pts}</span><br>
+          <button onclick="startTask('${i}','${link}',${pts},${time})">Start Task</button>
+        </div>`;
+    }
+    content.innerHTML = html;
+  }
 
-// Generate Tasks
-const shrinkLink="https://shrinkme.click/2xAJt2S";
-const smartLink="https://www.effectivegatecpm.com/mc9c9nw9?key=122cc1bc5317a8a708ca5708e6e02dc5";
-const taskList=document.getElementById('taskList');
+  function startTask(id, link, pts, time) {
+    const btn = document.querySelector(`#task${id} button`);
+    btn.disabled = true;
+    btn.textContent = `Wait ${time}s...`;
+    window.open(link, "_blank");
+    let counter = time;
+    const interval = setInterval(() => {
+      counter--;
+      btn.textContent = `Wait ${counter}s...`;
+      if (counter <= 0) {
+        clearInterval(interval);
+        points += pts;
+        btn.textContent = `Completed ✅ (+${pts} pts)`;
+        document.getElementById("navbar").querySelector("a").innerHTML = `🏠 BelongsTo <span class='points'>${points}</span>`;
+      }
+    }, 1000);
+  }
 
-const tasks=[];
-for(let i=1;i<=30;i++){
-  const isShrink=i%2===0;
-  const time=10+(i%3)*5;
-  const pts=isShrink?30:20;
-  tasks.push({id:i,type:isShrink?'ShrinkMe':'SmartLink',time,pts,link:isShrink?shrinkLink:smartLink});
-}
+  function redeemPage() {
+    content.innerHTML = `
+      <h2>Redeem Points</h2>
+      <p>You have <span class="points">${points}</span> points.</p>
+      <p>Minimum 1000 points required for withdrawal.</p>
+      <label>Phone Number:</label>
+      <input type="text" placeholder="Enter phone number">
+      <label>Payment Method:</label>
+      <select><option>Paytm</option><option>UPI</option><option>Bank</option></select>
+      <button class="btn" onclick="redeem()">Withdraw</button>
+    `;
+  }
 
-tasks.forEach(t=>{
-  const div=document.createElement('div');
-  div.className='task';
-  div.innerHTML=`<h3>${t.type} Task #${t.id}</h3>
-  <p>Open this link, stay ${t.time}s to earn ${t.pts} points.</p>
-  <button class="btn" onclick="startTask(${t.id},'${t.link}',${t.time},${t.pts})">Start Task</button>
-  <div id="msg${t.id}"></div>`;
-  taskList.appendChild(div);
-});
-
-let activeTask=null;
-function startTask(id,link,time,pts){
-  activeTask={id,time,pts,start:Date.now()};
-  window.open(link,'_blank');
-  document.getElementById('msg'+id).innerText='Please wait... viewing page.';
-}
-
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&activeTask){
-    const diff=(Date.now()-activeTask.start)/1000;
-    if(diff>=activeTask.time){
-      points+=activeTask.pts;
-      localStorage.setItem('points',points);
-      pointsDisplay.innerText=points;
-      redeemPointsValue.innerText=points;
-      document.getElementById('msg'+activeTask.id).innerHTML='<div class="msg">✅ +'+activeTask.pts+' points added!</div>';
-      activeTask=null;
-    }else{
-      const remain=activeTask.time-Math.floor(diff);
-      document.getElementById('msg'+activeTask.id).innerText=`Stay ${remain}s more.`;
+  function redeem() {
+    if (points >= 1000) {
+      alert("✅ Request sent successfully! You’ll receive payment within 24 hours.");
+      points = 0;
+      loadPage('home');
+    } else {
+      alert("❌ You need at least 1000 points to redeem.");
     }
   }
-});
 
-function redeemPoints(e){
-  e.preventDefault();
-  if(points<1000){
-    document.getElementById('redeemMsg').innerHTML='<div class="msg">⚠️ You need at least 1000 points.</div>';
-    return;
+  function aboutPage() {
+    content.innerHTML = `
+      <h2>About BelongsTo</h2>
+      <p>BelongsTo is a trusted earning community where you earn rewards by completing real digital engagement tasks. We value transparency and ensure every user gets paid on time.</p>
+      <p>Founded by digital professionals, BelongsTo simplifies micro-earning — no scams, no fake promises, just pure results.</p>
+    `;
   }
-  const otp=document.getElementById('otp').value.trim();
-  if(otp.length===4){
-    document.getElementById('redeemMsg').innerHTML='<div class="msg">✅ Redeem request submitted. Payment will be processed soon!</div>';
-    localStorage.setItem('points',points-1000);
-    points-=1000;
-    pointsDisplay.innerText=points;
-    redeemPointsValue.innerText=points;
-  }else{
-    document.getElementById('redeemMsg').innerHTML='<div class="msg">⚠️ Invalid OTP entered.</div>';
+
+  function privacyPage() {
+    content.innerHTML = `
+      <h2>Privacy Policy</h2>
+      <p>We collect only necessary data for authentication and payment. Your information is never sold or shared. All transactions are encrypted and protected.</p>
+      <p>BelongsTo ensures safe user experience following international privacy laws.</p>
+    `;
   }
-}
+
+  // Initial
+  loadPage('home');
 </script>
+
 </body>
 </html>

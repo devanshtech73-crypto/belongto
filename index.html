@@ -1,161 +1,364 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>HD Car Game — Simplified Steering</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SlowRoads-like 3D Driving (Three.js Prototype)</title>
 <style>
-  body { margin:0; overflow:hidden; background:#111; }
-  canvas { display:block; touch-action:none; }
-  #steer{position:fixed;bottom:20px;left:20px;}
+  html,body{height:100%;margin:0;background:#111;overflow:hidden}
+  #ui{position:fixed;left:12px;top:12px;color:#fff;font-family:system-ui,Arial;font-weight:600;z-index:10}
+  #instructions{position:fixed;right:12px;top:12px;color:#ddd;font-family:system-ui,Arial;text-align:right;z-index:10}
+  canvas{display:block}
 </style>
 </head>
 <body>
-
-<canvas id="game"></canvas>
-<canvas id="steer" width="180" height="180"></canvas>
-
+<div id="ui">W/S: throttle/brake • A/D: steer • M: toggle mouse steer • Score: <span id="score">0</span></div>
+<div id="instructions">Press click to lock pointer (for mouse steering). Built with Three.js.</div>
+<script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
 <script>
-// ------------ setup ------------
-const c = document.getElementById('game');
-const ctx = c.getContext('2d');
-const steer = document.getElementById('steer');
-const sctx = steer.getContext('2d');
-function resize(){ c.width = innerWidth; c.height = innerHeight; }
-resize(); onresize = resize;
 
-// ------------ game state (simplified physics) ------------
-let speed = 4.2;       // base forward speed (auto)
-let score = 0;
-let steeringValue = 0; // -1..1
-let steeringTouch = false;
+// -------------------- Basic Three.js setup --------------------
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x101216, 0.0006);
 
-let player = { x: c.width/2, y: c.height - 220, w:60, h:120, visualAngle:0 };
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
 
-// traffic: fewer cars, slower
-let traffic = [];
-function spawnOne(){
-  const type = Math.random()<0.2? 'truck':'car';
-  const w = type==='truck'?80:52;
-  const h = type==='truck'?150:110;
-  traffic.push({ x: c.width/2 - 120 + Math.random()*240, y: -150 - Math.random()*800, w, h, type, color: randomColor(), speed: 2 + Math.random()*2 });
+const camera = new THREE.PerspectiveCamera(60, 2, 0.1, 10000);
+camera.position.set(0, 6, -12);
+
+// adjust canvas on resize
+function onResize(){
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
 }
-// start with 4 traffic
-for(let i=0;i<4;i++) spawnOne();
-setInterval(()=>{ if(traffic.length < 8) spawnOne(); }, 2000);
+window.addEventListener('resize', onResize, false);
+onResize();
 
-function randomColor(){ const colors=['#ff6666','#66ccff','#ffd166','#8aff7a','#ff8ad1']; return colors[(Math.random()*colors.length)|0]; }
+// -------------------- Lights --------------------
+const hemi = new THREE.HemisphereLight(0xffffff, 0x202040, 0.6);
+scene.add(hemi);
 
-// ------------ draw helpers ------------
-CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){ if(!r) r=6; this.beginPath(); this.moveTo(x+r,y); this.arcTo(x+w,y,x+w,y+h,r); this.arcTo(x+w,y+h,x,y+h,r); this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); this.closePath(); };
+const sun = new THREE.DirectionalLight(0xfff6e6, 1.1);
+sun.position.set(30, 60, -10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+sun.shadow.camera.far = 200;
+scene.add(sun);
 
-function drawRoad(){
-  // side grass
-  ctx.fillStyle = '#1e1e1e'; ctx.fillRect(0,0,c.width,c.height);
-  // road
-  const rw=300; const rx=c.width/2 - rw/2;
-  let grad = ctx.createLinearGradient(0,0,0,c.height);
-  grad.addColorStop(0,'#2a2a2a'); grad.addColorStop(1,'#1f1f1f');
-  ctx.fillStyle = grad; ctx.fillRect(rx,0,rw,c.height);
-  // lane dashed center
-  ctx.setLineDash([40,40]); ctx.strokeStyle='#f2f2f2'; ctx.lineWidth=6;
-  ctx.beginPath(); ctx.moveTo(c.width/2,0); ctx.lineTo(c.width/2,c.height); ctx.stroke(); ctx.setLineDash([]);
+// subtle fill point light for bloom feel
+const fill = new THREE.PointLight(0xffd8b0, 0.12, 50);
+fill.position.set(0, 10, 0);
+scene.add(fill);
+
+// -------------------- Road (procedural strip segments) --------------------
+const roadGroup = new THREE.Group();
+scene.add(roadGroup);
+
+const ROAD_HALF_WIDTH = 7.5; // meters each side half
+const SEGMENT_LENGTH = 20; // length of a road segment
+const VISIBLE_SEGMENTS = 80;
+
+function makeRoadSegment(index){
+  const geometry = new THREE.PlaneGeometry(ROAD_HALF_WIDTH*2, SEGMENT_LENGTH, 2, 2);
+  // give vertices slight variation for texture
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x202428,
+    metalness: 0.1,
+    roughness: 0.85
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
+  mesh.rotation.x = -Math.PI/2;
+  mesh.position.z = -index * SEGMENT_LENGTH;
+  mesh.position.y = 0;
+  // lane markings: we'll add a separate mesh for dashed center
+  const dashGeo = new THREE.PlaneGeometry(0.2, SEGMENT_LENGTH, 1, 1);
+  const dashMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0 });
+  const dash = new THREE.Mesh(dashGeo, dashMat);
+  dash.rotation.x = -Math.PI/2;
+  dash.position.z = -index * SEGMENT_LENGTH;
+  dash.position.y = 0.01;
+  dash.position.x = 0;
+  // dashed pattern: alternate visibility by index parity
+  dash.visible = true;
+  mesh.userData.dash = dash;
+  return mesh;
 }
 
-function drawPlayer(){
-  const o = player;
-  ctx.save(); ctx.translate(o.x,o.y);
-  ctx.rotate(o.visualAngle);
-  // body gradient
-  const gw = ctx.createLinearGradient(-o.w/2,-o.h/2,o.w/2,o.h/2);
-  gw.addColorStop(0,'#23334d'); gw.addColorStop(1,'#1f8fd3');
-  ctx.fillStyle = gw; ctx.roundRect(-o.w/2,-o.h/2,o.w,o.h,12); ctx.fill();
-  // windows
-  ctx.fillStyle='rgba(200,230,255,0.85)'; ctx.fillRect(-o.w/2+8,-o.h/2+16,o.w-16,28);
-  ctx.restore();
+// initialize road pool
+const roadPool = [];
+for(let i=0;i<VISIBLE_SEGMENTS;i++){
+  const seg = makeRoadSegment(i);
+  roadGroup.add(seg);
+  roadGroup.add(seg.userData.dash);
+  roadPool.push(seg);
 }
 
-function drawTraffic(t){
-  ctx.save(); ctx.translate(t.x,t.y);
-  if(t.type==='truck'){
-    // trailer box
-    ctx.fillStyle='#666'; ctx.fillRect(-t.w/2,-t.h/2,t.w,t.h*0.6);
-    ctx.fillStyle=t.color; ctx.fillRect(-t.w/2,t.h*0.1,t.w,t.h*0.9);
-  } else {
-    ctx.fillStyle=t.color; ctx.roundRect(-t.w/2,-t.h/2,t.w,t.h,8); ctx.fill();
+// -------------------- Roadside environment --------------------
+const sideGroup = new THREE.Group();
+scene.add(sideGroup);
+
+// simple roadside lines (grass)
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x133214, roughness: 1, metalness: 0 });
+const sideGeo = new THREE.PlaneGeometry(1000, 200, 1, 1);
+const leftSide = new THREE.Mesh(sideGeo, grassMat); leftSide.rotation.x = -Math.PI/2; leftSide.position.x = -ROAD_HALF_WIDTH - 20; leftSide.position.z = -400; leftSide.receiveShadow = true;
+const rightSide = leftSide.clone(); rightSide.position.x = ROAD_HALF_WIDTH + 20;
+sideGroup.add(leftSide); sideGroup.add(rightSide);
+
+// add stylized low-poly trees by repeated cones
+function addTree(x,z){
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2), new THREE.MeshStandardMaterial({color:0x6b3b1f}));
+  trunk.position.set(x,0.6,z);
+  trunk.castShadow = true;
+  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.2,3,6), new THREE.MeshStandardMaterial({color:0x0b5a1e}));
+  leaves.position.set(x,2.0,z);
+  leaves.castShadow = true;
+  sideGroup.add(trunk); sideGroup.add(leaves);
+}
+// scatter trees
+for(let i=0;i<60;i++){
+  let side = (Math.random() < 0.5) ? -1 : 1;
+  addTree(side*(ROAD_HALF_WIDTH+6 + Math.random()*15), -Math.random()*2500);
+}
+
+// -------------------- Player car (procedural mesh) --------------------
+function makePlayerCar(){
+  const group = new THREE.Group();
+
+  // body
+  const bodyGeo = new THREE.BoxGeometry(2.2, 0.8, 4.5);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1f8fd3, metalness: 0.4, roughness: 0.25 });
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.castShadow = true;
+  body.position.y = 0.9;
+  group.add(body);
+
+  // cabin
+  const cabinGeo = new THREE.BoxGeometry(1.8, 0.5, 1.6);
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x99d7ff, metalness: 0.0, roughness: 0.2, opacity: 0.9, transparent:true });
+  const cabin = new THREE.Mesh(cabinGeo, cabinMat);
+  cabin.position.set(0,1.22,0.0);
+  group.add(cabin);
+
+  // wheels
+  const wheelGeo = new THREE.CylinderGeometry(0.35,0.35,0.45,16);
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111, metalness: 0.0, roughness:0.6 });
+  const positions = [[-1.0,0.4,1.6],[1.0,0.4,1.6],[-1.0,0.4,-1.6],[1.0,0.4,-1.6]];
+  positions.forEach(p=>{
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI/2;
+    w.position.set(p[0], p[1], p[2]);
+    w.castShadow = true;
+    group.add(w);
+  });
+
+  // headlights
+  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff5cc });
+  const lh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.05), lightMat); lh.position.set(-0.5,0.95,-2.35);
+  const rh = lh.clone(); rh.position.x = 0.5;
+  group.add(lh); group.add(rh);
+
+  return group;
+}
+const playerCar = makePlayerCar();
+scene.add(playerCar);
+playerCar.position.set(0,0,4); // slight offset
+
+// -------------------- Player physics state (arcade style) --------------------
+const state = {
+  velZ: 0,         // forward speed relative to world (positive moves forward)
+  maxSpeed: 180,   // km/h style (we'll scale)
+  accel: 40,       // acceleration units
+  braking: 120,
+  turnSpeed: 2.8,   // degrees per second base
+  lateral: 0,       // lateral position on road (meters)
+  heading: 0        // visual heading in radians for model tilt
+};
+
+// helper convertors (game units to meters)
+function kmhToUnits(kmh){ return kmh / 3.6 / 0.5; } // tuned divisor
+state.velZ = kmhToUnits(40);
+
+// -------------------- Traffic system --------------------
+const trafficGroup = new THREE.Group();
+scene.add(trafficGroup);
+let trafficPool = [];
+function spawnTrafficCar(zOffset = -200, type='car'){
+  const g = new THREE.Group();
+  const w = (type==='truck')? 3.2 : 2.0;
+  const h = (type==='truck')? 2.4 : 1.5;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.9, h), new THREE.MeshStandardMaterial({ color: randomColor(), metalness:0.1, roughness:0.8 }));
+  body.position.y = 0.45;
+  body.castShadow = true;
+  g.add(body);
+  // wheels simplified
+  const wheelGeo = new THREE.CylinderGeometry(0.25,0.25,0.35,12);
+  const wheelMat = new THREE.MeshStandardMaterial({ color:0x111 });
+  for(let i=0;i<4;i++){
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.rotation.z = Math.PI/2;
+    const sx = (i%2===0)? -w*0.35 : w*0.35;
+    const sz = (i<2)? h*0.35 : -h*0.35;
+    wheel.position.set(sx,0.25,sz);
+    g.add(wheel);
   }
-  ctx.restore();
+  const laneX = (Math.random()<0.5)? -3.5 : 3.5;
+  g.position.set(laneX + (Math.random()*2-1), 0, zOffset);
+  g.userData = { speed: state.velZ*0.85 + (Math.random()*8 - 4), type };
+  trafficGroup.add(g);
+  trafficPool.push(g);
 }
 
-// ------------ steering wheel (visual & input) ------------
-function drawSteer(a=0){
-  sctx.clearRect(0,0,180,180);
-  sctx.save(); sctx.translate(90,90); sctx.rotate(a);
-  sctx.lineWidth=14; sctx.strokeStyle='#222'; sctx.beginPath(); sctx.arc(0,0,68,0,Math.PI*2); sctx.stroke();
-  sctx.lineWidth=8; sctx.strokeStyle='#ffcc00'; sctx.beginPath(); sctx.moveTo(0,-68); sctx.lineTo(0,-36); sctx.stroke();
-  sctx.restore();
+function randomColor(){
+  const arr = [0xff4444,0x2db7ff,0xffb84d,0x7ef68e,0xd06cff];
+  return arr[Math.floor(Math.random()*arr.length)];
 }
-drawSteer();
 
-steer.addEventListener('touchstart', (e)=>{ steeringTouch=true; e.preventDefault(); });
-steer.addEventListener('touchend', (e)=>{ steeringTouch=false; steeringValue=0; drawSteer(0); e.preventDefault(); });
-steer.addEventListener('touchmove', (e)=>{
-  const t = e.touches[0]; const r = steer.getBoundingClientRect();
-  const dx = t.clientX - (r.left + r.width/2);
-  // steeringValue: -1..1 where negative = left, positive = right
-  steeringValue = Math.max(-1, Math.min(1, dx/60));
-  // draw wheel matching touch direction (no inversion)
-  drawSteer(steeringValue*0.5);
-  e.preventDefault();
+// seed initial traffic
+for(let i=0;i<12;i++){
+  spawnTrafficCar(-100 - i * 40, (Math.random()<0.2)?'truck':'car');
+}
+
+// -------------------- Input handling --------------------
+const keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false };
+window.addEventListener('keydown', e=>{ if(e.key in keys) keys[e.key]=true; if(e.key==='m') toggleMouseSteer(); });
+window.addEventListener('keyup', e=>{ if(e.key in keys) keys[e.key]=false; });
+
+let mouseSteerEnabled = true;
+let pointerLocked = false;
+document.body.addEventListener('click', ()=>{ if(!pointerLocked){ renderer.domElement.requestPointerLock?.(); }});
+document.addEventListener('pointerlockchange', ()=>{ pointerLocked = (document.pointerLockElement === renderer.domElement); });
+
+let mouseDX = 0;
+window.addEventListener('mousemove', e=>{
+  if(pointerLocked && mouseSteerEnabled){
+    mouseDX = e.movementX;
+  }
 });
 
-// ------------ main loop (simplified movement) ------------
-function loop(){
-  ctx.clearRect(0,0,c.width,c.height);
-  drawRoad();
+// toggle mouse steer
+function toggleMouseSteer(){ mouseSteerEnabled = !mouseSteerEnabled; }
 
-  // AUTO forward speed slowly increases with score
-  speed = 4 + score*0.002;
+// -------------------- Camera follow parameters --------------------
+const camOffset = new THREE.Vector3(0, 6, -12);
+let camSmooth = { pos: new THREE.Vector3(), lerp: 0.12 };
 
-  // steering only affects lateral movement and visual tilt
-  const steerStrength = 6; // how fast car moves sideways
-  player.x += steeringValue * steerStrength;
-  player.visualAngle = steeringValue * 0.25; // small tilt
+// -------------------- Utility: clamp --------------------
+function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
 
-  // forward motion — constant
-  player.y -= speed;
-  // keep player vertically near bottom
-  if(player.y < c.height/3) player.y = c.height/3;
+// -------------------- Main update loop --------------------
+let lastTime = performance.now();
+let score = 0;
 
-  // keep on road
-  const left = c.width/2 - 140, right = c.width/2 + 140;
-  if(player.x < left) player.x = left;
-  if(player.x > right) player.x = right;
+function update(){
+  const now = performance.now();
+  const dt = Math.min(60, now - lastTime) / 1000; // seconds
+  lastTime = now;
 
-  // draw player
-  drawPlayer();
+  // handle throttle / brake (simple arcade)
+  if(keys.ArrowUp){ state.velZ += state.accel * dt; }
+  if(keys.ArrowDown){ state.velZ -= state.braking * dt; }
+  state.velZ = clamp(state.velZ, kmhToUnits(0), kmhToUnits(state.maxSpeed));
 
-  // traffic movement
-  for(let t of traffic){
-    t.y += t.speed + speed*0.2; // traffic flows towards player
-    drawTraffic(t);
-    // recycle offscreen
-    if(t.y > c.height + 200){ t.y = -200 - Math.random()*800; t.x = c.width/2 - 100 + Math.random()*200; t.color = randomColor(); score++; }
+  // steering: keyboard and mouse
+  let steerInput = 0;
+  if(keys.ArrowLeft) steerInput -= 1;
+  if(keys.ArrowRight) steerInput += 1;
+  if(pointerLocked && mouseSteerEnabled){ steerInput += clamp(mouseDX * 0.008, -1, 1); mouseDX = 0; }
 
-    // collision simple box
-    if(Math.abs(player.x - t.x) < (player.w+t.w)/2 - 12 && Math.abs(player.y - t.y) < (player.h+t.h)/2 - 20){
-      // on collision: reset player near bottom, small penalty
-      player.x = c.width/2; player.y = c.height - 220; steeringValue = 0; drawSteer(0);
-      // reduce speed a bit and reduce score
-      score = Math.max(0, score - 5);
+  // lateral movement (arcade) — move car sideways relative to world center
+  const steerStrength = 6.0; // meters per second lateral at max steer
+  const lateralMove = steerInput * steerStrength * dt * (state.velZ / kmhToUnits(40));
+  state.lateral += lateralMove;
+  state.lateral = clamp(state.lateral, -ROAD_HALF_WIDTH+1.0, ROAD_HALF_WIDTH-1.0);
+
+  // visual heading tilt
+  state.heading = (state.heading * 0.92) + (steerInput * 0.12);
+
+  // move player forward along global Z (we keep player mostly at fixed z and move world)
+  const forward = state.velZ * dt * 30; // tuned multiplier to get pleasant speed feel
+  // advance road segments by moving their z offsets
+  for(const seg of roadPool){
+    seg.position.z += forward;
+    seg.userData.dash.position.z += forward;
+    // recycle segments behind camera
+    if(seg.position.z > SEGMENT_LENGTH){
+      seg.position.z -= VISIBLE_SEGMENTS * SEGMENT_LENGTH;
+      seg.userData.dash.position.z = seg.position.z;
+    }
+  }
+  // move roadside objects
+  for(const obj of sideGroup.children){
+    obj.position.z += forward * 0.8;
+    if(obj.position.z > 2000) obj.position.z -= 4000;
+  }
+
+  // traffic update: they approach player (-z to +z) since world moves forward
+  for(const t of trafficPool){
+    t.position.z += t.userData.speed * dt * 30;
+    // small lane corrections
+    t.position.x += Math.sin((now/1000 + t.position.z)*0.001) * 0.02;
+    // recycle
+    if(t.position.z > 100) {
+      t.position.z = -2000 - Math.random()*800;
+      t.position.x = (Math.random()<0.5? -1:1) * (ROAD_HALF_WIDTH - 1) + (Math.random()*2 -1);
+      t.userData.speed = state.velZ*0.8 + 10 * Math.random();
+      score += 1;
+      document.getElementById('score').textContent = score;
+    }
+    // collision (approx)
+    const dx = t.position.x - state.lateral;
+    const dz = t.position.z - 4; // player's relative z
+    if(Math.abs(dx) < 1.6 && Math.abs(dz) < 10 && state.velZ > kmhToUnits(5)){
+      // collision: bounce back, slow speed slightly, and reduce score
+      state.velZ *= 0.6;
+      state.lateral = 0;
+      state.heading = 0;
+      score = Math.max(0, score - 10);
+      document.getElementById('score').textContent = score;
+      // nudge traffic away
+      t.position.z -= 150;
     }
   }
 
-  // draw score
-  ctx.fillStyle='white'; ctx.font='18px system-ui'; ctx.fillText('Score: '+score, 12, 28);
+  // camera follows
+  const targetCamPos = new THREE.Vector3(state.lateral, 6, -12);
+  camSmooth.pos.lerp(targetCamPos, camSmooth.lerp);
+  camera.position.copy(camSmooth.pos);
+  // rotate camera to match heading slightly
+  camera.rotation.y = -state.heading * 0.2;
+  camera.lookAt(new THREE.Vector3(state.lateral, 1.5, 6));
 
-  requestAnimationFrame(loop);
+  // update player mesh to match lateral / heading
+  playerCar.position.set(state.lateral, 0, 6);
+  playerCar.rotation.y = -state.heading;
+  playerCar.rotation.z = -state.heading * 0.05;
+
+  // update shadows / lights follow a bit
+  sun.position.x = state.lateral + 30;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(update);
 }
-loop();
+
+// -------------------- spawn some more varied traffic (trucks + cars) --------------------
+function populateTraffic(){
+  for(let i=0;i<18;i++){
+    spawnTrafficCar(-200 - i * 140, (Math.random()<0.18)? 'truck' : 'car');
+  }
+}
+populateTraffic();
+
+// -------------------- helpers: roundRect polyfill on ctx (used earlier with plane meshes not needed) --------------------
+// Start main loop
+lastTime = performance.now();
+update();
 
 </script>
 </body>

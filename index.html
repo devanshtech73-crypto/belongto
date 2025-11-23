@@ -1,344 +1,540 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>SlowRoads-like — Mountain Road Prototype</title>
-<style>
-  html,body{height:100%;margin:0;background:#0b0b12;overflow:hidden}
-  #ui{position:fixed;left:12px;top:12px;color:#fff;font-family:system-ui,Arial;font-weight:600;z-index:10}
-  #hint{position:fixed;right:12px;top:12px;color:#ddd;font-family:system-ui,Arial;text-align:right;z-index:10}
-  canvas{display:block}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>SlowRoads — Inspired Driving Game (single file)</title>
+  <style>
+    /* -----------------------------
+       SlowRoads-inspired single-file
+       HTML + CSS + JS game
+       - Original code (not a copy)
+       - Controls: Arrows / WASD, Space to brake
+       ----------------------------- */
+
+    :root{
+      --bg:#bfe9ff;
+      --road:#2b2b2b;
+      --shoulder:#8a8a8a;
+      --grass:#6bbf59;
+      --panel: rgba(0,0,0,0.6);
+      --accent: #ffd166;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(#cfeeff,#eaf9ff);}
+    canvas{display:block;margin:0 auto;background:linear-gradient(#d7f0ff,#bfe9ff);box-shadow:0 10px 30px rgba(0,0,0,0.15);border-radius:8px}
+
+    .ui{
+      position:fixed;right:18px;top:18px;color:#fff;padding:10px 14px;background:var(--panel);backdrop-filter: blur(4px);border-radius:8px;z-index:10;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    .ui h1{margin:0;font-size:14px;letter-spacing:0.6px;font-weight:600}
+    .ui p{margin:6px 0 0 0;font-size:12px;color:#fff7}
+    .controls{position:fixed;left:18px;top:18px;color:#073b4c;background:rgba(255,255,255,0.9);padding:10px;border-radius:8px;font-size:13px}
+    .footer{position:fixed;left:18px;bottom:18px;color:#073b4c;background:rgba(255,255,255,0.9);padding:8px;border-radius:8px;font-size:12px}
+    .big{font-size:18px;font-weight:700}
+    .btn{display:inline-block;padding:6px 10px;border-radius:6px;background:var(--accent);color:#072227;font-weight:700;text-decoration:none;cursor:pointer}
+    .notice{font-size:12px;color:#fff7;margin-top:6px}
+
+    /* responsive canvas sizing */
+    .wrap{display:flex;align-items:center;justify-content:center;height:100%}
+    @media (max-width:800px){
+      .ui{display:none}
+      .controls{left:10px;top:10px;font-size:11px}
+    }
+
+    /* small HUD styles */
+    .hud{position:fixed;left:50%;transform:translateX(-50%);top:18px;background:rgba(0,0,0,0.45);color:#fff;padding:6px 10px;border-radius:6px;font-weight:600}
+    .score{font-size:16px}
+    .speed{font-size:13px;margin-top:4px}
+
+    /* simple modal */
+    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,9,14,0.6);z-index:40}
+    .card{background:#fff;padding:18px;border-radius:10px;max-width:760px;width:min(92%,760px);box-shadow:0 14px 40px rgba(0,0,0,0.35);}
+    .card h2{margin:0 0 8px 0}
+    .muted{color:#556}
+    pre.small{background:#f4f6f8;padding:10px;border-radius:6px;overflow:auto}
+  </style>
 </head>
 <body>
-<div id="ui">W/S: throttle/brake • A/D: steer • Score: <span id="score">0</span></div>
-<div id="hint">Third-person back view • Mountain road with hills & trees</div>
+  <div class="wrap">
+    <canvas id="game" width="1280" height="720"></canvas>
+  </div>
 
-<script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+  <div class="ui">
+    <h1>SlowRoads — Inspired</h1>
+    <p class="notice">Original implementation inspired by slowroads.io mechanics — not a clone.</p>
+    <div style="margin-top:8px">
+      <span class="big" id="km">Distance: 0 m</span>
+      <div style="margin-top:8px;font-size:12px">Points: <span id="points">0</span></div>
+    </div>
+  </div>
 
-<script>
-/* -------------------- Utilities: Perlin noise (compact) -------------------- */
-const Perlin = (function(){
-  const PERM = new Uint8Array(512);
-  (function init(){ const p = new Uint8Array(256); for(let i=0;i<256;i++)p[i]=i; for(let i=255;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); const t=p[i]; p[i]=p[j]; p[j]=t; } for(let i=0;i<512;i++) PERM[i]=p[i&255]; })();
-  function fade(t){ return t*t*t*(t*(t*6-15)+10); }
-  function lerp(a,b,t){ return a + t*(b-a); }
-  function grad(hash,x,y,z){ const h = hash & 15; const u = h<8 ? x : y; const v = h<4 ? y : (h===12||h===14 ? x : z); return ((h&1)? -u : u) + ((h&2)? -v : v); }
-  return {
-    noise(x,y,z=0){
-      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
-      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
-      const u = fade(x), v = fade(y), w = fade(z);
-      const A = PERM[X]+Y, AA = PERM[A]+Z, AB = PERM[A+1]+Z;
-      const B = PERM[X+1]+Y, BA = PERM[B]+Z, BB = PERM[B+1]+Z;
-      return lerp(lerp(lerp(grad(PERM[AA], x, y, z), grad(PERM[BA], x-1, y, z), u),
-                       lerp(grad(PERM[AB], x, y-1, z), grad(PERM[BB], x-1, y-1, z), u), v),
-                  lerp(lerp(grad(PERM[AA+1], x, y, z-1), grad(PERM[BA+1], x-1, y, z-1), u),
-                       lerp(grad(PERM[AB+1], x, y-1, z-1), grad(PERM[BB+1], x-1, y-1, z-1), u), v), w);
+  <div class="controls">
+    <div><strong>Controls</strong></div>
+    <div>← → or A D : Steer</div>
+    <div>↑ or W : Gas</div>
+    <div>↓ or S / Space : Brake</div>
+    <div>R : Restart</div>
+  </div>
+
+  <div class="hud" id="hud">
+    <div class="score" id="hudScore">0 m</div>
+    <div class="speed" id="hudSpeed">0 km/h</div>
+  </div>
+
+  <div class="footer">Tip: This is a compact single-file game. Modify values in the JS for more features.</div>
+
+  <div id="startModal" class="modal">
+    <div class="card">
+      <h2>SlowRoads — Inspired Driving Game</h2>
+      <p class="muted">This is an original small driving game inspired by the feel of "slow roads"—procedural road, low-poly obstacles, collectible stones and scenic generation. It's intentionally different from any single source; consider it a starting point to customize.</p>
+      <p><strong>Goal:</strong> Drive as far as you can. Avoid collisions. Collect coins to increase points.</p>
+      <p><strong>Controls:</strong> Arrow keys / WASD. Space to brake. R to restart.</p>
+      <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+        <button id="startBtn" class="btn">Start Driving</button>
+        <button id="ghostBtn" class="btn" style="background:#9ad3bc">Ghost Mode</button>
+        <div style="margin-left:auto;font-size:12px;color:#556">Built with &lt;canvas&gt; — single-file</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ==========================
+     Game engine (Canvas) — single-file
+     Features:
+     - Procedural road segments (curves, slopes simulated via horizon)
+     - Car physics: speed, drift, steering
+     - Obstacles and collectible coins
+     - Dynamic camera & parallax
+     - Restart and simple UI
+     ========================== */
+
+  (() => {
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    let W = canvas.width; let H = canvas.height;
+
+    // Hi-DPI support
+    function resizeCanvas() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const cssW = Math.min(window.innerWidth - 40, 1400);
+      const cssH = Math.min(window.innerHeight - 40, 900);
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      canvas.width = Math.floor(cssW * dpr);
+      canvas.height = Math.floor(cssH * dpr);
+      W = canvas.width; H = canvas.height;
+      ctx.setTransform(dpr,0,0,dpr,0,0);
     }
-  };
-})();
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
 
-/* -------------------- Basic Three.js setup -------------------- */
-const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x091017, 0.0006);
+    // Game state
+    const state = {
+      running: false,
+      ghost:false,
+      distance:0,
+      points:0,
+      speed:0, // m/s scaled
+      maxSpeed: 18, // m/s ~ 65 km/h
+      accel: 6.5, // m/s^2
+      brake: 10,
+      steer:0,
+      steerAngle:0,
+      carX:0,
+      roadWidth: 480, // pixels road half-width (center -> edge)
+      roadSegments: [],
+      playerLane:0,
+      time:0,
+      lastTime: performance.now(),
+      rngSeed: 1,
+      cameraY: H*0.45,
+      skid:0
+    };
 
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(2, devicePixelRatio));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.body.appendChild(renderer.domElement);
+    // Visual tune
+    const visual = {
+      skyColorTop: '#dff7ff',
+      skyColorBottom:'#bfe9ff',
+      grassColor: '#79c25d',
+      shoulder: '#8a8a8a',
+      road: '#2b2b2b',
+      laneMark: '#f5f5f5',
+    }
 
-const camera = new THREE.PerspectiveCamera(60,2,0.1,10000);
-camera.position.set(0,6,-10);
+    // Utility RNG
+    function rand() { // simple LCG
+      state.rngSeed = (state.rngSeed * 48271) % 2147483647;
+      return (state.rngSeed % 10000) / 10000;
+    }
 
-function onResize(){
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth/window.innerHeight;
-  camera.updateProjectionMatrix();
-}
-window.addEventListener('resize', onResize, false);
-onResize();
+    // generate initial segments
+    function generateSegments(count=300){
+      const segs = [];
+      let x = 0; // lateral offset
+      let curve = 0;
+      for(let i=0;i<count;i++){
+        // create gentle curves and occasional larger bends
+        if(rand() < 0.08) curve = (rand()*2-1) * 0.7;
+        if(rand() < 0.02) curve = (rand()*2-1) * 1.2;
+        x += curve * 10 * (0.8 + rand()*0.6);
+        const elevation = Math.sin(i*0.08 + rand()*2) * 6 * rand();
+        const type = rand()<0.06 ? 'curve' : 'straight';
+        const obstacle = rand()<0.12 ? (rand()<0.6? 'cone':'bush') : null;
+        const coin = rand()<0.08 ? {val: 10 + Math.floor(rand()*40)} : null;
+        segs.push({i, x, curve, elevation, type, obstacle, coin});
+      }
+      return segs;
+    }
 
-/* -------------------- Lighting -------------------- */
-const hemi = new THREE.HemisphereLight(0xBBD1FF, 0x202040, 0.6);
-scene.add(hemi);
+    state.roadSegments = generateSegments(1500);
 
-const sun = new THREE.DirectionalLight(0xfff6e6, 1.0);
-sun.position.set(40,80,-30);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048,2048);
-sun.shadow.camera.left = -200; sun.shadow.camera.right = 200; sun.shadow.camera.top = 200; sun.shadow.camera.bottom = -200;
-sun.shadow.camera.far = 600;
-scene.add(sun);
+    // Player car
+    const car = {
+      x:0, // center offset in pixels
+      y:0, // screen y
+      width:48,
+      height:84,
+      rotation:0,
+      color:'#ff6b6b'
+    }
 
-/* -------------------- Terrain (high-res plane displaced by Perlin) -------------------- */
-const terrain = new THREE.Group();
-scene.add(terrain);
+    // Input handling
+    const keys = {};
+    window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.key==='r' || e.key==='R'){ restart(); } });
+    window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-const TERRAIN_SIZE = 4000;
-const SEG = 200; // more segments -> higher resolution
-const planeGeo = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, SEG, SEG);
-planeGeo.rotateX(-Math.PI/2);
+    // Helpers: projection of road points into screen
+    function project(segmentIndex, lateralOffset, cameraY) {
+      // The farther the segment, the closer to horizon (simple depth scaling)
+      const perspective = 1 / (1 + segmentIndex * 0.02);
+      const x = W/2 + (lateralOffset * perspective);
+      const y = cameraY + (segmentIndex * 0.9) * (1 - perspective) + perspective * 60;
+      const scale = perspective;
+      return {x,y,scale,perspective};
+    }
 
-// displace vertices with layered noise for hills & mountains
-for(let i=0;i<planeGeo.attributes.position.count;i++){
-  const x = planeGeo.attributes.position.getX(i);
-  const z = planeGeo.attributes.position.getZ(i);
-  const nx = x * 0.002;
-  const nz = z * 0.002;
-  const e = Perlin.noise(nx*1.0, nz*1.0)*12 + Perlin.noise(nx*0.5, nz*0.5)*25 + Perlin.noise(nx*3.0, nz*3.0)*2;
-  planeGeo.attributes.position.setY(i, e);
-}
-planeGeo.computeVertexNormals();
+    // Draw road slice
+    function drawRoadSlice(segIndex, seg, nextSeg, cameraOffset) {
+      const roadHalf = state.roadWidth/2;
+      const leftX = seg.x - roadHalf;
+      const rightX = seg.x + roadHalf;
+      const nextLeftX = nextSeg.x - roadHalf;
+      const nextRightX = nextSeg.x + roadHalf;
 
-// create grass texture procedurally (canvas)
-function makeGrassTexture(){
-  const s = 1024;
-  const cv = document.createElement('canvas'); cv.width=s; cv.height=s;
-  const g = cv.getContext('2d');
-  // base green
-  g.fillStyle = '#2c6a2a'; g.fillRect(0,0,s,s);
-  // random blades
-  for(let i=0;i<7000;i++){
-    const x = Math.random()*s, y = Math.random()*s;
-    const h = 6 + Math.random()*12;
-    g.strokeStyle = `rgba(${30+Math.random()*40},${80+Math.random()*80},${30+Math.random()*30},${0.6+Math.random()*0.4})`;
-    g.lineWidth = 1;
-    g.beginPath(); g.moveTo(x,y); g.lineTo(x + (Math.random()-0.5)*4, y - h); g.stroke();
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(8,8);
-  return tex;
-}
-const grassTex = makeGrassTexture();
+      const p1 = project(segIndex, leftX - cameraOffset, state.cameraY);
+      const p2 = project(segIndex, rightX - cameraOffset, state.cameraY);
+      const p3 = project(segIndex+1, nextRightX - cameraOffset, state.cameraY);
+      const p4 = project(segIndex+1, nextLeftX - cameraOffset, state.cameraY);
 
-const terrainMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness:0.95, metalness:0.02 });
-const terrainMesh = new THREE.Mesh(planeGeo, terrainMat);
-terrainMesh.receiveShadow = true;
-terrain.add(terrainMesh);
-terrain.position.y = -6;
+      // grass
+      ctx.fillStyle = visual.grassColor;
+      ctx.beginPath(); ctx.moveTo(0,p2.y); ctx.lineTo(W,p2.y); ctx.lineTo(W,p3.y); ctx.lineTo(0,p3.y); ctx.closePath(); ctx.fill();
 
-/* -------------------- Road (spline with elevation from noise) -------------------- */
-const roadGroup = new THREE.Group();
-scene.add(roadGroup);
+      // road polygon
+      ctx.fillStyle = visual.road;
+      ctx.beginPath();
+      ctx.moveTo(p1.x,p1.y);
+      ctx.lineTo(p2.x,p2.y);
+      ctx.lineTo(p3.x,p3.y);
+      ctx.lineTo(p4.x,p4.y);
+      ctx.closePath();
+      ctx.fill();
 
-const roadCurvePts = [];
-const ROAD_LENGTH = 8000;
-const roadStep = 8;
-for(let z=0; z>-ROAD_LENGTH; z -= roadStep){
-  // centerline x offset from noise (curve)
-  const t = z * -0.002;
-  const cx = Perlin.noise(t*0.7, 0.1)*6 + Perlin.noise(t*0.13, 2.3)*18;
-  const height = Perlin.noise(t*0.8, 0.2)*10 + Perlin.noise(t*0.04, 0.6)*35;
-  roadCurvePts.push(new THREE.Vector3(cx, height, z));
-}
+      // shoulder
+      ctx.fillStyle = visual.shoulder;
+      // left shoulder triangle
+      ctx.beginPath(); ctx.moveTo(0,p1.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p4.x,p4.y); ctx.lineTo(0,p4.y); ctx.closePath(); ctx.fill();
+      // right shoulder
+      ctx.beginPath(); ctx.moveTo(W,p2.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(W,p3.y); ctx.closePath(); ctx.fill();
 
-// make road mesh by sampling cross sections along the curve
-function buildRoadMesh(){
-  const roadWidth = 6.5;
-  const geometry = new THREE.BufferGeometry();
-  const verts = [], normals = [], uvs = [], indices = [];
-  for(let i=0;i<roadCurvePts.length-1;i++){
-    const a = roadCurvePts[i].clone();
-    const b = roadCurvePts[i+1].clone();
-    const dir = b.clone().sub(a); dir.y = 0;
-    const left = new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(roadWidth);
-    const r = a.clone().add(left);
-    const l = a.clone().add(left.multiplyScalar(-1));
-    const r2 = b.clone().add(new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(roadWidth));
-    const l2 = b.clone().add(new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(-roadWidth));
-    verts.push(r.x, a.y+0.05, r.z, l.x, a.y+0.05, l.z, r2.x, b.y+0.05, r2.z, l2.x, b.y+0.05, l2.z);
-    const base = i*4;
-    indices.push(base, base+1, base+2, base+2, base+1, base+3);
-    uvs.push(0, i/roadCurvePts.length, 1, i/roadCurvePts.length, 0, (i+1)/roadCurvePts.length, 1, (i+1)/roadCurvePts.length);
-  }
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-  // road material: dark asphalt with slight sheen
-  const mat = new THREE.MeshStandardMaterial({ color:0x141515, roughness:0.6, metalness:0.05 });
-  const mesh = new THREE.Mesh(geometry, mat);
-  mesh.receiveShadow = true;
-  return mesh;
-}
-const roadMesh = buildRoadMesh();
-scene.add(roadMesh);
+      // lane markings (dashed) - draw center divider sometimes
+      ctx.strokeStyle = '#efefef';
+      ctx.lineWidth = Math.max(1, 3 * p1.scale);
+      ctx.beginPath();
+      const cx1 = (p1.x + p2.x)/2; const cx2 = (p4.x + p3.x)/2;
+      ctx.moveTo(cx1, p1.y + 2);
+      ctx.lineTo(cx2, p4.y + 2);
+      ctx.setLineDash([6 * p1.scale, 8 * p1.scale]);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-/* -------------------- Trees (clusters using cones) -------------------- */
-const treeGroup = new THREE.Group();
-scene.add(treeGroup);
+      // occasional objects: obstacle or coin
+      if(seg.obstacle){
+        drawObstacle(segIndex, seg, seg.obstacle, cameraOffset);
+      }
+      if(seg.coin){
+        drawCoin(segIndex, seg, cameraOffset, seg.coin.val);
+      }
+    }
 
-function makeTree(){
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.0), new THREE.MeshStandardMaterial({color:0x6b3b1f}));
-  trunk.position.y = 0.5; trunk.castShadow = true; g.add(trunk);
-  const leafMat = new THREE.MeshStandardMaterial({ color:0x1f6e2f });
-  const cone1 = new THREE.Mesh(new THREE.ConeGeometry(0.9,1.3,8), leafMat);
-  cone1.position.y = 1.45; cone1.castShadow = true; g.add(cone1);
-  const cone2 = cone1.clone(); cone2.scale.set(0.8,0.8,0.8); cone2.position.y = 2.1; g.add(cone2);
-  return g;
-}
-// scatter many trees along terrain, but avoid road center
-for(let i=0;i<800;i++){
-  const x = (Math.random() - 0.5) * TERRAIN_SIZE * 0.9;
-  const z = -Math.random() * (ROAD_LENGTH*0.9);
-  // avoid river close to road centerline: use noise centerline to compute nearest
-  // approximate nearest road x by sampling a few pts (cheap)
-  // compute terrain height from plane
-  const nx = x * 0.002, nz = z * 0.002;
-  const h = Perlin.noise(nx*1.0, nz*1.0)*12 + Perlin.noise(nx*0.5, nz*0.5)*25;
-  const t = makeTree();
-  t.position.set(x, h, z);
-  t.scale.setScalar(0.9 + Math.random()*0.8);
-  // avoid placing on the actual road corridor (approx)
-  const roadXAtZ = roadCurvePts[Math.floor(Math.abs(z)/roadStep)]?.x || 0;
-  if(Math.abs(x - roadXAtZ) < 18) {
-    i--; continue;
-  }
-  treeGroup.add(t);
-}
+    function drawObstacle(segIndex, seg, kind, camOffset){
+      const p = project(segIndex, seg.x - camOffset, state.cameraY);
+      const size = Math.max(6, 40 * p.scale);
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      if(kind === 'cone'){
+        // simple cone
+        ctx.fillStyle='#ff8b00';
+        ctx.beginPath(); ctx.moveTo(0,-size); ctx.lineTo(size/1.6,size/2); ctx.lineTo(-size/1.6,size/2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.fillRect(-size*0.15, -size*0.1, size*0.3, size*0.25);
+      } else {
+        // bush
+        ctx.fillStyle='#2e8b57'; ctx.beginPath(); ctx.arc(0,0,size*0.6,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
 
-/* -------------------- Mountains (distant) -------------------- */
-const mountainGeo = new THREE.ConeGeometry(120, 400, 8);
-const mountainMat = new THREE.MeshStandardMaterial({ color:0x3b3b44, roughness:1 });
-for(let i=0;i<8;i++){
-  const m = new THREE.Mesh(mountainGeo, mountainMat);
-  m.position.set((Math.random()-0.5)*2000, 80, -800 - Math.random()*2000);
-  m.rotation.y = Math.random()*Math.PI;
-  m.receiveShadow = true; m.castShadow = true;
-  scene.add(m);
-}
+    function drawCoin(segIndex, seg, camOffset, value){
+      const p = project(segIndex, seg.x - camOffset, state.cameraY);
+      const radius = Math.max(6, 18 * p.scale);
+      ctx.save();
+      ctx.translate(p.x, p.y - radius);
+      ctx.beginPath(); ctx.arc(0,0,radius,0,Math.PI*2); ctx.fillStyle='#ffd166'; ctx.fill();
+      ctx.fillStyle='#b36b00'; ctx.font = `${Math.max(8,8*p.scale)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(value,0,0);
+      ctx.restore();
+    }
 
-/* -------------------- Player car (detailed procedural) -------------------- */
-function makePlayerCar(){
-  const group = new THREE.Group();
-  // body
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.6,4.0), new THREE.MeshStandardMaterial({ color: 0x2d9bf0, metalness:0.3, roughness:0.2 }));
-  body.position.y = 1.0; body.castShadow = true; group.add(body);
-  // cabin
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.45,1.8), new THREE.MeshStandardMaterial({ color: 0xa8e0ff, opacity:0.9, transparent:true }));
-  cabin.position.set(0,1.25,-0.1); cabin.castShadow = true; group.add(cabin);
-  // wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.35,0.35,0.5,16);
-  const wheelMat = new THREE.MeshStandardMaterial({ color:0x111, roughness:0.8 });
-  const wheelPos = [[-0.9,0.45,1.3],[0.9,0.45,1.3],[-0.9,0.45,-1.3],[0.9,0.45,-1.3]];
-  wheelPos.forEach(p=>{
-    const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.rotation.z = Math.PI/2; w.position.set(p[0], p[1], p[2]); w.castShadow = true; group.add(w);
-  });
-  // small spoiler
-  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.08,0.2), new THREE.MeshStandardMaterial({ color:0x1a6aa0 }));
-  spoiler.position.set(0,1.28,-2.05); spoiler.castShadow = true; group.add(spoiler);
-  return group;
-}
-const playerCar = makePlayerCar();
-scene.add(playerCar);
+    // Car draw
+    function drawCar(){
+      const cx = W/2 + car.x;
+      const cy = H - 140;
+      ctx.save();
+      ctx.translate(cx,cy);
+      ctx.rotate(car.rotation);
 
-/* -------------------- State and controls -------------------- */
-const state = {
-  speed: 18,        // base medium speed units
-  maxSpeed: 50,
-  accel: 10,
-  braking: 28,
-  lateral: 0,       // meters offset from centerline
-  heading: 0,
-  score: 0
-};
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath(); ctx.ellipse(0, car.height*0.32, car.width*0.85, car.height*0.18, 0,0,Math.PI*2); ctx.fill();
 
-const keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false };
-window.addEventListener('keydown', e=>{ if(e.key in keys) keys[e.key]=true; if(e.key==='m') mouseSteer=!mouseSteer; });
-window.addEventListener('keyup', e=>{ if(e.key in keys) keys[e.key]=false; });
+      // body
+      roundedRect(ctx, -car.width/2, -car.height/2, car.width, car.height, 10);
+      ctx.fillStyle = car.color; ctx.fill();
 
-let mouseSteer = true, pointerLocked = false;
-document.body.addEventListener('click', ()=>{ if(!pointerLocked) renderer.domElement.requestPointerLock?.(); });
-document.addEventListener('pointerlockchange', ()=>{ pointerLocked = (document.pointerLockElement === renderer.domElement); });
+      // windows
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      roundedRect(ctx, -car.width/2 + 8, -car.height/2 + 8, car.width - 16, car.height*0.45, 6);
+      ctx.fill();
 
-let mouseDX = 0;
-window.addEventListener('mousemove', e=>{ if(pointerLocked && mouseSteer) mouseDX = e.movementX; });
+      // wheels
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.ellipse(-car.width*0.33, car.height*0.34, car.width*0.18, car.height*0.14, 0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(car.width*0.33, car.height*0.34, car.width*0.18, car.height*0.14, 0,0,Math.PI*2); ctx.fill();
 
-/* -------------------- Camera follow (third person back view) -------------------- */
-const camTarget = new THREE.Vector3();
-const camLag = 0.12;
+      ctx.restore();
+    }
 
-/* -------------------- main update loop -------------------- */
-let last = performance.now();
-function update(){
-  const now = performance.now();
-  const dt = Math.min(0.05, (now - last)/1000);
-  last = now;
+    function roundedRect(ctx,x,y,w,h,r){
+      ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+    }
 
-  // throttle / brake
-  if(keys.ArrowUp) state.speed += state.accel * dt;
-  else state.speed -= state.speed * 0.4 * dt; // natural slowdown
-  if(keys.ArrowDown) state.speed -= state.braking * dt;
-  state.speed = Math.max(6, Math.min(state.maxSpeed, state.speed));
+    // collision detection (very simple: compare projected X and distance)
+    function checkCollisions(playerX, aheadIndex){
+      const hitRange = 28; // pixels
+      const collected = [];
+      for(let i=aheadIndex;i<aheadIndex+8 && i < state.roadSegments.length;i++){
+        const seg = state.roadSegments[i];
+        if(seg.obstacle){
+          // project obstacle x
+          const p = project(i, seg.x - state.carX, state.cameraY);
+          // collision if near the car screen y threshold
+          if(p.y > H - 260 && Math.abs(p.x - (W/2 + playerX)) < hitRange + 20){
+            return {hit:true, segIndex:i};
+          }
+        }
+        if(seg.coin){
+          const p = project(i, seg.x - state.carX, state.cameraY);
+          if(p.y > H - 260 && Math.abs(p.x - (W/2 + playerX)) < hitRange + 10){
+            collected.push(i);
+          }
+        }
+      }
+      return {hit:false, collected};
+    }
 
-  // steering input
-  let steerInput = 0;
-  if(keys.ArrowLeft) steerInput -= 1;
-  if(keys.ArrowRight) steerInput += 1;
-  if(pointerLocked && mouseSteer) steerInput += Math.max(-1, Math.min(1, mouseDX * 0.008));
-  mouseDX = 0;
+    // update
+    function update(dt){
+      // input
+      const left = keys['arrowleft'] || keys['a'];
+      const right = keys['arrowright'] || keys['d'];
+      const up = keys['arrowup'] || keys['w'];
+      const down = keys['arrowdown'] || keys['s'] || keys[' '];
 
-  // lateral movement limited (road half width)
-  const steerStrength = 6.0 * (state.speed/20);
-  state.lateral += steerInput * steerStrength * dt;
-  const roadHalf = 6.5;
-  state.lateral = Math.max(-roadHalf + 0.6, Math.min(roadHalf - 0.6, state.lateral));
+      // speed control
+      if(up){ state.speed += state.accel * dt; }
+      else { state.speed -= (state.accel*0.6) * dt; }
+      if(down){ state.speed -= state.brake * dt; }
 
-  // heading smoothing (visual tilt)
-  state.heading = state.heading * 0.9 + steerInput * 0.15;
+      // clamp speed
+      state.speed = Math.max(0, Math.min(state.maxSpeed, state.speed));
 
-  // advance along the road: we simulate by moving the road & world backwards relative to player
-  const forward = state.speed * dt * 6.0; // tuned multiplier for pleasant feel
+      // distance traveled
+      state.distance += state.speed * dt * 10; // scale factor for nicer numbers
+      state.time += dt;
 
-  // advance road curve progression (move all road points forward in z)
-  for(let i=0;i<roadCurvePts.length;i++){ roadCurvePts[i].z += forward; }
-  // rebuild road mesh positions by updating geometry positions for performance we cheat by replacing whole mesh occasionally
-  if(Math.random() < 0.02){
-    scene.remove(roadMesh);
-    roadMesh.geometry.dispose();
-    const newRoad = buildRoadMesh();
-    scene.add(newRoad);
-  }
+      // steering
+      let steerInput = 0;
+      if(left) steerInput -= 1;
+      if(right) steerInput += 1;
+      // steering more effective at lower speeds
+      const steerStrength = 1.2 + (1 - (state.speed/state.maxSpeed)) * 2.2;
+      state.steerAngle = (state.steerAngle*0.86) + steerInput * 0.28 * steerStrength;
+      state.carX += state.steerAngle * 6 * (state.speed/state.maxSpeed + 0.2);
+      car.rotation = state.steerAngle * 0.18;
 
-  // move terrain slightly to create motion illusion (cheap)
-  terrain.position.z += forward * 0.6;
-  treeGroup.position.z += forward * 0.6;
-  // reposition far objects to loop
-  if(terrain.position.z > 1000) terrain.position.z -= 2000;
+      // keep car within soft bounds
+      const maxX = state.roadWidth*0.9 - car.width/2;
+      state.carX = Math.max(-maxX, Math.min(maxX, state.carX));
+      car.x = state.carX;
 
-  // Player position in world coords: lateral + find elevation from road curve near z ~ 0
-  const idx = Math.max(0, Math.min(roadCurvePts.length-1, Math.floor(Math.abs(0)/roadStep)));
-  const roadX = roadCurvePts[idx]?.x || 0;
-  const roadY = roadCurvePts[idx]?.y || 0;
-  playerCar.position.set(state.lateral, roadY + 0.8, 6);
+      // camera follows a point ahead proportional to speed
+      const lookAhead = Math.floor(state.speed * 6 + 30);
+      state.cameraY = H*0.45 - (state.speed/state.maxSpeed)*40;
 
-  // camera behind & above the player with smoothing
-  camTarget.set(state.lateral, playerCar.position.y + 2.5, playerCar.position.z - 8 - (state.speed/10));
-  camera.position.lerp(camTarget, camLag);
-  camera.lookAt(playerCar.position.x, playerCar.position.y + 1.2, playerCar.position.z + 6);
+      // check collisions ahead
+      const hitCheck = checkCollisions(state.carX, lookAhead);
+      if(hitCheck.hit && !state.ghost){
+        // crash
+        state.running = false;
+        // small slowdown animation
+        state.speed = Math.max(0, state.speed * 0.18);
+        showGameOver();
+      }
 
-  // update HUD score slowly with distance
-  state.score += forward * 0.02;
-  document.getElementById('score').textContent = Math.floor(state.score);
+      // collect coins
+      for(const idx of hitCheck.collected){
+        const seg = state.roadSegments[idx];
+        state.points += seg.coin.val || 10;
+        seg.coin = null; // collected
+      }
 
-  renderer.render(scene, camera);
-  requestAnimationFrame(update);
-}
-update();
+      // procedural: if we've traveled far enough, shift segments
+      // We'll simply rotate segments based on distance
+      const segmentMove = Math.floor(state.distance/120) % state.roadSegments.length;
+      // To create motion, we treat segIndex 0 as the nearest
 
-/* -------------------- Notes --------------------
-- This prototype uses a high-resolution terrain mesh (200x200 segments) displaced with Perlin noise.
-- The road is a spline generated and extruded as a simple strip; to keep it performant the road mesh is occasionally rebuilt rather than every frame.
-- Trees are clustered with cone geometry to provide leaf detail without textures; grass is a procedurally-generated canvas texture repeated on the terrain.
-- Speed is tuned down to medium (state.speed base ~ 18); acceleration/brake tuned for PC gameplay.
-- No external models — everything is generated procedurally so it runs without downloads.
--------------------------------------------------*/
-</script>
+      // mutate obstacles occasionally
+      if(state.time % 1 < dt){
+        // randomize upcoming segments to keep things fresh
+        const i = Math.floor(rand()*20) + 80;
+        if(rand() < 0.25) {
+          const id = Math.floor(rand()*state.roadSegments.length);
+          state.roadSegments[id].obstacle = rand()<0.6? 'cone': 'bush';
+        }
+      }
+
+      // update UI
+      document.getElementById('hudScore').textContent = Math.floor(state.distance) + ' m';
+      document.getElementById('hudSpeed').textContent = Math.round(state.speed * 3.6) + ' km/h';
+      document.getElementById('km').textContent = 'Distance: ' + Math.floor(state.distance) + ' m';
+      document.getElementById('points').textContent = state.points;
+    }
+
+    // main draw loop
+    function draw(){
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      // sky gradient
+      const g = ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0, visual.skyColorTop);
+      g.addColorStop(1, visual.skyColorBottom);
+      ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+      // draw horizon sun
+      ctx.beginPath(); ctx.arc(W*0.09, H*0.12, 42, 0, Math.PI*2); ctx.fillStyle = 'rgba(255,220,120,0.95)'; ctx.fill();
+
+      // draw road slices from far to near
+      const maxDraw = 80;
+      const baseIndex = Math.floor(state.distance/6) % state.roadSegments.length;
+      const camOffset = state.carX;
+      for(let i=maxDraw;i>0;i--){
+        const segIndex = (baseIndex + i) % state.roadSegments.length;
+        const seg = state.roadSegments[segIndex];
+        const nextSeg = state.roadSegments[(segIndex+1) % state.roadSegments.length];
+        drawRoadSlice(i, seg, nextSeg, camOffset);
+      }
+
+      // distant ambient elements (trees) — low-poly
+      drawDistantScenery();
+
+      // draw car
+      drawCar();
+
+      // speed blur / skid indicator
+      if(state.speed>state.maxSpeed*0.7){
+        ctx.fillStyle = 'rgba(255,255,255,0.03)'; ctx.fillRect(0,0,W,H);
+      }
+
+      // if paused, overlay
+      if(!state.running){
+        ctx.fillStyle = 'rgba(6,10,12,0.4)'; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = '#fff'; ctx.font='28px sans-serif'; ctx.textAlign='center'; ctx.fillText('Crashed - Press R to restart', W/2, H/2);
+      }
+    }
+
+    function drawDistantScenery(){
+      // simple repeating trees and mountains to the left/right
+      for(let i=0;i<30;i++){
+        const t = (i/30 + (state.distance*0.0004)) % 1;
+        const x = (t - 0.5) * W * 1.6;
+        const y = H*0.55 + Math.sin(i*0.33 + state.distance*0.0009)*20;
+        const scale = 0.4 + 0.8*(1 - Math.abs((t-0.5)*2));
+        // tree
+        const treeW = 18*scale; const treeH = 40*scale;
+        ctx.fillStyle = '#245c2f'; ctx.beginPath(); ctx.ellipse(W/2 + x, y, treeW, treeH, 0, 0, Math.PI*2); ctx.fill();
+      }
+
+      // mountains
+      ctx.fillStyle = '#dbe7ee';
+      ctx.beginPath();
+      ctx.moveTo(0,H*0.4);
+      ctx.lineTo(W*0.15,H*0.25); ctx.lineTo(W*0.25,H*0.42);
+      ctx.lineTo(W*0.45,H*0.18); ctx.lineTo(W*0.65,H*0.45);
+      ctx.lineTo(W*0.9,H*0.2); ctx.lineTo(W,H*0.42);
+      ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+    }
+
+    // simple game over modal
+    function showGameOver(){
+      // show small overlay in the center via canvas text already done
+      // But also show a browser alert-like card
+      const card = document.createElement('div');
+      card.style.position='fixed';card.style.left='50%';card.style.top='50%';card.style.transform='translate(-50%,-50%)';
+      card.style.background='#fff';card.style.padding='18px';card.style.borderRadius='10px';card.style.boxShadow='0 14px 40px rgba(0,0,0,0.35)';card.style.zIndex=60;
+      card.innerHTML = '<h3>Game Over</h3><p>Distance: '+Math.floor(state.distance)+' m<br/>Points: '+state.points+'</p>';
+      const btn = document.createElement('button'); btn.textContent='Restart'; btn.className='btn'; btn.onclick = ()=>{ document.body.removeChild(card); restart(); };
+      card.appendChild(btn);
+      document.body.appendChild(card);
+    }
+
+    // restart
+    function restart(){
+      state.running = true; state.distance = 0; state.points = 0; state.speed = 0; state.carX = 0; state.steerAngle = 0; state.time = 0;
+      state.roadSegments = generateSegments(1500);
+      state.rngSeed = Math.floor(Math.random()*100000)+1;
+      document.getElementById('startModal').style.display='none';
+    }
+
+    // start/ghost buttons
+    document.getElementById('startBtn').addEventListener('click', ()=>{ state.ghost=false; restart(); });
+    document.getElementById('ghostBtn').addEventListener('click', ()=>{ state.ghost=true; restart(); });
+
+    // game loop
+    function loop(now){
+      const dt = Math.min(0.05, (now - state.lastTime)/1000);
+      state.lastTime = now;
+      if(state.running){
+        update(dt);
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // initial modal logic
+    document.getElementById('startModal').style.display='flex';
+
+  })();
+  </script>
 </body>
 </html>

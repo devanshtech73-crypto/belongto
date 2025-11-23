@@ -85,30 +85,65 @@ function loop(){
 }
 loop();
 </script>
-<div id="controls" style="position:fixed;bottom:20px;left:0;right:0;display:flex;justify-content:center;gap:40px;pointer-events:auto;">
-<div id="leftBtn" style="width:80px;height:80px;border-radius:50%;background:#222;border:3px solid #555;
-box-shadow:0 0 10px #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;user-select:none;">⟲</div>
-<div id="rightBtn" style="width:80px;height:80px;border-radius:50%;background:#222;border:3px solid #555;
-box-shadow:0 0 10px #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;user-select:none;">⟳</div>
-<div id="gas" style="width:90px;height:90px;border-radius:50%;background:#0a0;border:3px solid #5f5;box-shadow:0 0 10px #000;
-color:white;font-size:22px;display:flex;align-items:center;justify-content:center;">GAS</div>
-<div id="brake" style="width:90px;height:90px;border-radius:50%;background:#a00;border:3px solid #f55;box-shadow:0 0 10px #000;
-color:white;font-size:22px;display:flex;align-items:center;justify-content:center;">BRAKE</div>
-</div>
-<script>
-const leftBtn=document.getElementById('leftBtn');
-const rightBtn=document.getElementById('rightBtn');
-const gas=document.getElementById('gas');
-const brake=document.getElementById('brake');
+<canvas id="steer" width="180" height="180" style="position:fixed; bottom:20px; left:20px; touch-action:none;"></canvas>
+<canvas id="gas" width="120" height="120" style="position:fixed; bottom:30px; right:20px;"></canvas>
+<canvas id="brake" width="120" height="120" style="position:fixed; bottom:170px; right:20px;"></canvas>
 
-leftBtn.ontouchstart=()=>keys['ArrowLeft']=1;
-leftBtn.ontouchend=()=>keys['ArrowLeft']=0;
-rightBtn.ontouchstart=()=>keys['ArrowRight']=1;
-rightBtn.ontouchend=()=>keys['ArrowRight']=0;
+<script>
+// Steering wheel
+const steer=document.getElementById('steer');
+const sctx=steer.getContext('2d');
+let steeringTouch=false;
+let steeringValue=0;
+function drawSteer(angle=0){
+ sctx.clearRect(0,0,180,180);
+ sctx.save(); sctx.translate(90,90); sctx.rotate(angle);
+ sctx.lineWidth=16; sctx.strokeStyle='#333';
+ sctx.beginPath(); sctx.arc(0,0,70,0,Math.PI*2); sctx.stroke();
+ sctx.lineWidth=8; sctx.strokeStyle='#ffcc00';
+ sctx.beginPath(); sctx.moveTo(0,-70); sctx.lineTo(0,-40); sctx.stroke();
+ sctx.restore();
+}
+drawSteer();
+
+steer.addEventListener('touchstart',()=>steeringTouch=true);
+steer.addEventListener('touchend',()=>{steeringTouch=false; steeringValue=0;});
+steer.addEventListener('touchmove',e=>{
+ const t=e.touches[0];
+ const r=steer.getBoundingClientRect();
+ const dx=t.clientX-(r.left+r.width/2);
+ steeringValue=Math.max(-1,Math.min(1,dx/60));
+});
+
+// Gas + brake buttons
+function drawBtn(ctx,color,text){
+ ctx.clearRect(0,0,120,120);
+ ctx.fillStyle=color;
+ ctx.beginPath(); ctx.arc(60,60,55,0,Math.PI*2); ctx.fill();
+ ctx.fillStyle='#fff'; ctx.font='22px sans-serif';
+ ctx.textAlign='center'; ctx.textBaseline='middle';
+ ctx.fillText(text,60,60);
+}
+const gctx=gas.getContext('2d');
+const bctx=brake.getContext('2d');
+drawBtn(gctx,'#0a0','GAS');
+drawBtn(bctx,'#a00','BRAKE');
+
 gas.ontouchstart=()=>keys['ArrowUp']=1;
 gas.ontouchend=()=>keys['ArrowUp']=0;
 brake.ontouchstart=()=>keys['ArrowDown']=1;
 brake.ontouchend=()=>keys['ArrowDown']=0;
+
+// Integrate steering into physics
+const oldLoop = loop;
+loop = function(){
+  if(steeringTouch){
+    player.angle += steeringValue * player.turn * (player.speed/5);
+    drawSteer(-steeringValue);
+  } else drawSteer(0);
+  oldLoop();
+};
+loop();
 </script>
 </body>
 </html>

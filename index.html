@@ -2,121 +2,88 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Top Down Car Game</title>
+<title>Canvas Car Game</title>
 <style>
-    body { margin:0; overflow:hidden; background:#111; font-family:system-ui; }
-    #game {
-        position:relative;
-        width:100vw;
-        height:100vh;
-        background:#444 url('https://i.imgur.com/qqwS8bL.png');
-        background-size:cover;
-        overflow:hidden;
-    }
-    .road {
-        position:absolute; left:50%; top:0; transform:translateX(-50%);
-        width:320px; height:100%;
-        background:#2f2f2f;
-        box-shadow:0 0 40px rgba(0,0,0,0.6) inset;
-    }
-    .lane-line { position:absolute; width:8px; height:60px; background:#fff; left:50%; transform:translateX(-50%); }
-
-    .car, .traffic {
-        position:absolute;
-        width:60px; height:120px;
-        background-size:cover;
-        transform-origin:center;
-        filter:drop-shadow(0 10px 12px rgba(0,0,0,0.45));
-    }
-    #player { background-image:url('https://i.imgur.com/1m0t2Tx.png'); }
-
-    #wheel {
-        position:absolute; bottom:20px; right:20px;
-        width:140px; height:140px;
-        background:url('https://i.imgur.com/WP4JrJd.png') no-repeat center/contain;
-        touch-action:none;
-    }
+  body { margin:0; overflow:hidden; background:#111; }
+  canvas { display:block; }
 </style>
 </head>
 <body>
-<div id="game">
-    <div class="road" id="road"></div>
-    <div id="player" class="car"></div>
-    <canvas id="wheel" width="160" height="160" style="position:absolute; bottom:20px; right:20px; touch-action:none;"></canvas>
-</div>
+<canvas id="game"></canvas>
 <script>
-const player = document.getElementById('player');
-let px = window.innerWidth/2 - 30;
-let py = window.innerHeight - 180;
-let speed = 7;
-let steer = 0;
-let steeringAngle = 0;
+const c = document.getElementById('game');
+const ctx = c.getContext('2d');
+resize(); window.onresize=resize;
+function resize(){ c.width=innerWidth; c.height=innerHeight; }
 
-function update(){
-    steeringAngle *= 0.9;
-    px += steeringAngle;
-    if(px < window.innerWidth/2 - 140) px = window.innerWidth/2 - 140;
-    if(px > window.innerWidth/2 + 80) px = window.innerWidth/2 + 80;
-    player.style.left = px + 'px';
-    player.style.top = py + 'px';
-    player.style.transform = `rotate(${steeringAngle*0.6}deg)`;
-    requestAnimationFrame(update);
-}
-update();
-
-let wheel = document.getElementById('wheel');
-let wctx = wheel.getContext('2d');
-function drawWheel(angle=0){
-    wctx.clearRect(0,0,160,160);
-    wctx.save();
-    wctx.translate(80,80);
-    wctx.rotate(angle);
-    wctx.lineWidth = 14;
-    wctx.strokeStyle = '#222';
-    wctx.beginPath();
-    wctx.arc(0,0,60,0,Math.PI*2);
-    wctx.stroke();
-    wctx.lineWidth = 8;
-    wctx.strokeStyle = '#ffcc00';
-    wctx.beginPath();
-    wctx.moveTo(0,-60);
-    wctx.lineTo(0,-30);
-    wctx.stroke();
-    wctx.restore();
-}
+let player = { x:c.width/2, y:c.height-150, w:40, h:80, angle:0, speed:0, max:10, acc:0.2, brake:0.3, turn:0.04 };
 let wheelAngle=0;
-drawWheel();
-let dragging = false;
+let keys={};
+let traffic=[];
 
-wheel.addEventListener('touchstart',()=>dragging=true);
-wheel.addEventListener('touchend',()=>{ dragging=false; steeringAngle=0; });
-wheel.addEventListener('touchmove',(e)=>{
-    if(!dragging) return;
-    let t = e.touches[0];
-    let rect = wheel.getBoundingClientRect();
-    let dx = t.clientX - (rect.left + rect.width/2);
-    steeringAngle = dx * 0.2;
-wheelAngle = steeringAngle * 0.05;
-drawWheel(wheelAngle);
-});
+for(let i=0;i<8;i++) spawnTraffic();
+function spawnTraffic(){
+  traffic.push({ x:c.width/2-100+Math.random()*200, y:-Math.random()*1500, w:40, h:80, speed:4+Math.random()*2 });
+}
 
-// basic traffic
-const game = document.getElementById('game');
-setInterval(()=>{
-    let t = document.createElement('div');
-    t.className='traffic';
-    t.style.backgroundImage="url('https://i.imgur.com/LqQDPHb.png')";
-    t.style.left=(window.innerWidth/2 - 100 + Math.random()*200)+'px';
-    t.style.top='-150px';
-    game.appendChild(t);
-    let y=-150;
-    let fall = setInterval(()=>{
-        y+=6;
-        t.style.top=y+'px';
-        if(y>window.innerHeight+150){ t.remove(); clearInterval(fall);}    
-    },16);
-},1200);
+window.addEventListener('keydown',e=>keys[e.key]=1);
+window.addEventListener('keyup',e=>keys[e.key]=0);
+window.addEventListener('touchstart',()=>keys['ArrowUp']=1);
+window.addEventListener('touchend',()=>keys['ArrowUp']=0);
 
+function drawCar(obj,color){
+  ctx.save();
+  ctx.translate(obj.x,obj.y);
+  ctx.rotate(obj.angle);
+  ctx.fillStyle=color;
+  ctx.fillRect(-obj.w/2,-obj.h/2,obj.w,obj.h);
+  ctx.restore();
+}
+
+function loop(){
+  ctx.clearRect(0,0,c.width,c.height);
+
+  ctx.fillStyle='#333';
+  ctx.fillRect(c.width/2-150,0,300,c.height);
+
+  ctx.setLineDash([40,40]);
+  ctx.strokeStyle='#fff';
+  ctx.lineWidth=6;
+  ctx.beginPath();
+  ctx.moveTo(c.width/2,0);
+  ctx.lineTo(c.width/2,c.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  if(keys['ArrowUp']) player.speed = Math.min(player.speed+player.acc, player.max);
+  if(keys['ArrowDown']) player.speed = Math.max(player.speed-player.brake, -2);
+  if(!keys['ArrowUp']&&!keys['ArrowDown']) player.speed*=0.98;
+  if(keys['ArrowLeft']) player.angle -= player.turn*(player.speed/6);
+  if(keys['ArrowRight']) player.angle += player.turn*(player.speed/6);
+
+  player.x += Math.sin(player.angle)*player.speed;
+  player.y -= Math.cos(player.angle)*player.speed;
+
+  if(player.x< c.width/2-140) player.x=c.width/2-140;
+  if(player.x> c.width/2+140) player.x=c.width/2+140;
+
+  traffic.forEach(t=>{
+    t.y += t.speed;
+    if(t.y>c.height+200){ t.y=-300; t.x=c.width/2-100+Math.random()*200; }
+    drawCar(t,'#ff4444');
+
+    if(Math.abs(player.x-t.x)<40 && Math.abs(player.y-t.y)<80){ alert('CRASH'); location.reload(); }
+  });
+
+  ctx.globalAlpha=0.3;
+  drawCar({x:player.x+10,y:player.y+20,w:50,h:90,angle:player.angle},'#000');
+  ctx.globalAlpha=1;
+
+  drawCar(player,'#00ccff');
+
+  requestAnimationFrame(loop);
+}
+loop();
 </script>
 </body>
 </html>

@@ -1,149 +1,217 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Canvas Car Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>HD Car Game</title>
 <style>
   body { margin:0; overflow:hidden; background:#111; }
-  canvas { display:block; }
+  canvas { display:block; touch-action:none; }
 </style>
 </head>
 <body>
+
 <canvas id="game"></canvas>
+
+<!-- Steering wheel -->
+<canvas id="steer" width="180" height="180"
+style="position:fixed; bottom:20px; left:20px;"></canvas>
+
 <script>
+/* ---------------- CORE SETUP ---------------- */
 const c = document.getElementById('game');
 const ctx = c.getContext('2d');
-resize(); window.onresize=resize;
-function resize(){ c.width=innerWidth; c.height=innerHeight; }
+function resize(){ c.width = innerWidth; c.height = innerHeight; }
+resize(); onresize = resize;
 
-let player = { x:c.width/2, y:c.height-150, w:40, h:80, angle:0, speed:0, max:10, acc:0.2, brake:0.3, turn:0.04 };
-let wheelAngle=0;
-let keys={};
-let traffic=[];
+let speed = 4;            // will increase with score
+let score = 0;
+let steeringValue = 0;
+let steeringTouch = false;
 
-for(let i=0;i<8;i++) spawnTraffic();
+/* ---------------- PLAYER CAR ---------------- */
+let player = {
+  x: c.width/2,
+  y: c.height - 200,
+  w: 55,
+  h: 110,
+  angle: 0
+};
+
+/* ----------- TRAFFIC + TRUCKS -------------- */
+let traffic = [];
 function spawnTraffic(){
-  traffic.push({ x:c.width/2-100+Math.random()*200, y:-Math.random()*1500, w:40, h:80, speed:4+Math.random()*2 });
+  let type = Math.random() < 0.25 ? "truck" : "car";
+  let w = type == "truck" ? 70 : 50;
+  let h = type == "truck" ? 150 : 100;
+  traffic.push({
+    x: c.width/2 - 120 + Math.random()*240,
+    y: -Math.random()*1500,
+    w, h,
+    type,
+    color: randomColor()
+  });
+}
+for(let i=0;i<10;i++) spawnTraffic();
+
+function randomColor(){
+  const colors = ['#ff4444','#22ccff','#ffaa00','#55ff55','#ff22aa'];
+  return colors[Math.floor(Math.random()*colors.length)];
 }
 
-window.addEventListener('keydown',e=>keys[e.key]=1);
-window.addEventListener('keyup',e=>keys[e.key]=0);
-window.addEventListener('touchstart',()=>keys['ArrowUp']=1);
-window.addEventListener('touchend',()=>keys['ArrowUp']=0);
-
-function drawCar(obj,color){
+/* ---------------- DRAW FUNCTIONS ---------------- */
+function drawCar(obj){
   ctx.save();
-  ctx.translate(obj.x,obj.y);
+  ctx.translate(obj.x, obj.y);
   ctx.rotate(obj.angle);
-  ctx.fillStyle=color;
-  ctx.fillRect(-obj.w/2,-obj.h/2,obj.w,obj.h);
+
+  // BODY
+  let grad = ctx.createLinearGradient(-obj.w/2, -obj.h/2, obj.w/2, obj.h/2);
+  grad.addColorStop(0, "#222");
+  grad.addColorStop(1, "#555");
+  ctx.fillStyle = grad;
+  ctx.roundRect(-obj.w/2, -obj.h/2, obj.w, obj.h, 10);
+  ctx.fill();
+
+  // WINDOWS
+  ctx.fillStyle = "rgba(180,220,255,0.8)";
+  ctx.fillRect(-obj.w/2 + 10, -obj.h/2 + 15, obj.w - 20, 25);
+  ctx.fillRect(-obj.w/2 + 10, obj.h/2 - 40, obj.w - 20, 20);
+
+  // WHEELS
+  ctx.fillStyle = "#000";
+  ctx.fillRect(-obj.w/2 - 5, -obj.h/2 + 10, 10, 30);
+  ctx.fillRect(obj.w/2 - 5, -obj.h/2 + 10, 10, 30);
+  ctx.fillRect(-obj.w/2 - 5, obj.h/2 - 40, 10, 30);
+  ctx.fillRect(obj.w/2 - 5, obj.h/2 - 40, 10, 30);
+
   ctx.restore();
 }
 
+function drawTraffic(obj){
+  ctx.save();
+  ctx.translate(obj.x, obj.y);
+
+  if(obj.type == "truck"){
+    ctx.fillStyle = "#333";
+    ctx.fillRect(-obj.w/2, -obj.h/2, obj.w, obj.h * 0.6);
+    ctx.fillStyle = obj.color;
+    ctx.fillRect(-obj.w/2, obj.h*0.1, obj.w, obj.h*0.9);
+  } else {
+    ctx.fillStyle = obj.color;
+    ctx.roundRect(-obj.w/2, -obj.h/2, obj.w, obj.h, 8);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/* ---------------- ROAD ---------------- */
+function drawRoad(){
+  ctx.fillStyle = "#222";
+  ctx.fillRect(c.width/2 - 150, 0, 300, c.height);
+
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 6;
+  ctx.setLineDash([40,40]);
+  ctx.beginPath();
+  ctx.moveTo(c.width/2, 0);
+  ctx.lineTo(c.width/2, c.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/* ---------------- GAME LOOP ---------------- */
 function loop(){
   ctx.clearRect(0,0,c.width,c.height);
 
-  ctx.fillStyle='#333';
-  ctx.fillRect(c.width/2-150,0,300,c.height);
+  drawRoad();
 
-  ctx.setLineDash([40,40]);
-  ctx.strokeStyle='#fff';
-  ctx.lineWidth=6;
-  ctx.beginPath();
-  ctx.moveTo(c.width/2,0);
-  ctx.lineTo(c.width/2,c.height);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  // auto-speed grows with score
+  speed = 5 + score*0.003;
 
-  if(keys['ArrowUp']) player.speed = Math.min(player.speed+player.acc, player.max);
-  if(keys['ArrowDown']) player.speed = Math.max(player.speed-player.brake, -2);
-  if(!keys['ArrowUp']&&!keys['ArrowDown']) player.speed*=0.98;
-  if(keys['ArrowLeft']) player.angle -= player.turn*(player.speed/6);
-  if(keys['ArrowRight']) player.angle += player.turn*(player.speed/6);
+  // Steering
+  if(steeringTouch){
+    player.angle += steeringValue * 0.03 * (speed/4);
+  }
 
-  player.x += Math.sin(player.angle)*player.speed;
-  player.y -= Math.cos(player.angle)*player.speed;
+  // Move forward
+  player.x += Math.sin(player.angle) * speed;
+  player.y -= Math.cos(player.angle) * speed;
 
-  if(player.x< c.width/2-140) player.x=c.width/2-140;
-  if(player.x> c.width/2+140) player.x=c.width/2+140;
+  // Keep player inside road
+  let left = c.width/2 - 140;
+  let right = c.width/2 + 140;
+  if(player.x < left) player.x = left;
+  if(player.x > right) player.x = right;
 
-  traffic.forEach(t=>{
-    t.y += t.speed;
-    if(t.y>c.height+200){ t.y=-300; t.x=c.width/2-100+Math.random()*200; }
-    drawCar(t,'#ff4444');
+  // Draw player
+  drawCar(player);
 
-    if(Math.abs(player.x-t.x)<40 && Math.abs(player.y-t.y)<80){ /* crash removed for mobile friendliness */ player.speed = 0; player.x = c.width/2; player.y = c.height-150; player.angle = 0;(); }
-  });
+  // Traffic update
+  for(let t of traffic){
+    t.y += speed * 0.9;
 
-  ctx.globalAlpha=0.3;
-  drawCar({x:player.x+10,y:player.y+20,w:50,h:90,angle:player.angle},'#000');
-  ctx.globalAlpha=1;
+    if(t.y > c.height + 200){
+      t.x = c.width/2 - 120 + Math.random()*240;
+      t.y = -500;
+      t.color = randomColor();
+      t.type = Math.random() < 0.25 ? "truck" : "car";
+      score++;
+    }
 
-  drawCar(player,'#00ccff');
+    drawTraffic(t);
+
+    // Collision
+    if(Math.abs(player.x - t.x) < (player.w+t.w)/2 - 10 &&
+       Math.abs(player.y - t.y) < (player.h+t.h)/2 - 10){
+      player.x = c.width/2;
+      player.y = c.height - 200;
+      player.angle = 0;
+      score = 0;
+      speed = 4;
+    }
+  }
 
   requestAnimationFrame(loop);
 }
 loop();
-</script>
-<canvas id="steer" width="180" height="180" style="position:fixed; bottom:20px; left:20px; touch-action:none;"></canvas>
-<canvas id="gas" width="120" height="120" style="position:fixed; bottom:30px; right:20px;"></canvas>
-<canvas id="brake" width="120" height="120" style="position:fixed; bottom:170px; right:20px;"></canvas>
 
-<script>
-// Steering wheel
-const steer=document.getElementById('steer');
-const sctx=steer.getContext('2d');
-let steeringTouch=false;
-let steeringValue=0;
+/* ---------------- STEERING WHEEL ---------------- */
+const steer = document.getElementById("steer");
+const sctx = steer.getContext("2d");
+
 function drawSteer(angle=0){
- sctx.clearRect(0,0,180,180);
- sctx.save(); sctx.translate(90,90); sctx.rotate(angle);
- sctx.lineWidth=16; sctx.strokeStyle='#333';
- sctx.beginPath(); sctx.arc(0,0,70,0,Math.PI*2); sctx.stroke();
- sctx.lineWidth=8; sctx.strokeStyle='#ffcc00';
- sctx.beginPath(); sctx.moveTo(0,-70); sctx.lineTo(0,-40); sctx.stroke();
- sctx.restore();
+  sctx.clearRect(0,0,180,180);
+  sctx.save();
+  sctx.translate(90,90);
+  sctx.rotate(angle);
+
+  sctx.lineWidth = 15;
+  sctx.strokeStyle = "#333";
+  sctx.beginPath();
+  sctx.arc(0,0,70,0,Math.PI*2);
+  sctx.stroke();
+
+  sctx.lineWidth = 8;
+  sctx.strokeStyle = "#ffcc00";
+  sctx.beginPath();
+  sctx.moveTo(0,-70);
+  sctx.lineTo(0,-40);
+  sctx.stroke();
+
+  sctx.restore();
 }
 drawSteer();
 
-steer.addEventListener('touchstart',()=>steeringTouch=true);
-steer.addEventListener('touchend',()=>{steeringTouch=false; steeringValue=0;});
-steer.addEventListener('touchmove',e=>{
- const t=e.touches[0];
- const r=steer.getBoundingClientRect();
- const dx=t.clientX-(r.left+r.width/2);
- steeringValue=Math.max(-1,Math.min(1,dx/60));
+steer.addEventListener("touchstart",()=>{ steeringTouch=true; });
+steer.addEventListener("touchend",()=>{ steeringTouch=false; steeringValue=0; drawSteer(0); });
+steer.addEventListener("touchmove",e=>{
+  const r = steer.getBoundingClientRect();
+  const touch = e.touches[0];
+  const dx = touch.clientX - (r.left + r.width/2);
+  steeringValue = Math.max(-1, Math.min(1, dx/60));
+  drawSteer(-steeringValue);
 });
-
-// Gas + brake buttons
-function drawBtn(ctx,color,text){
- ctx.clearRect(0,0,120,120);
- ctx.fillStyle=color;
- ctx.beginPath(); ctx.arc(60,60,55,0,Math.PI*2); ctx.fill();
- ctx.fillStyle='#fff'; ctx.font='22px sans-serif';
- ctx.textAlign='center'; ctx.textBaseline='middle';
- ctx.fillText(text,60,60);
-}
-const gctx=gas.getContext('2d');
-const bctx=brake.getContext('2d');
-drawBtn(gctx,'#0a0','GAS');
-drawBtn(bctx,'#a00','BRAKE');
-
-gas.ontouchstart=()=>keys['ArrowUp']=1;
-gas.ontouchend=()=>keys['ArrowUp']=0;
-brake.ontouchstart=()=>keys['ArrowDown']=1;
-brake.ontouchend=()=>keys['ArrowDown']=0;
-
-// Integrate steering into physics
-const oldLoop = loop;
-loop = function(){
-  if(steeringTouch){
-    player.angle += steeringValue * player.turn * (player.speed/5);
-    drawSteer(-steeringValue);
-  } else drawSteer(0);
-  oldLoop();
-};
-loop();
 </script>
 </body>
 </html>

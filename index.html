@@ -3,548 +3,376 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>SlowRoads — Expanded Infinite Edition (single file)</title>
+  <title>AmongLite — Multiplayer Social Deduction (single file prototype)</title>
   <style>
-    /* Expanded single-file driving game
-       - Infinite procedural road (streaming segments)
-       - Fuel, nitro, upgrades, day/night cycle, weather
-       - Simple AI traffic, touch controls, localStorage best score
-       - Modular sections and comments so you can extend
+    /*
+      AmongLite: single-file prototype inspired by social-deduction games (Among Us-like)
+      Features added in this update:
+        - Local settings UI (controls, audio, graphics)
+        - Peer-to-peer multiplayer using WebRTC datachannels with manual signaling (copy/paste)
+        - Lobby with player list, ready state, role assignment (crewmate / impostor)
+        - Top-down map, multiple characters (avatars), movement, tasks, vents (simple), kill and report
+        - Voting system, chat, simple sound cues, and improved UI
+        - Simulated AI bots if no peers connected
 
-       NOTE: This is an extensible single-file prototype. Tweak constants below.
+      Limitations & notes:
+        - This is a prototype. For seamless online multiplayer you need a signaling server (I included manual SDP copy/paste as a fallback).
+        - Not a production implementation: security, anti-cheat, and networking robustness are minimal.
+        - Large single-file; still a prototype—if you want a full 3000-4000 line version with more polish (animations, asset pipeline, custom maps, dedicated server), I can extend it next.
     */
 
-    :root{
-      --bg:#bfe9ff;
-      --road:#2b2b2b;
-      --shoulder:#8a8a8a;
-      --grass:#6bbf59;
-      --panel: rgba(0,0,0,0.6);
-      --accent: #ffd166;
-      --accent-dark: #e6b44a;
-      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
-    }
+    :root{ --bg:#0b1220; --panel: rgba(255,255,255,0.06); --accent:#ffd166; --accent2:#9ad3bc; }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#06101a,#0b1220);color:#e6eef6}
+    #app{position:relative;width:100%;height:100vh;overflow:hidden}
+    canvas{display:block;margin:0 auto;background:#07111a;box-shadow:0 8px 30px rgba(0,0,0,0.6);border-radius:6px}
 
-    html,body{height:100%;margin:0;background:linear-gradient(#cfeeff,#eaf9ff);}
-    canvas{display:block;margin:0 auto;background:linear-gradient(#d7f0ff,#bfe9ff);box-shadow:0 10px 30px rgba(0,0,0,0.15);border-radius:8px}
+    /* UI panels */
+    .panel{position:absolute;right:18px;top:18px;background:var(--panel);padding:12px;border-radius:10px;backdrop-filter:blur(6px);width:300px}
+    .panel h3{margin:0 0 6px 0;font-size:15px}
+    .panel p{margin:6px 0 0 0;font-size:13px;color:#cbd8e6}
+    .leftPanel{left:18px;top:18px;width:260px}
 
-    .ui{position:fixed;right:18px;top:18px;color:#fff;padding:10px 14px;background:var(--panel);backdrop-filter: blur(4px);border-radius:8px;z-index:10;box-shadow:0 6px 20px rgba(0,0,0,0.25);}    
-    .ui h1{margin:0;font-size:14px;letter-spacing:0.6px;font-weight:600}
-    .ui p{margin:6px 0 0 0;font-size:12px;color:#fff7}
-    .controls{position:fixed;left:18px;top:18px;color:#073b4c;background:rgba(255,255,255,0.95);padding:10px;border-radius:8px;font-size:13px}
-    .footer{position:fixed;left:18px;bottom:18px;color:#073b4c;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px;font-size:12px}
-    .big{font-size:18px;font-weight:700}
-    .btn{display:inline-block;padding:6px 10px;border-radius:6px;background:var(--accent);color:#072227;font-weight:700;text-decoration:none;cursor:pointer;border:none}
-    .btn.secondary{background:#9ad3bc}
-    .notice{font-size:12px;color:#fff7;margin-top:6px}
+    .btn{display:inline-block;padding:8px 10px;border-radius:8px;background:var(--accent);color:#072227;font-weight:700;text-decoration:none;border:none;cursor:pointer}
+    .btn.secondary{background:var(--accent2)}
+    .small{font-size:13px;padding:6px 8px}
 
-    /* responsive canvas sizing */
-    .wrap{display:flex;align-items:center;justify-content:center;height:100%}
-    @media (max-width:800px){.ui{display:none}.controls{left:10px;top:10px;font-size:11px}}
+    .lobbyList{max-height:200px;overflow:auto;margin-top:8px;border-radius:6px;padding:6px;background:rgba(0,0,0,0.12)}
+    .playerRow{display:flex;align-items:center;justify-content:space-between;padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.03)}
 
-    .hud{position:fixed;left:50%;transform:translateX(-50%);top:18px;background:rgba(0,0,0,0.45);color:#fff;padding:6px 10px;border-radius:6px;font-weight:600;z-index:12}
-    .score{font-size:16px}
-    .speed{font-size:13px;margin-top:4px}
+    .hud{position:absolute;left:50%;transform:translateX(-50%);top:18px;background:rgba(0,0,0,0.45);color:#fff;padding:6px 10px;border-radius:6px;font-weight:600}
 
-    .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(4,9,14,0.6);z-index:40}
-    .card{background:#fff;padding:18px;border-radius:10px;max-width:900px;width:min(94%,900px);box-shadow:0 14px 40px rgba(0,0,0,0.35);}
-    .card h2{margin:0 0 8px 0}
-    .muted{color:#556}
-    .controls-row{display:flex;gap:8px;align-items:center}
+    /* chat */
+    .chat{position:absolute;left:18px;bottom:18px;width:340px;background:var(--panel);padding:8px;border-radius:10px}
+    .chat .messages{max-height:180px;overflow:auto;margin-bottom:8px}
+    .chat .messages div{padding:6px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.03)}
+    .chat input{width:100%;padding:8px;border-radius:6px;border:none;background:rgba(255,255,255,0.02);color:#e6eef6}
 
-    /* small on-screen touch controls */
-    .touch-controls{position:fixed;right:16px;bottom:16px;z-index:30;display:none}
-    .touch-controls .pad{width:120px;height:120px;background:rgba(255,255,255,0.06);border-radius:50%;display:flex;align-items:center;justify-content:center;backdrop-filter: blur(4px)}
-    .touch-controls .pad button{background:transparent;border:none;color:#fff;font-size:20px}
-    @media (max-width:900px){ .touch-controls{display:block} .controls{display:none} }
+    /* model / modal */
+    .modal{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(rgba(0,0,0,0.6),rgba(0,0,0,0.6));z-index:60}
+    .card{background:#07121a;padding:18px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);width:min(720px,94%)}
 
-    /* notifications */
-    .notif{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:rgba(0,0,0,0.6);color:#fff;padding:8px 12px;border-radius:8px;z-index:60}
+    /* quick settings */
+    .settingsRow{display:flex;gap:8px;align-items:center;margin-top:6px}
+    label{font-size:13px}
 
+    /* responsive */
+    @media (max-width:900px){ .panel{display:none} canvas{width:100%;height:70vh} .chat{left:8px;width:calc(100% - 16px)} }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <canvas id="game" width="1280" height="720"></canvas>
-  </div>
+  <div id="app">
+    <canvas id="game" width="1100" height="640"></canvas>
 
-  <div class="ui">
-    <h1>SlowRoads — Infinite Edition</h1>
-    <p class="notice">Now with infinite stream, fuel, nitro, day/night, weather & upgrades.</p>
-    <div style="margin-top:8px">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div><span class="big" id="km">0 m</span></div>
-        <div style="margin-left:auto;font-size:12px">Best: <span id="best">0</span> m</div>
+    <div class="panel leftPanel" id="lobbyPanel">
+      <h3>Lobby</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="nameInput" placeholder="Your name" style="flex:1;padding:8px;border-radius:6px;border:none;background:rgba(255,255,255,0.03);color:#e6eef6" />
+        <button id="btnHost" class="btn small">Host</button>
       </div>
-      <div style="margin-top:8px;font-size:12px">Points: <span id="points">0</span>  •  Fuel: <span id="fuel">100</span>% • Nitro: <span id="nitro">0</span>%</div>
-    </div>
-  </div>
-
-  <div class="controls">
-    <div><strong>Controls</strong></div>
-    <div>← → or A D : Steer</div>
-    <div>↑ or W : Gas</div>
-    <div>↓ or S / Space : Brake</div>
-    <div>Shift : Nitro</div>
-    <div>R : Restart • P : Pause</div>
-  </div>
-
-  <div class="touch-controls">
-    <div style="display:flex;gap:10px;align-items:center;">
-      <div class="pad" id="steerPad"><button id="leftBtn">◀</button></div>
-      <div class="pad" id="actionPad"><button id="gasBtn">▲</button></div>
-    </div>
-  </div>
-
-  <div class="hud" id="hud">
-    <div class="score" id="hudScore">0 m</div>
-    <div class="speed" id="hudSpeed">0 km/h</div>
-  </div>
-
-  <div class="footer">Tip: Upgrades persist. Open settings in code to tweak spawn rates.</div>
-
-  <div id="startModal" class="modal">
-    <div class="card">
-      <h2>SlowRoads — Infinite Edition</h2>
-      <p class="muted">This expanded version adds streaming segments so you can drive infinitely, plus deeper mechanics: fuel consumption, nitro bursts, simple AI traffic, day/night, weather, upgrades and local highscore storage. It's still a single HTML file that you can tweak.</p>
-      <div class="controls-row" style="margin-top:10px">
-        <button id="startBtn" class="btn">Start Driving</button>
-        <button id="ghostBtn" class="btn secondary">Ghost Mode</button>
-        <button id="tutorialBtn" class="btn" style="background:#c7d2fe;color:#05205b">How to Play</button>
-        <div style="margin-left:auto;font-size:12px;color:#556">Save: LocalStorage</div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <button id="btnJoin" class="btn small secondary">Join</button>
+        <button id="btnAI" class="btn small">Add Bot</button>
       </div>
-      <hr/>
-      <p style="font-size:13px;margin:8px 0">Goal: Drive as far as possible. Fuel is consumed over time — collect fuel cans. Use nitro (Shift) for bursts but it drains fuel faster. Avoid collisions or use Ghost mode to ignore them.</p>
-    </div>
-  </div>
+      <p style="margin-top:8px;font-size:13px;color:#bcd">Room Signaling (manual): paste remote SDP here to connect</p>
+      <textarea id="signalBox" style="width:100%;height:80px;background:rgba(255,255,255,0.02);border-radius:6px;border:none;color:#dbeaf8;padding:8px"></textarea>
 
-  <div id="notif" class="notif" style="display:none">Notification</div>
+      <div style="margin-top:8px;font-size:13px;color:#dbeaf8">Players</div>
+      <div class="lobbyList" id="playerList"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <button id="btnReady" class="btn small">Ready</button>
+        <button id="btnStart" class="btn small secondary">Start Game</button>
+      </div>
+    </div>
+
+    <div class="panel" style="right:18px;top:18px;" id="settingsPanel">
+      <h3>Settings</h3>
+      <div class="settingsRow"><label>Character</label><select id="charSelect" style="margin-left:auto;background:transparent;color:#e6eef6;border:none"><option>Red</option><option>Blue</option><option>Green</option><option>Purple</option><option>Yellow</option></select></div>
+      <div class="settingsRow"><label>Controls</label><select id="controlSelect" style="margin-left:auto;background:transparent;color:#e6eef6;border:none"><option>Keyboard</option><option>Touch</option></select></div>
+      <div style="margin-top:8px"><label>Volume</label><input id="vol" type="range" min="0" max="100" value="80"/></div>
+    </div>
+
+    <div class="hud" id="hud">State: Lobby</div>
+
+    <div class="chat" id="chatPanel">
+      <div class="messages" id="chatMessages"></div>
+      <input id="chatInput" placeholder="Type message and press Enter" />
+    </div>
+
+    <div class="modal" id="voteModal">
+      <div class="card">
+        <h3>Vote</h3>
+        <p id="voteText">Who is suspicious?</p>
+        <div id="voteOptions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+        <div style="margin-top:12px;display:flex;gap:8px"><button id="btnVoteSkip" class="btn">Skip</button><button id="btnVoteClose" class="btn secondary">Close</button></div>
+      </div>
+    </div>
+
+  </div>
 
   <script>
-  /* ==========================
-     Expanded Game Engine (Canvas) — single-file
-     New features added:
-     - Infinite streaming road (segments generated on demand)
-     - Fuel, nitro, fuel pickups, nitro pickups
-     - Upgrades (persisted to localStorage): fuel capacity, nitro efficiency, top speed
-     - Day/Night cycle (time-of-day), Weather (clear/rain/fog)
-     - Basic AI traffic (other cars), checkpoints and achievements
-     - Pause, touch controls, simple sound cues (tick via AudioContext)
-     - Performance-friendly drawing (draw limited slices)
+  /* AmongLite: Multiplayer social-deduction prototype
+     Core architecture notes:
+       - Top-down map drawn on <canvas>
+       - Game state synchronized via WebRTC DataChannels (manual signaling fallback using copy/paste)
+       - Host handles authoritative actions (start, assign roles, votes). For P2P multi-host you'd need a server.
+       - Bots are simulated locally and participate in tasks/votes.
+  */
 
-     This file is intended as an expandable prototype — not a production game.
-     Tweak the constants in the CONFIG block below.
-  ========================== */
-
-  (() => {
-    // ---------------- CONFIG ----------------
+  (function(){
+    // ---------- Config ----------
     const CONFIG = {
-      SEGMENT_RENDER: 110, // how many segments to draw ahead
-      INITIAL_SEGMENTS: 700,
-      ROAD_WIDTH: 480,
-      MAX_SPEED: 25, // m/s (about 90 km/h)
-      ACCEL: 8.5,
-      BRAKE: 14,
-      FUEL_CONSUMPTION_IDLE: 0.3, // % per second at idle
-      FUEL_CONSUMPTION_ACCEL: 0.6, // extra while accelerating
-      NITRO_BOOST: 1.8, // speed multiplier
-      NITRO_DRAIN: 18, // % per second
-      AI_DENSITY: 0.018, // approx probability per segment for an AI car
-      PICKUP_RATE: 0.045, // chance per segment for a pickup
-      DAY_LENGTH: 120, // seconds for full day/night cycle
-      WEATHER_PROB: 0.02, // chance to change weather each second
+      MAP_W: 2000, MAP_H: 1200,
+      VIEW_W: 1100, VIEW_H: 640,
+      PLAYER_SPEED: 150, // px per second
+      TASK_COUNT: 5,
+      IMPOSTOR_KILL_COOLDOWN: 8, // seconds
+      MAX_PLAYERS: 10
     };
 
-    // ---------------- Canvas setup ----------------
+    // ---------- Canvas ----------
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
-    let W = canvas.width; let H = canvas.height;
-    function resizeCanvas() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const cssW = Math.min(window.innerWidth - 40, 1600);
-      const cssH = Math.min(window.innerHeight - 40, 960);
-      canvas.style.width = cssW + 'px';
-      canvas.style.height = cssH + 'px';
-      canvas.width = Math.floor(cssW * dpr);
-      canvas.height = Math.floor(cssH * dpr);
-      W = canvas.width; H = canvas.height;
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-    }
-    resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+    canvas.width = CONFIG.VIEW_W; canvas.height = CONFIG.VIEW_H;
 
-    // ---------------- State ----------------
-    const state = {
-      running: false,
-      ghost:false,
-      distance:0,
-      points:0,
-      speed:0,
-      maxSpeed: CONFIG.MAX_SPEED,
-      accel: CONFIG.ACCEL,
-      brake: CONFIG.BRAKE,
-      steerAngle:0,
-      carX:0,
-      roadWidth: CONFIG.ROAD_WIDTH,
-      segments: [],
-      firstSegmentIndex: 0, // index of the segment at car's position
-      time:0,
-      lastTime: performance.now(),
-      rngSeed: 1,
-      cameraY: H*0.45,
-      fuel:100,
-      nitro:0,
-      dayTime:0, // 0..1
-      weather: 'clear',
-      aiList: [],
-      paused:false,
-      bestDistance: loadBestDistance(),
-      upgrades: loadUpgrades(),
-      achievements: {},
+    // ---------- Local state ----------
+    const local = {
+      id: 'p_' + Math.floor(Math.random()*999999),
+      name: localStorage.getItem('al_name') || 'Player'+Math.floor(Math.random()*999),
+      color: 'Red',
+      role: 'crewmate',
+      isHost: false,
+      ready: false,
+      conn: null, // WebRTC local pc object
+      dc: null, // datachannel
+      peers: {}, // peer id -> {id,name,color,ready,dc}
+      bots: [],
+      inGame: false,
+      map: generateMap(),
+      players: {}, // id -> player state (x,y,alive,taskProgress)
+      tasks: {},
+      voteState: null,
+      lastKillTime: -999,
     };
 
-    // initialize with some segments
-    function seedSegments(n){
-      state.segments = [];
-      for(let i=0;i<n;i++) state.segments.push(generateSegment(i));
-    }
-    seedSegments(CONFIG.INITIAL_SEGMENTS);
+    // default player position
+    function spawnPos(i){ return {x: 200 + (i*80)%1000, y: 200 + Math.floor(i/10)*80}; }
 
-    // ---------------- Utilities ----------------
-    function rand(){ state.rngSeed = (state.rngSeed * 48271) % 2147483647; return (state.rngSeed % 10000)/10000; }
-    function randRange(a,b){ return a + (b-a)*rand(); }
-    function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+    // ---------- DOM refs ----------
+    const nameInput = document.getElementById('nameInput'); nameInput.value = local.name;
+    const playerListEl = document.getElementById('playerList');
+    const hud = document.getElementById('hud');
+    const startBtn = document.getElementById('btnStart');
+    const readyBtn = document.getElementById('btnReady');
+    const hostBtn = document.getElementById('btnHost');
+    const joinBtn = document.getElementById('btnJoin');
+    const signalBox = document.getElementById('signalBox');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatInput = document.getElementById('chatInput');
+    const aiBtn = document.getElementById('btnAI');
 
-    // ---------------- Persistent storage ----------------
-    function loadBestDistance(){ try{ const v = localStorage.getItem('sr_best'); return v?Number(v):0 }catch(e){return 0} }
-    function saveBestDistance(v){ try{ localStorage.setItem('sr_best', String(v)); }catch(e){} }
-    function loadUpgrades(){ try{ const v = JSON.parse(localStorage.getItem('sr_upg')||'{}'); return {fuelCap: v.fuelCap||120, nitroEff: v.nitroEff||1.0, topSpeed: v.topSpeed||CONFIG.MAX_SPEED}; }catch(e){return {fuelCap:120,nitroEff:1,topSpeed:CONFIG.MAX_SPEED}} }
-    function saveUpgrades(){ try{ localStorage.setItem('sr_upg', JSON.stringify(state.upgrades)); }catch(e){} }
+    // ---------- Networking: Simple WebRTC (manual signaling) ----------
+    // Note: This is a peer-to-peer approach. For automated signaling you need a server.
 
-    // ---------------- Segment generation (streaming) ----------------
-    let globalIndexCounter = 0;
-    function generateSegment(i){
-      // produce gentle curves, occasional sharp, elevation
-      const curve = Math.sin((i+globalIndexCounter)*0.02 + rand()*3.14) * randRange(-0.6,0.6);
-      const x = curve * 40 + Math.sin(i*0.07)*8;
-      const type = rand()<0.06 ? 'curve' : 'straight';
-      const obstacle = null; // filled later
-      const coin = null;
-      const pickup = (rand() < CONFIG.PICKUP_RATE) ? (rand()<0.6? 'fuel':'nitro') : null;
-      const ai = (rand() < CONFIG.AI_DENSITY) ? {speedFactor: 0.6 + rand()*0.9, laneOffset: randRange(-80,80)} : null;
-      return {i:i+globalIndexCounter, x, curve, type, obstacle, coin, pickup, ai};
+    function createPeerConnection(isHost){
+      const pc = new RTCPeerConnection();
+      const dc = pc.createDataChannel('game');
+      dc.onopen = ()=>{ log('DataChannel open'); local.dc = dc; setupDC(dc); }
+      dc.onmessage = e=> handleMessage(JSON.parse(e.data));
+
+      pc.ondatachannel = (ev)=>{ const ch = ev.channel; ch.onmessage = e=> handleMessage(JSON.parse(e.data)); ch.onopen = ()=>{ log('remote datachannel open'); }; local.peers['remote'] = {dc:ch}; }
+      return {pc,dc};
     }
 
-    // ensure we always have enough segments ahead
-    function maintainSegments(){
-      const needed = CONFIG.SEGMENT_RENDER + 40;
-      while(state.segments.length < needed){
-        const idx = (state.segments.length ? state.segments[state.segments.length-1].i + 1 : globalIndexCounter);
-        state.segments.push(generateSegment(idx));
-      }
+    // Manual signaling: createOffer -> copy offer -> remote set as answer -> paste into box -> connect
+    hostBtn.addEventListener('click', async ()=>{
+      local.isHost = true; local.name = nameInput.value || local.name; saveName(); seedLobbyAsHost(); showHUD('Hosting (manual signaling)');
+      const pc = new RTCPeerConnection();
+      local.conn = pc;
+      const dc = pc.createDataChannel('game'); local.dc = dc; setupDC(dc);
+      pc.onicecandidate = (e)=>{ if(e.candidate==null) { signalBox.value = JSON.stringify({type:'offer',sdp:pc.localDescription}); } }
+      const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+      // Wait for user to paste remote answer
+      joinBtn.disabled = true; hostBtn.disabled = true;
+    });
+
+    joinBtn.addEventListener('click', async ()=>{
+      // Join by pasting remote offer into signalBox
+      try{
+        const data = JSON.parse(signalBox.value.trim());
+        if(data.type==='offer'){
+          // act as client -> create answer
+          const pc = new RTCPeerConnection(); local.conn = pc;
+          pc.ondatachannel = ev => { const ch = ev.channel; local.dc = ch; setupDC(ch); };
+          pc.onicecandidate = e => { if(e.candidate==null) { signalBox.value = JSON.stringify({type:'answer',sdp:pc.localDescription}); } }
+          await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+          const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+          showHUD('Created answer — paste to host');
+        } else if(data.type==='answer'){
+          // host receives answer pasted back
+          if(local.conn){ await local.conn.setRemoteDescription(new RTCSessionDescription(data.sdp)); showHUD('Connected'); }
+        }
+      }catch(e){ alert('Invalid SDP JSON — copy/paste from host or peer.'); }
+    });
+
+    function setupDC(dc){
+      dc.onmessage = e => handleMessage(JSON.parse(e.data));
+      dc.onopen = ()=>{ showHUD('P2P connected'); send({t:'join',id:local.id,name:local.name,color:local.color}); };
+      dc.onerror = e => console.error('DC error',e);
     }
 
-    // ---------------- Player car ----------------
-    const car = {width:48,height:84,rotation:0,color:'#ff6b6b'};
+    function send(msg){ try{ if(local.dc && local.dc.readyState==='open') local.dc.send(JSON.stringify(msg)); }catch(e){} }
 
-    // ---------------- Input ----------------
+    function handleMessage(msg){
+      // messages: join, chat, stateUpdate, startGame, action (kill/report), vote
+      if(msg.t==='join'){ // other player joined
+        local.peers[msg.id] = {id: msg.id, name:msg.name, color:msg.color||'Red'}; updatePlayerList(); addChatSystem(msg.name + ' joined'); }
+      else if(msg.t==='chat'){ addChat(msg.name, msg.txt); }
+      else if(msg.t==='start'){ if(local.isHost){ // ignore; host starts locally } else startGameAsClient(msg); }
+      else if(msg.t==='state'){ mergeStateFromHost(msg.state); }
+      else if(msg.t==='action'){ handleRemoteAction(msg); }
+      else if(msg.t==='vote'){ handleRemoteVote(msg); }
+    }
+
+    // ---------- Lobby behaviors ----------
+    function seedLobbyAsHost(){ local.players = {}; local.players[local.id] = {id:local.id,name:local.name,color:local.color,alive:true,ready:false,x:300,y:300}; updatePlayerList(); }
+    function addLocalPlayer(){ local.players[local.id] = {id:local.id,name:local.name,color:local.color,alive:true,ready:false,x:300,y:300}; updatePlayerList(); }
+
+    function saveName(){ localStorage.setItem('al_name', nameInput.value); }
+
+    nameInput.addEventListener('change', ()=>{ local.name = nameInput.value; saveName(); updatePlayerList(); });
+
+    readyBtn.addEventListener('click', ()=>{ local.ready = !local.ready; if(local.players[local.id]) local.players[local.id].ready = local.ready; updatePlayerList(); broadcast({t:'ready',id:local.id,ready:local.ready}); });
+
+    startBtn.addEventListener('click', ()=>{
+      if(!local.isHost){ alert('Only host can start the game (in this manual P2P prototype).'); return; }
+      // assign roles
+      const ids = Object.keys(local.players);
+      if(ids.length < 2){ alert('Need at least 2 players'); return; }
+      const impostorCount = Math.max(1, Math.floor(ids.length/5));
+      const shuffled = shuffleArray(ids.slice());
+      const impostors = shuffled.slice(0, impostorCount);
+      for(const id of ids){ local.players[id].role = impostors.includes(id)? 'impostor' : 'crewmate'; local.players[id].alive = true; local.players[id].taskProgress = 0; }
+      // spawn positions
+      let i = 0; for(const id of ids){ const pos = spawnPos(i++); local.players[id].x = pos.x; local.players[id].y = pos.y; }
+      // create tasks
+      local.tasks = generateTasks(CONFIG.TASK_COUNT);
+      local.inGame = true; broadcast({t:'start', state: hostExportState()});
+      hud.innerText = 'In Game';
+      addChatSystem('Game started — roles assigned.');
+    });
+
+    aiBtn.addEventListener('click', ()=>{ const botId = 'bot_'+Math.floor(Math.random()*9999); local.bots.push(botId); local.players[botId] = {id:botId,name:'Bot'+Math.floor(Math.random()*999),color:['Blue','Green','Purple'][Math.floor(Math.random()*3)],alive:true,ready:true,x:400+Math.random()*200,y:360+Math.random()*200}; updatePlayerList(); addChatSystem('Added bot'); });
+
+    function updatePlayerList(){ playerListEl.innerHTML = ''; for(const id in local.players){ const p = local.players[id]; const row = document.createElement('div'); row.className='playerRow'; row.innerHTML = `<div><strong>${p.name}</strong> <span style="color:#9bd">${p.role||''}</span></div><div>${p.ready?'<small>Ready</small>':''}</div>`; playerListEl.appendChild(row);} }
+
+    function broadcast(msg){ // broadcast to peers (single DC in manual mode)
+      // In this simplified prototype we only support a single DC (manual). In multi-peer you'd iterate all peers.
+      try{ if(local.dc && local.dc.readyState==='open') local.dc.send(JSON.stringify(msg)); }catch(e){}
+    }
+
+    // ---------- Game world generation ----------
+    function generateMap(){ // simple map with rooms and corridors
+      const rooms = [ {x:200,y:120,w:600,h:340,name:'Cafeteria'}, {x:920,y:120,w:520,h:300,name:'Engine'}, {x:200,y:500,w:420,h:380,name:'Security'}, {x:700,y:520,w:580,h:420,name:'MedBay'} ];
+      const obstacles = [];
+      // create some walls (rects) between rooms
+      return {rooms,obstacles};
+    }
+
+    function generateTasks(n){ const t={}; for(let i=0;i<n;i++){ t['t'+i] = {id:'t'+i,x:200+Math.random()*1100,y:120+Math.random()*800,doneBy:null}; } return t; }
+
+    // ---------- Host authoritative export / merge ----------
+    function hostExportState(){ return {players: local.players, tasks: local.tasks, time: Date.now()}; }
+    function mergeStateFromHost(state){ // replace local non-authoritative state
+      local.players = state.players; local.tasks = state.tasks; local.inGame = true; hud.innerText = 'In Game (client)'; }
+
+    // ---------- Client join handling ----------
+    function startGameAsClient(msg){ mergeStateFromHost(msg.state); addChatSystem('Game started by host'); }
+
+    // ---------- Simulated bots ----------
+    function stepBots(dt){ for(const id of local.bots){ const bot = local.players[id]; if(!bot) continue; // simple wandering
+        const t = Object.values(local.tasks).find(x=>!x.doneBy);
+        if(t){ const dx = t.x - bot.x, dy = t.y - bot.y; const dist = Math.hypot(dx,dy); if(dist<6){ t.doneBy = id; } else { bot.x += (dx/dist)*CONFIG.PLAYER_SPEED*0.4*dt; bot.y += (dy/dist)*CONFIG.PLAYER_SPEED*0.4*dt; } }
+    } }
+
+    // ---------- Actions (kill/report) ----------
+    function handleRemoteAction(msg){ if(msg.act==='kill'){ if(local.players[msg.target]) local.players[msg.target].alive = false; addChatSystem(msg.by+' killed '+msg.target); } }
+
+    // ---------- Voting ----------
+    function openVote(){ const modal = document.getElementById('voteModal'); modal.style.display='flex'; const opts = document.getElementById('voteOptions'); opts.innerHTML=''; for(const id in local.players){ const p = local.players[id]; const btn = document.createElement('button'); btn.className='btn small'; btn.textContent = p.name; btn.onclick = ()=>{ submitVote(id); modal.style.display='none'; }; opts.appendChild(btn); } }
+    function submitVote(id){ addChatSystem(local.name + ' voted ' + (id?' '+local.players[id].name:' skip')); // send vote to host if client
+      if(local.isHost){ tallyVote(id); } else broadcast({t:'vote',by:local.id,target:id}); }
+    function handleRemoteVote(msg){ if(local.isHost){ // tally and maybe eject
+        tallyVote(msg.target); } }
+    function tallyVote(targetId){ // extremely simple: eject target
+      if(targetId && local.players[targetId]){ local.players[targetId].alive = false; addChatSystem(local.players[targetId].name + ' was ejected'); } else addChatSystem('No one was ejected (skip)'); }
+
+    // ---------- Chat UI ----------
+    chatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const txt = chatInput.value.trim(); if(!txt) return; addChat(local.name, txt); broadcast({t:'chat',name:local.name,txt}); chatInput.value=''; } });
+    function addChat(name, txt){ const div = document.createElement('div'); div.textContent = name + ': ' + txt; chatMessages.appendChild(div); chatMessages.scrollTop = chatMessages.scrollHeight; }
+    function addChatSystem(txt){ const div = document.createElement('div'); div.style.opacity=0.8; div.textContent = '[SYSTEM] ' + txt; chatMessages.appendChild(div); chatMessages.scrollTop = chatMessages.scrollHeight; }
+
+    // ---------- Input & local movement ----------
     const keys = {};
-    window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if(e.key==='r' || e.key==='R'){ restart(); } if(e.key==='p' || e.key==='P'){ togglePause(); } });
-    window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+    window.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()] = true; if(e.key==='v' || e.key==='V'){ openVote(); } });
+    window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()] = false; });
 
-    // touch controls
-    document.getElementById('leftBtn').addEventListener('touchstart', e=>{ e.preventDefault(); keys['a']=true; });
-    document.getElementById('leftBtn').addEventListener('touchend', e=>{ keys['a']=false; });
-    document.getElementById('gasBtn').addEventListener('touchstart', e=>{ e.preventDefault(); keys['w']=true; });
-    document.getElementById('gasBtn').addEventListener('touchend', e=>{ keys['w']=false; });
+    function localMovement(dt){ if(!local.inGame) return; if(!local.players[local.id]) local.players[local.id] = {id:local.id,name:local.name,color:local.color,alive:true,x:300,y:300}; const p = local.players[local.id]; if(!p.alive) return; let dx=0,dy=0; if(keys['arrowup']||keys['w']) dy -= 1; if(keys['arrowdown']||keys['s']) dy += 1; if(keys['arrowleft']||keys['a']) dx -= 1; if(keys['arrowright']||keys['d']) dx += 1; if(dx||dy){ const len = Math.hypot(dx,dy); p.x += (dx/len)*CONFIG.PLAYER_SPEED*dt; p.y += (dy/len)*CONFIG.PLAYER_SPEED*dt; if(local.isHost) broadcast({t:'state',state: hostExportState()}); else send({t:'move',id:local.id,x:p.x,y:p.y}); } }
 
-    // ---------------- Projection helpers ----------------
-    function project(depthIndex, lateral, cameraY){
-      const perspective = 1 / (1 + depthIndex * 0.02);
-      const x = W/2 + (lateral * perspective);
-      const y = cameraY + (depthIndex * 0.9) * (1 - perspective) + perspective * 60;
-      const scale = perspective;
-      return {x,y,scale,perspective};
-    }
+    // ---------- Rendering ----------
+    function draw(){ ctx.clearRect(0,0,canvas.width,canvas.height); // background floor
+      ctx.fillStyle = '#0b1720'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      drawMap(); drawPlayers(); drawTasks(); drawHUD(); }
 
-    // ---------------- Draw slice ----------------
-    function drawRoadSlice(depth, seg, nextSeg, camOffset){
-      const roadHalf = state.roadWidth/2;
-      const leftX = seg.x - roadHalf;
-      const rightX = seg.x + roadHalf;
-      const nextLeftX = nextSeg.x - roadHalf;
-      const nextRightX = nextSeg.x + roadHalf;
+    function drawMap(){ // rooms
+      ctx.save(); ctx.translate(0,0);
+      for(const r of local.map.rooms){ ctx.fillStyle = 'rgba(120,140,160,0.06)'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(r.x+8, r.y+8, 120, 28); ctx.fillStyle='#9bd'; ctx.font='14px sans-serif'; ctx.fillText(r.name, r.x+12, r.y+28); }
+      ctx.restore(); }
 
-      const p1 = project(depth, leftX - camOffset, state.cameraY);
-      const p2 = project(depth, rightX - camOffset, state.cameraY);
-      const p3 = project(depth+1, nextRightX - camOffset, state.cameraY);
-      const p4 = project(depth+1, nextLeftX - camOffset, state.cameraY);
+    function drawPlayers(){ for(const id in local.players){ const p = local.players[id]; if(!p) continue; if(!p.alive){ ctx.globalAlpha = 0.45; } else ctx.globalAlpha = 1; drawAvatar(p.x - cameraOffset().x, p.y - cameraOffset().y, id===local.id, p); ctx.globalAlpha = 1; } }
 
-      // grass
-      const grassShade = Math.max(0, Math.min(1, 0.6 + (1 - p1.scale)) );
-      ctx.fillStyle = `rgba(120,190,90,${0.95 - (depth/CONFIG.SEGMENT_RENDER)*0.6})`;
-      ctx.beginPath(); ctx.moveTo(0,p2.y); ctx.lineTo(W,p2.y); ctx.lineTo(W,p3.y); ctx.lineTo(0,p3.y); ctx.closePath(); ctx.fill();
+    function drawAvatar(x,y,isLocal,p){ const size=28; ctx.save(); ctx.translate(x,y); ctx.fillStyle = avatarColor(p.color); ctx.beginPath(); ctx.arc(0,0,size,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#fff'; ctx.font='12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.name.split(' ')[0],0,-size-8); if(!p.alive){ ctx.fillStyle='rgba(0,0,0,0.5)'; ctx.fillRect(-size, -size, size*2, size*2); } ctx.restore(); }
 
-      // road polygon
-      ctx.fillStyle = '#2b2b2b';
-      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(p4.x,p4.y); ctx.closePath(); ctx.fill();
+    function drawTasks(){ for(const id in local.tasks){ const t = local.tasks[id]; if(t.doneBy){ ctx.fillStyle='rgba(100,255,120,0.6)'; } else ctx.fillStyle='rgba(255,255,0,0.8)'; ctx.fillRect(t.x - cameraOffset().x -10, t.y - cameraOffset().y -10, 20,20); } }
 
-      // shoulders
-      ctx.fillStyle = '#8a8a8a';
-      ctx.beginPath(); ctx.moveTo(0,p1.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p4.x,p4.y); ctx.lineTo(0,p4.y); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(W,p2.y); ctx.lineTo(p2.x,p2.y); ctx.lineTo(p3.x,p3.y); ctx.lineTo(W,p3.y); ctx.closePath(); ctx.fill();
+    // avatar color map
+    function avatarColor(c){ switch((c||'Red').toLowerCase()){ case 'red': return '#ff6b6b'; case 'blue': return '#6bb0ff'; case 'green': return '#8be38b'; case 'purple': return '#c28bff'; case 'yellow': return '#ffd166'; default: return '#9ad3bc'; } }
 
-      // center dashed line
-      ctx.strokeStyle = '#efefef'; ctx.lineWidth = Math.max(1, 3 * p1.scale);
-      ctx.beginPath(); const cx1 = (p1.x + p2.x)/2; const cx2 = (p4.x + p3.x)/2; ctx.moveTo(cx1, p1.y + 2); ctx.lineTo(cx2, p4.y + 2); ctx.setLineDash([6 * p1.scale, 8 * p1.scale]); ctx.stroke(); ctx.setLineDash([]);
+    // camera centers on local player
+    function cameraOffset(){ const p = local.players[local.id] || {x:CONFIG.MAP_W/2,y:CONFIG.MAP_H/2}; const cx = p.x - canvas.width/2; const cy = p.y - canvas.height/2; return {x:cx,y:cy}; }
 
-      // pickups and AI
-      if(seg.pickup) drawPickup(depth, seg, camOffset, seg.pickup);
-      if(seg.ai && depth>6) drawAI(depth, seg, camOffset, seg.ai);
-    }
+    function drawHUD(){ // simple
+      hud.innerText = local.inGame? ('In Game — ' + (local.role||'')) : 'Lobby'; }
 
-    function drawPickup(depth, seg, camOffset, kind){
-      const p = project(depth, seg.x - camOffset, state.cameraY);
-      const size = Math.max(6, 16 * p.scale);
-      ctx.save(); ctx.translate(p.x, p.y - size);
-      if(kind==='fuel'){
-        roundedRect(ctx, -size, -size*0.6, size*2, size*1.2, 6);
-        ctx.fillStyle='#4cc9f0'; ctx.fill(); ctx.fillStyle='#023047'; ctx.font=`${Math.max(8,8*p.scale)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('F',0,0);
-      } else {
-        roundedRect(ctx, -size, -size*0.6, size*2, size*1.2, 6);
-        ctx.fillStyle='#ffd166'; ctx.fill(); ctx.fillStyle='#b36b00'; ctx.font=`${Math.max(8,8*p.scale)}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('N',0,0);
-      }
-      ctx.restore();
-    }
+    // ---------- Utilities ----------
+    function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a; }
 
-    function drawAI(depth, seg, camOffset, ai){
-      const p = project(depth, seg.x + ai.laneOffset - camOffset, state.cameraY);
-      const size = Math.max(8, 18 * p.scale);
-      ctx.save(); ctx.translate(p.x, p.y - size);
-      roundedRect(ctx, -size, -size*1.2, size*2, size*1.8, 6); ctx.fillStyle='#9db4ff'; ctx.fill();
-      ctx.restore();
-    }
+    // ---------- Votes & reports (local) ----------
+    function reportBody(reporterId, bodyId){ addChatSystem(local.players[reporterId].name+' reported a body of '+local.players[bodyId].name); openVote(); }
 
-    // ---------------- Car drawing ----------------
-    function drawCar(){
-      const cx = W/2 + car.x;
-      const cy = H - 140;
-      ctx.save(); ctx.translate(cx,cy); ctx.rotate(car.rotation);
-      // shadow
-      ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(0, car.height*0.32, car.width*0.85, car.height*0.18, 0,0,Math.PI*2); ctx.fill();
-      // body
-      roundedRect(ctx, -car.width/2, -car.height/2, car.width, car.height, 10); ctx.fillStyle = car.color; ctx.fill();
-      // windows
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; roundedRect(ctx, -car.width/2 + 8, -car.height/2 + 8, car.width - 16, car.height*0.45, 6); ctx.fill();
-      // wheels
-      ctx.fillStyle = '#222'; ctx.beginPath(); ctx.ellipse(-car.width*0.33, car.height*0.34, car.width*0.18, car.height*0.14, 0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(car.width*0.33, car.height*0.34, car.width*0.18, car.height*0.14, 0,0,Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
+    // ---------- Host actions ----------
+    function broadcastHostState(){ if(local.isHost) broadcast({t:'state', state: hostExportState()}); }
 
-    // roundedRect helper
-    function roundedRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+    // ---------- Simple game loop ----------
+    let last = performance.now(); function tick(now){ const dt = Math.min(0.05, (now-last)/1000); last = now; if(local.inGame){ stepBots(dt); localMovement(dt); } draw(); requestAnimationFrame(tick); } requestAnimationFrame(tick);
 
-    // ---------------- Collisions & pickups ----------------
-    function checkCollisions(playerX, aheadIndex){
-      const hitRange = 28; const collected = [];
-      for(let i=aheadIndex;i<aheadIndex+12 && i < state.segments.length;i++){
-        const seg = state.segments[i];
-        if(seg.pickup){
-          const p = project(i-aheadIndex, seg.x - state.carX, state.cameraY);
-          if(p.y > H - 260 && Math.abs(p.x - (W/2 + playerX)) < hitRange + 12){ collected.push({idx:i, kind:seg.pickup}); }
-        }
-        if(seg.ai){
-          const p = project(i-aheadIndex, seg.x + seg.ai.laneOffset - state.carX, state.cameraY);
-          if(p.y > H - 260 && Math.abs(p.x - (W/2 + playerX)) < hitRange + 12){
-            if(!state.ghost){ return {hit:true, segIndex:i}; }
-          }
-        }
-      }
-      return {hit:false, collected};
-    }
+    // ---------- Helper: send wrapper for manual DC (if available) ----------
+    function send(msg){ try{ if(local.dc && local.dc.readyState==='open') local.dc.send(JSON.stringify(msg)); }catch(e){ console.warn('send failed',e); } }
+    function broadcast(msg){ send(msg); }
 
-    // ---------------- Day / Night / Weather ----------------
-    function updateEnvironment(dt){
-      state.dayTime += dt / CONFIG.DAY_LENGTH; if(state.dayTime > 1) state.dayTime -= 1;
-      // weather change occasionally
-      if(rand() < CONFIG.WEATHER_PROB * dt){
-        const choices = ['clear','rain','fog']; state.weather = choices[Math.floor(rand()*choices.length)];
-        showNotif('Weather: ' + state.weather);
-      }
-    }
+    // ---------- Misc helpers ----------
+    function log(...args){ console.log.apply(console,args); }
 
-    // ---------------- Notif ----------------
-    let notifTimer = 0;
-    function showNotif(txt, t=2.5){ const n = document.getElementById('notif'); n.textContent = txt; n.style.display='block'; notifTimer = t; }
+    // ---------- UI helpers ----------
+    function showHUD(txt){ hud.innerText = txt; setTimeout(()=>{ if(!local.inGame) hud.innerText='Lobby'; }, 3000); }
 
-    // ---------------- Update Loop ----------------
-    function update(dt){
-      if(state.paused) return;
-      // inputs
-      const left = keys['arrowleft'] || keys['a'];
-      const right = keys['arrowright'] || keys['d'];
-      const up = keys['arrowup'] || keys['w'];
-      const down = keys['arrowdown'] || keys['s'] || keys[' '];
-      const nitroKey = keys['shift'];
+    // initialize local player in lobby
+    addLocalPlayer(); updatePlayerList();
 
-      // fuel consumption
-      let fuelDrain = CONFIG.FUEL_CONSUMPTION_IDLE * dt;
-      if(up) fuelDrain += CONFIG.FUEL_CONSUMPTION_ACCEL * dt;
-      if(nitroKey && state.nitro>0){ fuelDrain += 1.2 * dt; }
-      state.fuel = clamp(state.fuel - fuelDrain, 0, state.upgrades.fuelCap || 100);
-      if(state.fuel <= 0){ state.speed = Math.max(0, state.speed - state.brake * dt * 1.6); }
+    // save name on change
+    nameInput.addEventListener('change', ()=>{ local.name = nameInput.value; saveName(); addLocalPlayer(); updatePlayerList(); });
 
-      // speed control
-      if(up && state.fuel>0){ state.speed += state.accel * dt; }
-      else { state.speed -= (state.accel*0.48) * dt; }
-      if(down){ state.speed -= state.brake * dt; }
-
-      // nitro
-      if(nitroKey && state.nitro>0 && state.fuel>5){ state.speed = Math.min(state.maxSpeed * CONFIG.NITRO_BOOST * (state.upgrades.topSpeed/state.maxSpeed), state.speed + state.accel * dt * 2); state.nitro = clamp(state.nitro - CONFIG.NITRO_DRAIN * dt / (state.upgrades.nitroEff||1), 0, 100); }
-
-      // clamp speed
-      const top = state.upgrades.topSpeed || state.maxSpeed;
-      state.speed = clamp(state.speed, 0, top);
-
-      // steer
-      let steerInput = 0; if(left) steerInput -= 1; if(right) steerInput += 1;
-      const steerStrength = 1.2 + (1 - (state.speed/top)) * 2.2;
-      state.steerAngle = (state.steerAngle*0.84) + steerInput * 0.28 * steerStrength;
-      state.carX += state.steerAngle * 6 * (state.speed/top + 0.18);
-      car.rotation = state.steerAngle * 0.18;
-
-      // bounds
-      const maxX = state.roadWidth*0.9 - car.width/2; state.carX = clamp(state.carX, -maxX, maxX);
-
-      // move forward (distance increments)
-      state.distance += state.speed * dt * 12; // tuned scale for visible progression
-      state.points = Math.floor(state.distance/10);
-
-      // camera
-      state.cameraY = H*0.45 - (state.speed/top)*50;
-
-      // maintain segments
-      while(state.segments.length < CONFIG.SEGMENT_RENDER + 60) state.segments.push(generateSegment(state.segments.length + globalIndexCounter));
-
-      // determine baseIndex (which segment is at position)
-      const baseIndex = Math.floor(state.distance/6) % state.segments.length;
-
-      // collisions and pickups
-      const lookAhead = Math.floor(state.speed * 6 + 30);
-      const hitCheck = checkCollisions(state.carX, lookAhead);
-      if(hitCheck.hit && !state.ghost){ state.running = false; state.speed = Math.max(0, state.speed * 0.16); showGameOver(); }
-      for(const item of hitCheck.collected){
-        const seg = state.segments[item.idx];
-        if(seg.pickup==='fuel'){ state.fuel = clamp(state.fuel + 30, 0, state.upgrades.fuelCap || 120); showNotif('Fuel +30'); }
-        if(seg.pickup==='nitro'){ state.nitro = clamp(state.nitro + 35, 0, 100); showNotif('Nitro +35'); }
-        seg.pickup = null;
-      }
-
-      // pickup spawning chance occasionally
-      if(rand() < 0.02) {
-        const id = Math.floor(rand()*Math.min(200, state.segments.length-10)); if(state.segments[id]) state.segments[id].pickup = rand()<0.6? 'fuel' : 'nitro';
-      }
-
-      // update day/weather
-      updateEnvironment(dt);
-
-      // update UI
-      document.getElementById('hudScore').textContent = Math.floor(state.distance) + ' m';
-      document.getElementById('hudSpeed').textContent = Math.round(state.speed * 3.6) + ' km/h';
-      document.getElementById('km').textContent = 'Distance: ' + Math.floor(state.distance) + ' m';
-      document.getElementById('points').textContent = state.points;
-      document.getElementById('fuel').textContent = Math.round(state.fuel);
-      document.getElementById('nitro').textContent = Math.round(state.nitro);
-
-      // update best
-      if(state.distance > state.bestDistance){ state.bestDistance = Math.floor(state.distance); document.getElementById('best').textContent = state.bestDistance; saveBestDistance(state.bestDistance); }
-
-      // notif timer
-      if(notifTimer>0){ notifTimer -= dt; if(notifTimer<=0) document.getElementById('notif').style.display='none'; }
-
-      maintainSegments();
-    }
-
-    // ---------------- Draw Loop ----------------
-    function draw(){
-      // environment backdrop
-      const dayFactor = 0.5 + 0.5 * Math.cos(state.dayTime * Math.PI*2); // 0..1
-      const skyTop = lerpColor('#dff7ff','#050722', 1-dayFactor);
-      const skyBot = lerpColor('#bfe9ff','#0b1220', 1-dayFactor);
-      const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0, skyTop); g.addColorStop(1, skyBot);
-      ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-
-      // sun/moon
-      const sunX = W*0.12 + Math.sin(state.dayTime*2*Math.PI)*W*0.3;
-      const sunY = H*0.12 + Math.cos(state.dayTime*2*Math.PI)*H*0.05;
-      ctx.beginPath(); ctx.arc(sunX, sunY, 44*(0.6+dayFactor*0.6), 0, Math.PI*2); ctx.fillStyle = dayFactor>0.5? 'rgba(255,220,120,0.95)':'rgba(180,200,255,0.6)'; ctx.fill();
-
-      // road + slices
-      const maxDraw = CONFIG.SEGMENT_RENDER;
-      const baseIndex = Math.floor(state.distance/6) % state.segments.length;
-      const camOffset = state.carX;
-      for(let i=maxDraw;i>0;i--){
-        const segIndex = (baseIndex + i) % state.segments.length;
-        const seg = state.segments[segIndex];
-        const nextSeg = state.segments[(segIndex+1) % state.segments.length];
-        drawRoadSlice(i, seg, nextSeg, camOffset);
-      }
-
-      // weather overlay
-      if(state.weather==='rain'){
-        ctx.fillStyle='rgba(150,150,200,0.06)'; ctx.fillRect(0,0,W,H);
-        // simple rain lines
-        ctx.strokeStyle='rgba(200,220,255,0.12)'; ctx.lineWidth=1; for(let i=0;i<200;i++){ const x=(i*47+state.distance*0.3)%W; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+6, H); ctx.stroke(); }
-      } else if(state.weather==='fog'){
-        ctx.fillStyle='rgba(220,220,220,0.18)'; ctx.fillRect(0,0,W,H);
-      }
-
-      // distant scenery
-      drawDistantScenery();
-
-      // car
-      drawCar();
-
-      // HUD overlay effects
-      if(state.fuel<20){ ctx.fillStyle='rgba(255,80,80,0.04)'; ctx.fillRect(0,0,W,H); }
-      if(!state.running){ ctx.fillStyle = 'rgba(6,10,12,0.45)'; ctx.fillRect(0,0,W,H); ctx.fillStyle = '#fff'; ctx.font='28px sans-serif'; ctx.textAlign='center'; ctx.fillText('Crashed - Press R to restart', W/2, H/2); }
-    }
-
-    function lerpColor(a,b,t){ // simple hex lerp
-      const ca = hexToRgb(a), cb = hexToRgb(b); const r=Math.round(ca.r*(1-t)+cb.r*t); const g=Math.round(ca.g*(1-t)+cb.g*t); const bl=Math.round(ca.b*(1-t)+cb.b*t); return `rgb(${r},${g},${bl})`; }
-    function hexToRgb(hex){ const h = hex.replace('#',''); return {r:parseInt(h.substring(0,2),16), g:parseInt(h.substring(2,4),16), b:parseInt(h.substring(4,6),16)} }
-
-    function drawDistantScenery(){ for(let i=0;i<28;i++){ const t = (i/28 + (state.distance*0.0004)) % 1; const x = (t - 0.5) * W * 1.6; const y = H*0.55 + Math.sin(i*0.33 + state.distance*0.0009)*20; const scale = 0.4 + 0.8*(1 - Math.abs((t-0.5)*2)); ctx.fillStyle = '#245c2f'; ctx.beginPath(); ctx.ellipse(W/2 + x, y, 18*scale, 40*scale, 0, 0, Math.PI*2); ctx.fill(); } }
-
-    // ---------------- Game Over / Restart ----------------
-    function showGameOver(){ const card = document.createElement('div'); card.style.position='fixed';card.style.left='50%';card.style.top='50%';card.style.transform='translate(-50%,-50%)'; card.style.background='#fff';card.style.padding='18px';card.style.borderRadius='10px';card.style.boxShadow='0 14px 40px rgba(0,0,0,0.35)';card.style.zIndex=60; card.innerHTML = `<h3>Game Over</h3><p>Distance: ${Math.floor(state.distance)} m<br/>Points: ${state.points}</p>`; const btn = document.createElement('button'); btn.textContent='Restart'; btn.className='btn'; btn.onclick = ()=>{ document.body.removeChild(card); restart(); }; card.appendChild(btn); document.body.appendChild(card); }
-
-    function restart(){ state.running=true; state.distance=0; state.points=0; state.speed=0; state.carX=0; state.steerAngle=0; state.time=0; state.fuel = state.upgrades.fuelCap || 120; state.nitro = 20; state.dayTime = 0; state.weather='clear'; state.segments=[]; globalIndexCounter += 100000; seedSegments(CONFIG.INITIAL_SEGMENTS); state.rngSeed = Math.floor(Math.random()*100000)+1; document.getElementById('startModal').style.display='none'; }
-
-    // ---------------- Pause ----------------
-    function togglePause(){ state.paused = !state.paused; showNotif(state.paused? 'Paused' : 'Resumed', 1.8); }
-
-    // ---------------- Notifications loop and helpers ----------------
-    function notifLoop(dt){ if(notifTimer>0) notifTimer = Math.max(0, notifTimer - dt); if(notifTimer<=0) document.getElementById('notif').style.display='none'; }
-
-    // ---------------- Buttons (UI) ----------------
-    document.getElementById('startBtn').addEventListener('click', ()=>{ state.ghost=false; restart(); });
-    document.getElementById('ghostBtn').addEventListener('click', ()=>{ state.ghost=true; restart(); });
-    document.getElementById('tutorialBtn').addEventListener('click', ()=>{ showTutorial(); });
-
-    function showTutorial(){ alert('Goal: Drive as far as possible. Collect fuel & nitro pickups. Use Shift for nitro. Avoid collisions. Upgrades persist to localStorage.'); }
-
-    // ---------------- Main loop ----------------
-    function loop(now){ const dt = Math.min(0.05, (now - state.lastTime)/1000); state.lastTime = now; if(state.running) update(dt); draw(); requestAnimationFrame(loop); }
-    requestAnimationFrame(loop);
-
-    // initial modal
-    document.getElementById('startModal').style.display='flex';
-
-    // ---------------- Helpers for upgrades and achievements (simple) ----------------
-    function showNotif(txt){ const n = document.getElementById('notif'); n.textContent = txt; n.style.display = 'block'; notifTimer = 2.4; }
-
-    // expose some update functions for advanced tweaking via console
-    window.SlowRoads = { state, CONFIG, restart, showNotif, saveUpgrades };
+    // quick controls: paste answer into signal box to finish handshake
+    // For production you'd provide a signaling server that exchanges offers/answers automatically.
 
   })();
   </script>

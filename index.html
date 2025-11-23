@@ -1,390 +1,235 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Starlight Station - Local Solo</title>
-    <!-- Load Tailwind CSS for utility classes -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a; /* Tailwind slate-900 */
-            color: #e2e8f0; /* Tailwind slate-200 */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-        #gameCanvas {
-            background-color: #2c3e50; /* Darker background for the spaceship */
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-            max-width: 90vw;
-            height: 70vh;
-        }
-        .info-card {
-            background-color: #1e293b; /* Tailwind slate-800 */
-            border-radius: 8px;
-            padding: 12px;
-            margin-top: 10px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-            width: 100%;
-        }
-        .action-button {
-            padding: 10px 20px;
-            border-radius: 9999px; /* Pill shape */
-            font-weight: bold;
-            transition: transform 0.1s;
-            cursor: pointer;
-        }
-        .action-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-        }
-    </style>
-</head>
-<body class="min-h-screen">
+import React, { useState, useEffect, useCallback } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, addDoc, onSnapshot, query, serverTimestamp } from 'firebase/firestore';
 
-    <h1 class="text-3xl font-bold mb-4 text-white">Starlight Station 🚀 (Solo Mode)</h1>
-    <p class="text-sm mb-4 text-slate-400">Move with WASD or Arrow Keys. Customize your crewmate before starting!</p>
+// Global variables provided by the environment (MUST be used)
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-social-app-id';
+const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-    <!-- Game Canvas -->
-    <canvas id="gameCanvas" class="mb-4"></canvas>
+// Helper to handle exponential backoff for retries
+const retryFetch = async (fn, retries = 5, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            console.warn(`Attempt ${i + 1} failed. Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2; // Exponential backoff
+        }
+    }
+};
 
-    <!-- Game Controls and Status -->
-    <div id="game-ui" class="flex flex-col md:flex-row gap-4 w-full max-w-5xl">
-        
-        <!-- Status Panel -->
-        <div class="info-card w-full md:w-1/3">
-            <div id="role-display" class="text-lg font-bold mb-2">Role: <span class="text-slate-400">?</span></div>
-            <div id="status-display" class="text-sm mb-2 text-green-500">STATUS: ALIVE</div>
-            <p id="player-name-display" class="text-xs text-slate-400 truncate">Character: N/A</p>
-        </div>
+const App = () => {
+    const [db, setDb] = useState(null);
+    const [auth, setAuth] = useState(null);
+    const [userId, setUserId] = useState(null);
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [posts, setPosts] = useState([]);
+    const [newPostContent, setNewPostContent] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-        <!-- Action Buttons -->
-        <div id="controls" class="info-card w-full md:w-2/3 flex flex-wrap gap-3 justify-center items-center">
+    // 1. Firebase Initialization and Authentication
+    useEffect(() => {
+        if (!firebaseConfig) {
+            setError("Firebase configuration is missing.");
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const app = initializeApp(firebaseConfig);
+            const firestore = getFirestore(app);
+            const userAuth = getAuth(app);
             
-            <!-- Dynamic Action Button (Task/Sabotage/Kill Placeholder) -->
-            <button id="action-button" class="action-button bg-blue-500 hover:bg-blue-600 text-white shadow-lg">
-                Action (Task)
-            </button>
-
-            <!-- Report Button -->
-            <button id="report-button" class="action-button bg-orange-500 hover:bg-orange-600 text-white shadow-lg">
-                🚨 Report Body
-            </button>
+            setDb(firestore);
+            setAuth(userAuth);
             
-            <!-- Emergency Button -->
-            <button id="emergency-button" class="action-button bg-red-500 hover:bg-red-600 text-white shadow-lg">
-                📢 Emergency Meeting
-            </button>
-        </div>
-    </div>
-    
-    <!-- Character Creation Modal (Start Screen) -->
-    <div id="start-modal" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-        <div class="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full">
-            <h3 class="text-2xl font-bold mb-6 text-white text-center">Customize Your Crewmate</h3>
-            
-            <div class="mb-4">
-                <label for="player-name-input" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
-                <input type="text" id="player-name-input" placeholder="Enter name" maxlength="10" value="Solo Player"
-                       class="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white focus:ring-blue-500 focus:border-blue-500">
-            </div>
+            // Log in using the provided token or anonymously
+            const authenticate = async () => {
+                try {
+                    if (initialAuthToken) {
+                        await retryFetch(() => signInWithCustomToken(userAuth, initialAuthToken));
+                    } else {
+                        await retryFetch(() => signInAnonymously(userAuth));
+                    }
+                } catch (e) {
+                    console.error("Firebase sign-in failed:", e);
+                    setError("Failed to authenticate with the server.");
+                }
+            };
+            authenticate();
 
-            <div class="mb-6">
-                <label for="player-color-input" class="block text-sm font-medium text-slate-300 mb-1">Color</label>
-                <input type="color" id="player-color-input" value="#ff0000"
-                       class="w-full h-10 rounded-lg cursor-pointer">
-            </div>
+            // Listen for auth state changes
+            const unsubscribe = onAuthStateChanged(userAuth, (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                } else {
+                    setUserId(null);
+                }
+                setIsAuthReady(true);
+                setIsLoading(false);
+            });
 
-            <button id="start-game-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition text-lg">
-                Start Station (Begin Solo Mission)
-            </button>
-        </div>
-    </div>
+            return () => unsubscribe();
 
-    <!-- Custom Modal (Replaces alert()) -->
-    <div id="custom-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-        <div class="bg-slate-700 p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h3 id="modal-title" class="text-xl font-bold mb-4 text-white"></h3>
-            <p id="modal-message" class="text-slate-300 mb-6"></p>
-            <button id="close-modal" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg transition">
-                Close
-            </button>
-        </div>
-    </div>
-
-<script>
-    
-    // --- Global Variables and Setup ---
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const PLAYER_SIZE = 16;
-    const MOVEMENT_SPEED = 3;
-    
-    // Initial local state, will be updated by character creation modal
-    let localPlayer = { x: 100, y: 100, color: '#ff0000', role: 'crewmate', isDead: false, name: 'Solo Player' };
-    let isGameActive = false;
-    let keys = {};
-    
-    const MAP_SIZE = 1000;
-    const MAP_BOUNDARIES = [
-        // [x, y, w, h] - Rectangular solid walls
-        [0, 0, MAP_SIZE, 50], // Top wall
-        [0, MAP_SIZE - 50, MAP_SIZE, 50], // Bottom wall
-        [0, 0, 50, MAP_SIZE], // Left wall
-        [MAP_SIZE - 50, 0, 50, MAP_SIZE], // Right wall
-        [200, 200, 20, 400], // Internal divider 1
-        [600, 400, 300, 20], // Internal divider 2
-        [400, 700, 20, 200], // Storage room wall
-        [600, 100, 20, 200]  // Engine room wall
-    ];
-
-    // --- Game Setup and Loop ---
-
-    function startGame() {
-        const nameInput = document.getElementById('player-name-input');
-        const colorInput = document.getElementById('player-color-input');
-        
-        localPlayer.name = nameInput.value.trim().substring(0, 10) || 'Solo Player';
-        localPlayer.color = colorInput.value;
-        
-        // Randomly assign a role for solo play flavor
-        const roles = ['crewmate', 'imposter'];
-        localPlayer.role = roles[Math.floor(Math.random() * roles.length)];
-
-        document.getElementById('player-name-display').textContent = `Character: ${localPlayer.name}`;
-        document.getElementById('role-display').innerHTML = `Your Role: <span class="${localPlayer.role === 'imposter' ? 'text-red-500 font-bold' : 'text-green-500'}">${localPlayer.role.toUpperCase()}</span>`;
-        document.getElementById('start-modal').classList.add('hidden');
-        
-        isGameActive = true;
-        
-        // Ensure initial button state is set
-        updateActionButton();
-
-        requestAnimationFrame(gameLoop); // Start the main game loop
-    }
-    
-    function updateActionButton() {
-        const actionButton = document.getElementById('action-button');
-        if (localPlayer.role === 'imposter') {
-            actionButton.textContent = '😈 Sabotage';
-            actionButton.classList.remove('bg-blue-500');
-            actionButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
-            actionButton.onclick = () => showModal('Sabotage Initiated', 'You locked the doors in the reactor. Wait for the chaos to ensue!');
-        } else {
-            actionButton.textContent = '✅ Do Task';
-            actionButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
-            actionButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
-            actionButton.onclick = () => showModal('Task Complete', 'You successfully calibrated the distributor.');
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+            setError("Failed to initialize Firebase services.");
+            setIsLoading(false);
         }
-    }
+    }, []);
 
-    function checkCollision(nextX, nextY) {
-        // Check collision with map boundaries
-        const playerRect = { x: nextX, y: nextY, w: PLAYER_SIZE, h: PLAYER_SIZE };
+    // 2. Real-Time Data Fetching (Posts)
+    useEffect(() => {
+        // Guard clause: Don't run queries until auth is ready and db is initialized
+        if (!isAuthReady || !db || !userId) return;
+
+        // Path for public data: /artifacts/{appId}/public/data/{your_collection_name}
+        const collectionPath = `/artifacts/${appId}/public/data/social_posts`;
+        const postsCollection = collection(db, collectionPath);
         
-        for (const [mx, my, mw, mh] of MAP_BOUNDARIES) {
-            // Simple AABB collision detection
-            if (playerRect.x < mx + mw &&
-                playerRect.x + playerRect.w > mx &&
-                playerRect.y < my + mh &&
-                playerRect.y + playerRect.h > my) {
-                return true; // Collision detected
-            }
-        }
-        return false;
-    }
-
-    function updateGame() {
-        if (!isGameActive) return;
-        if (localPlayer.isDead) return;
-
-        let newX = localPlayer.x;
-        let newY = localPlayer.y;
-
-        if (keys['ArrowUp'] || keys['w']) newY -= MOVEMENT_SPEED;
-        if (keys['ArrowDown'] || keys['s']) newY += MOVEMENT_SPEED;
-        if (keys['ArrowLeft'] || keys['a']) newX -= MOVEMENT_SPEED;
-        if (keys['ArrowRight'] || keys['d']) newX += MOVEMENT_SPEED;
+        // Create a query to order by timestamp (descending)
+        const postsQuery = query(postsCollection);
         
-        // Apply collision checking
-        if (!checkCollision(newX, localPlayer.y)) {
-            localPlayer.x = newX;
-        }
-        if (!checkCollision(localPlayer.x, newY)) {
-            localPlayer.y = newY;
-        }
+        // Listen for real-time updates
+        const unsubscribe = onSnapshot(postsQuery, (snapshot) => {
+            const newPosts = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                newPosts.push({
+                    id: doc.id,
+                    ...data,
+                    // Convert Firebase timestamp to JS Date for display
+                    timestamp: data.timestamp ? new Date(data.timestamp.toDate()) : 'No Date',
+                });
+            });
 
-        // Keep player within the main play area (beyond hard boundaries)
-        localPlayer.x = Math.max(50, Math.min(MAP_SIZE - 50 - PLAYER_SIZE, localPlayer.x));
-        localPlayer.y = Math.max(50, Math.min(MAP_SIZE - 50 - PLAYER_SIZE, localPlayer.y));
-    }
-
-    function drawMap() {
-        // Draw the background (Space Station Floor)
-        ctx.fillStyle = '#333';
-        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
-        
-        // Draw the solid walls
-        ctx.fillStyle = '#1e293b'; // Slate gray/blue for walls
-        MAP_BOUNDARIES.forEach(([x, y, w, h]) => {
-            ctx.fillRect(x, y, w, h);
+            // Sort in memory by time descending (newest first)
+            newPosts.sort((a, b) => b.timestamp - a.timestamp);
+            setPosts(newPosts);
+            setIsLoading(false);
+        }, (err) => {
+            console.error("Error fetching posts: ", err);
+            setError("Failed to load posts from the database.");
+            setIsLoading(false);
         });
-        
-        // Draw task zones
-        ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
-        ctx.fillRect(100, 100, 50, 50); // Task 1: Reactor
-        ctx.fillRect(800, 800, 50, 50); // Task 2: Shields
-        ctx.fillRect(450, 80, 100, 20); // Task 3: Admin
-        ctx.font = '10px Arial';
-        ctx.fillStyle = '#fff';
-        ctx.fillText('Reactor', 100, 165);
-        ctx.fillText('Shields', 800, 795);
-        ctx.fillText('Admin Panel', 450, 75);
-    }
 
-    function drawLocalPlayer() {
-        const { x, y, color, name } = localPlayer;
-        
-        // 1. Draw the player body (capsule shape)
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(x + PLAYER_SIZE / 2, y + PLAYER_SIZE / 2, PLAYER_SIZE / 2, 0, Math.PI * 2);
-        ctx.fill();
+        // Cleanup listener on component unmount or dependency change
+        return () => unsubscribe();
+    }, [isAuthReady, db, userId]); // Dependencies to re-run the effect
 
-        // 2. Draw the visor
-        ctx.fillStyle = '#add8e6'; // Light blue
-        ctx.fillRect(x + PLAYER_SIZE * 0.2, y + PLAYER_SIZE * 0.2, PLAYER_SIZE * 0.6, PLAYER_SIZE * 0.4);
+    // 3. Post Submission Logic
+    const handlePostSubmit = useCallback(async (e) => {
+        e.preventDefault();
+        if (!newPostContent.trim() || !db || !userId) return;
 
-        // 3. Draw the backpack
-        ctx.fillStyle = color;
-        ctx.fillRect(x - PLAYER_SIZE * 0.3, y + PLAYER_SIZE * 0.2, PLAYER_SIZE * 0.3, PLAYER_SIZE * 0.6);
+        const content = newPostContent.trim();
+        const collectionPath = `/artifacts/${appId}/public/data/social_posts`;
+        const postsCollection = collection(db, collectionPath);
 
-        // 4. Draw the name tag
-        ctx.font = '12px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = '#fff';
-        ctx.fillText(name, x + PLAYER_SIZE / 2, y - 5);
-        
-        // 5. Highlight (always highlight local player)
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(x + PLAYER_SIZE / 2, y + PLAYER_SIZE / 2, PLAYER_SIZE / 2 + 2, 0, Math.PI * 2);
-        ctx.stroke();
-
-        // 6. Draw "dead" status if applicable
-        if (localPlayer.isDead) {
-            ctx.strokeStyle = '#f00';
-            ctx.lineWidth = 5;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + PLAYER_SIZE, y + PLAYER_SIZE);
-            ctx.moveTo(x + PLAYER_SIZE, y);
-            ctx.lineTo(x, y + PLAYER_SIZE);
-            ctx.stroke();
-            ctx.fillStyle = '#f00';
-            ctx.fillText('DEAD', x + PLAYER_SIZE / 2, y + PLAYER_SIZE + 15);
+        try {
+            await retryFetch(() => addDoc(postsCollection, {
+                content: content,
+                authorId: userId,
+                timestamp: serverTimestamp(),
+            }));
+            setNewPostContent('');
+        } catch (e) {
+            console.error("Error adding document: ", e);
+            setError("Failed to submit post. Please try again.");
         }
+    }, [newPostContent, db, userId]);
+
+    // 4. Render UI
+    if (error) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-red-100 p-4">
+                <div className="bg-white p-6 rounded-lg shadow-lg max-w-lg text-center">
+                    <h2 className="text-xl font-bold text-red-600 mb-4">Application Error</h2>
+                    <p className="text-gray-700">{error}</p>
+                    <p className="mt-2 text-sm text-gray-500">Check the console for more details.</p>
+                </div>
+            </div>
+        );
     }
 
-    function drawGame() {
-        // Center the canvas view on the local player (camera effect)
-        ctx.save();
-        
-        // Calculate translation (to center the player on the canvas viewport)
-        const translateX = canvas.width / 2 - (localPlayer.x + PLAYER_SIZE / 2);
-        const translateY = canvas.height / 2 - (localPlayer.y + PLAYER_SIZE / 2);
-        ctx.translate(translateX, translateY);
-
-        // 1. Draw the map
-        drawMap();
-        
-        // 2. Draw the player
-        drawLocalPlayer();
-        
-        ctx.restore();
+    if (isLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <p className="ml-4 text-gray-600">Loading social feed...</p>
+            </div>
+        );
     }
 
-    function gameLoop() {
-        // Only run game logic if active
-        if (!isGameActive) return;
+    return (
+        <div className="min-h-screen bg-gray-50 font-sans flex flex-col items-center p-4">
+            <div className="w-full max-w-2xl bg-white shadow-2xl rounded-xl p-6 md:p-8 mt-8">
+                <h1 className="text-4xl font-extrabold text-blue-600 mb-2 text-center">
+                    Microblog Feed
+                </h1>
+                <p className="text-center text-sm text-gray-500 mb-6 border-b pb-4">
+                    Welcome, <span className="font-mono text-xs p-1 bg-gray-100 rounded">User ID: {userId}</span> | 
+                    App ID: <span className="font-mono text-xs p-1 bg-gray-100 rounded">{appId}</span>
+                </p>
 
-        // Set canvas size to match the container/window for responsiveness
-        canvas.width = window.innerWidth * 0.9;
-        canvas.height = window.innerHeight * 0.7;
+                {/* Post Creation Form */}
+                <form onSubmit={handlePostSubmit} className="mb-8 p-4 bg-blue-50 rounded-lg shadow-inner">
+                    <textarea
+                        value={newPostContent}
+                        onChange={(e) => setNewPostContent(e.target.value)}
+                        placeholder="What's on your mind? Post something public..."
+                        rows="3"
+                        className="w-full p-3 border border-blue-200 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 resize-none text-gray-700"
+                        maxLength="280"
+                        required
+                    />
+                    <div className="flex justify-end items-center mt-3">
+                        <span className="text-sm text-gray-500 mr-4">{280 - newPostContent.length} characters left</span>
+                        <button
+                            type="submit"
+                            disabled={!newPostContent.trim()}
+                            className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-full shadow-md hover:bg-blue-700 transition duration-200 disabled:bg-blue-300 disabled:cursor-not-allowed"
+                        >
+                            Post
+                        </button>
+                    </div>
+                </form>
 
-        updateGame();
-        drawGame();
-        
-        requestAnimationFrame(gameLoop);
-    }
-    
-    // --- Game Actions (Placeholders) ---
-    
-    function reportDeadBody() {
-        if (localPlayer.isDead) {
-            showModal('Alert', 'You are deceased.');
-            return;
-        }
-        showModal('Reporting Body', `${localPlayer.name} reported a ghost body in the cafeteria! (Placeholder)`);
-    }
-    
-    function callEmergencyMeeting() {
-        if (localPlayer.isDead) {
-            showModal('Alert', 'You are deceased.');
-            return;
-        }
-        showModal('EMERGENCY MEETING!', `${localPlayer.name} called an emergency meeting. Who is sus?`);
-    }
+                {/* Post Feed */}
+                <h2 className="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">Recent Posts ({posts.length})</h2>
+                {posts.length === 0 ? (
+                    <p className="text-center text-gray-500 p-8 bg-gray-100 rounded-lg">
+                        Be the first to post a message!
+                    </p>
+                ) : (
+                    <div className="space-y-4">
+                        {posts.map((post) => (
+                            <div key={post.id} className="bg-white p-4 rounded-xl shadow-lg border border-gray-200 hover:shadow-xl transition duration-300">
+                                <p className="text-gray-800 text-lg mb-2">{post.content}</p>
+                                <div className="text-xs text-gray-500 flex justify-between items-center">
+                                    <span className="font-medium text-blue-500">
+                                        Author: {post.authorId.substring(0, 8)}...
+                                        {post.authorId === userId && <span className="ml-2 text-green-500">(You)</span>}
+                                    </span>
+                                    <span>
+                                        {post.timestamp.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <footer className="mt-8 text-sm text-gray-400 pb-4">
+                Powered by React & Firebase Firestore (Public Collection)
+            </footer>
+        </div>
+    );
+};
 
-    // --- Modal/Message Box (Replaces alert()) ---
-    
-    function showModal(title, message) {
-        const modal = document.getElementById('custom-modal');
-        document.getElementById('modal-title').textContent = title;
-        document.getElementById('modal-message').textContent = message;
-        modal.classList.remove('hidden');
-    }
-    
-    function closeModal() {
-        document.getElementById('custom-modal').classList.add('hidden');
-    }
-
-    // --- Keyboard and Window Events ---
-
-    window.addEventListener('keydown', (e) => {
-        // Prevent default behavior for arrow keys and space
-        if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
-            e.preventDefault();
-        }
-        keys[e.key] = true;
-    });
-
-    window.addEventListener('keyup', (e) => {
-        keys[e.key] = false;
-    });
-    
-    // --- Initialization on Load ---
-    window.onload = function() {
-        // Attach handlers
-        document.getElementById('close-modal').onclick = closeModal;
-        document.getElementById('emergency-button').onclick = callEmergencyMeeting;
-        document.getElementById('report-button').onclick = reportDeadBody;
-        document.getElementById('start-game-button').onclick = startGame;
-        
-        // Set canvas size initially
-        canvas.width = window.innerWidth * 0.9;
-        canvas.height = window.innerHeight * 0.7;
-
-        // Start by showing the character creation screen
-        document.getElementById('start-modal').classList.remove('hidden');
-    };
-
-</script>
-</body>
-</html>
+export default App;

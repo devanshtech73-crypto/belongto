@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>DOM Runner Game (Mobile Friendly)</title>
 <style>
-  body { margin:0; font-family:system-ui; background:#e6f3ff; overflow:hidden; }
+  body { margin:0; font-family:system-ui; background:linear-gradient(#87CEEB, #d3f3ff); overflow:hidden; }
   #game { position:relative; width:100%; height:100vh; overflow:hidden; }
 
   .char, .enemy, .obstacle {
@@ -50,8 +50,8 @@
   <div id="player" class="char"></div>
   <div id="enemy" class="char"></div>
   <div id="scoreBox">Score: 0</div>
+  <button id="jumpBtn" style="position:absolute; right:20px; bottom:30px; padding:20px 28px; font-size:22px; border:none; background:#ffcc00; border-radius:50px; box-shadow:0 6px 14px rgba(0,0,0,0.25);">JUMP</button>
 </div>
-
 <script>
 const game = document.getElementById('game');
 const player = document.getElementById('player');
@@ -63,7 +63,7 @@ let jumping = false;
 let yVelocity = 0;
 let gravity = -0.7;
 let ground = 20;
-let enemySpeed = 5;
+let enemySpeed = 6;
 let obstacleSpeed = 5;
 
 // PLAYER JUMP
@@ -73,6 +73,8 @@ function jump(){
 
 // MOBILE TAP
 window.addEventListener('touchstart', jump);
+document.getElementById('jumpBtn').addEventListener('touchstart', jump);
+document.getElementById('jumpBtn').addEventListener('mousedown', jump);
 // DESKTOP CLICK
 window.addEventListener('mousedown', jump);
 // SPACE KEY

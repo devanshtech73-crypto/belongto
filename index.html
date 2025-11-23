@@ -72,7 +72,7 @@ function loop(){
     if(t.y>c.height+200){ t.y=-300; t.x=c.width/2-100+Math.random()*200; }
     drawCar(t,'#ff4444');
 
-    if(Math.abs(player.x-t.x)<40 && Math.abs(player.y-t.y)<80){ alert('CRASH'); location.reload(); }
+    if(Math.abs(player.x-t.x)<40 && Math.abs(player.y-t.y)<80){ /* crash removed for mobile friendliness */ player.speed = 0; player.x = c.width/2; player.y = c.height-150; player.angle = 0;(); }
   });
 
   ctx.globalAlpha=0.3;
@@ -84,6 +84,31 @@ function loop(){
   requestAnimationFrame(loop);
 }
 loop();
+</script>
+<div id="controls" style="position:fixed;bottom:20px;left:0;right:0;display:flex;justify-content:center;gap:40px;pointer-events:auto;">
+<div id="leftBtn" style="width:80px;height:80px;border-radius:50%;background:#222;border:3px solid #555;
+box-shadow:0 0 10px #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;user-select:none;">⟲</div>
+<div id="rightBtn" style="width:80px;height:80px;border-radius:50%;background:#222;border:3px solid #555;
+box-shadow:0 0 10px #000;display:flex;align-items:center;justify-content:center;color:#fff;font-size:30px;user-select:none;">⟳</div>
+<div id="gas" style="width:90px;height:90px;border-radius:50%;background:#0a0;border:3px solid #5f5;box-shadow:0 0 10px #000;
+color:white;font-size:22px;display:flex;align-items:center;justify-content:center;">GAS</div>
+<div id="brake" style="width:90px;height:90px;border-radius:50%;background:#a00;border:3px solid #f55;box-shadow:0 0 10px #000;
+color:white;font-size:22px;display:flex;align-items:center;justify-content:center;">BRAKE</div>
+</div>
+<script>
+const leftBtn=document.getElementById('leftBtn');
+const rightBtn=document.getElementById('rightBtn');
+const gas=document.getElementById('gas');
+const brake=document.getElementById('brake');
+
+leftBtn.ontouchstart=()=>keys['ArrowLeft']=1;
+leftBtn.ontouchend=()=>keys['ArrowLeft']=0;
+rightBtn.ontouchstart=()=>keys['ArrowRight']=1;
+rightBtn.ontouchend=()=>keys['ArrowRight']=0;
+gas.ontouchstart=()=>keys['ArrowUp']=1;
+gas.ontouchend=()=>keys['ArrowUp']=0;
+brake.ontouchstart=()=>keys['ArrowDown']=1;
+brake.ontouchend=()=>keys['ArrowDown']=0;
 </script>
 </body>
 </html>

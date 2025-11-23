@@ -1,1769 +1,772 @@
-<!-- Part 1 of Full Gameplay Single-File AmongLite (Lines 1–400) - CONTINUATION-FRIENDLY CHUNK -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AmongLite — Full Gameplay (Part 1)</title>
-<style>
-/* =============================================
-   AMONGO LITE — FULL GAME (PART 1 - LINES 1–400)
-   clean UI + base map + player logic setup
-   NOTE: This chunk intentionally DOES NOT close the HTML
-   document. It ends after the main script so the next chunk
-   can be appended directly to continue the single-file source.
-============================================= */
-html,body{
-  margin:0;
-  padding:0;
-  background:#080808;
-  color:white;
-  font-family:Arial;
-  overflow:hidden;
-}
-#gameCanvas{
-  background:#111;
-  display:block;
-  margin:auto;
-}
-#ui{
-  position:fixed;
-  top:0;left:0;
-  width:100%;
-  padding:10px;
-  display:flex;
-  gap:10px;
-  z-index:20;
-}
-button,input{
-  padding:8px 12px;
-  border:none;
-  border-radius:6px;
-  font-size:15px;
-}
-button{background:#333;color:#fff;cursor:pointer;}
-button:hover{background:#555;}
-
-#log{
-  position:fixed;
-  bottom:0;left:0;
-  width:100%;
-  max-height:25vh;
-  padding:10px;
-  overflow:auto;
-  background:#000a;
-  font-size:12px;
-}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AmongLite — Single-file No-Backend Multiplayer Prototype</title>
+  <style>
+    :root{
+      --bg:#07121a; --panel: rgba(255,255,255,0.04);
+      --accent:#ffd166; --muted:#9fb0c8;
+      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#041019,#081623);color:#e4f1f8}
+    #root{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
+    .game-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    canvas{background:linear-gradient(180deg,#07121a,#08202a);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+    .panel{width:360px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:10px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5)}
+    h2{margin:0 0 8px 0;font-size:16px}
+    .row{display:flex;gap:8px;align-items:center}
+    .btn{background:var(--accent);color:#042226;border:none;padding:8px 10px;border-radius:8px;font-weight:700;cursor:pointer}
+    .btn.secondary{background:#9ad3bc}
+    input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .small{font-size:13px;color:var(--muted)}
+    .muted{color:var(--muted);font-size:13px;margin-top:6px}
+    .player-list{max-height:220px;overflow:auto;margin-top:8px;border-radius:8px;padding:6px;background:rgba(0,0,0,0.06)}
+    .player-row{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid rgba(255,255,255,0.02)}
+    .chat{margin-top:8px;background:rgba(255,255,255,0.02);padding:6px;border-radius:8px}
+    .chat .messages{max-height:140px;overflow:auto;padding:6px}
+    .hud{position:fixed;left:50%;transform:translateX(-50%);top:18px;background:rgba(0,0,0,0.4);padding:8px;border-radius:8px;font-weight:700}
+    @media (max-width:1100px){ .panel{display:none} canvas{width:100%;height:64vh} #root{padding:6px} }
+    /* modal and small UI */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:9999}
+    .card{background:#07121a;padding:16px;border-radius:10px;color:#e6eef6;min-width:320px}
+    .small-btn{padding:6px 8px;border-radius:6px}
+    textarea{resize:vertical;min-height:80px}
+  </style>
 </head>
 <body>
+  <div id="root">
+    <div class="game-area">
+      <div style="position:relative;width:100%;max-width:1180px;">
+        <div class="hud" id="hud">Lobby</div>
+        <canvas id="canvas" width="1180" height="720"></canvas>
+      </div>
+      <div class="small muted">WASD / Arrow keys to move • K kill (impostor) • R report • V meeting • H help</div>
+    </div>
 
-<div id="ui">
-  <input id="name" placeholder="Name" />
-  <button id="hostBtn">Host</button>
-  <button id="joinBtn">Join</button>
-</div>
+    <div class="panel" id="uiPanel">
+      <h2>AmongLite — Local Multiplayer (no backend)</h2>
 
-<canvas id="gameCanvas" width="960" height="600"></canvas>
-<div id="log"></div>
+      <div class="row" style="gap:6px">
+        <input id="nameInput" placeholder="Your name (e.g. Devansh)" />
+        <button id="createLocalBtn" class="btn small-btn">Create</button>
+      </div>
+
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button id="hostBtn" class="btn">Host (LAN beacon)</button>
+        <button id="joinBtn" class="btn secondary">Join (LAN)</button>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="small muted">Manual WebRTC (copy/paste) — use this to connect across devices without a server.</div>
+        <div style="margin-top:6px">
+          <button id="offerBtn" class="btn small-btn">Create Offer (Host)</button>
+          <button id="answerBtn" class="btn small-btn secondary">Create Answer (Client)</button>
+        </div>
+        <textarea id="signalBox" placeholder="Offer/Answer JSON — copy/paste here"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="pasteOfferBtn" class="btn small-btn">Paste Offer</button>
+          <button id="pasteAnswerBtn" class="btn small-btn secondary">Paste Answer</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px"><strong>Players</strong></div>
+      <div class="player-list" id="playerList"></div>
+
+      <div style="margin-top:12px"><strong>Chat</strong></div>
+      <div class="chat">
+        <div class="messages" id="chatMessages"></div>
+        <input id="chatInput" placeholder="Say something and press Enter" />
+      </div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button id="addBotBtn" class="btn small-btn">Add Bot</button>
+        <button id="readyBtn" class="btn small-btn secondary">Ready</button>
+        <button id="startBtn" class="btn small-btn">Start</button>
+      </div>
+
+      <div style="margin-top:10px" class="muted">LAN beacon: peers on same origin can auto-discover each other. Manual SDP: for device-to-device p2p without servers.</div>
+
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button id="helpBtn" class="btn small-btn">Help (H)</button>
+        <button id="exportBtn" class="btn small-btn secondary">Export Snapshot</button>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:#aac">Tip: Run via a static server (e.g., python -m http.server) for best WebRTC results.</div>
+    </div>
+  </div>
+
+  <!-- meeting modal -->
+  <div id="meetingModal" class="modal"><div class="card" id="meetingCard"><h3>Emergency Meeting</h3><div id="meetingOptions"></div><div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end"><button id="meetingSkip" class="btn">Skip</button><button id="meetingVote" class="btn secondary">Vote</button></div></div></div>
+
+  <!-- help overlay -->
+  <div id="helpOverlay" class="modal" style="display:none"><div class="card"><h2>Help & Controls</h2>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:1 1 300px">
+        <h4>Movement</h4>
+        <ul><li>W/A/S/D or Arrow keys — move</li><li>Space/E — interact</li></ul>
+        <h4>Actions</h4>
+        <ul><li>K — Kill (impostor only)</li><li>R — Report body</li><li>V — Call meeting</li></ul>
+      </div>
+      <div style="flex:1 1 200px">
+        <h4>Networking</h4>
+        <ul><li>Host — advertise via localStorage beacon</li><li>Join — auto-discover host (same origin)</li><li>Manual Offer/Answer — copy/paste SDP</li></ul>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;justify-content:flex-end"><button id="helpClose" class="btn secondary">Close</button></div>
+  </div></div>
+
+  <div style="position:fixed;left:12px;bottom:12px;background:rgba(0,0,0,0.45);padding:8px;border-radius:8px;color:#dff7ff;z-index:9999">Shortcuts: <strong>H</strong> Help • <strong>V</strong> Meeting • <strong>K</strong> Kill • <strong>R</strong> Report</div>
 
 <script>
-/* =======================================================
-   PART 1: INITIAL SETUP
-   - This chunk sets up the UI, canvas, player state and local loop.
-   - IMPORTANT: This chunk intentionally DOES NOT include closing
-     </script>, </body>, or </html> so that the next chunk can
-     be appended directly to the same file to continue the script.
-======================================================= */
+/* ==========================
+   AmongLite — single file (no backend)
+   - LAN beacon (localStorage) discovery for same-origin/tabs
+   - Manual WebRTC offer/answer copy/paste (no server)
+   - Host authoritative model for start/kill/eject
+   - Local bots, tasks, minigames, voting UI
+   NOTE: This is a functional prototype; for Internet-wide play you need a signaling server or PeerJS broker (not included).
+   ========================== */
 
-/* =======================================================
-   1. LOGGING
-======================================================= */
-const log = (m)=>{
-  const el = document.getElementById('log');
-  if(el){ el.innerHTML += m + "<br>"; el.scrollTop = el.scrollHeight; }
+/* ----------------- Utilities ----------------- */
+function rand(min=0,max=1){ return min + Math.random()*(max-min); }
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function nowS(){ return Date.now()/1000; }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function el(id){ return document.getElementById(id); }
+function appendLog(msg){ const cm = el('chatMessages'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight; }
+
+/* ----------------- Game State ----------------- */
+const Map = {
+  width: 1600, height: 960,
+  rooms: [
+    {id:'caf',name:'Cafeteria',x:120,y:100,w:420,h:300},
+    {id:'eng',name:'Engine',x:820,y:100,w:420,h:300},
+    {id:'sec',name:'Security',x:120,y:460,w:420,h:300},
+    {id:'med',name:'MedBay',x:820,y:460,w:420,h:300}
+  ],
+  anchors: []
 };
-
-/* =======================================================
-   2. GLOBALS
-======================================================= */
-let localName="";
-let isHost=false;
-let connections={};
-let players={};
-let tasks={};  // will fill in later
-let gameState="lobby"; // lobby, playing, meeting, ended
-let role="crew";
-
-/* =======================================================
-   3. CANVAS + RENDER
-======================================================= */
-const canvas=document.getElementById('gameCanvas');
-const ctx=canvas.getContext('2d');
-
-let me={x:480,y:300,dx:0,dy:0,color:"#6be7ff",alive:true, id: null, name:null};
-
-function drawPlayer(p){
-  ctx.fillStyle = p.alive ? p.color : '#4f5b63';
-  ctx.beginPath();
-  ctx.arc(p.x,p.y,20,0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle = '#eaf6ff';
-  ctx.font = '12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText(p.name || 'Player', p.x, p.y - 30);
-}
-
-function draw(){
-  // clear
-  ctx.fillStyle="#141414";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // simple rooms
-  ctx.fillStyle="#202020";
-  ctx.fillRect(80,80,360,220); // room A
-  ctx.fillRect(520,80,360,220); // room B
-  ctx.fillRect(300,340,360,220); // room C
-
-  // tasks (placeholder)
-  for(const tid in tasks){
-    const t = tasks[tid];
-    ctx.fillStyle = t.done ? 'rgba(120,255,140,0.8)' : 'rgba(255,210,90,0.95)';
-    ctx.beginPath(); ctx.arc(t.x,t.y,10,0,Math.PI*2); ctx.fill();
+(function(){ // seed anchors
+  for(const r of Map.rooms){
+    for(let i=0;i<6;i++){
+      Map.anchors.push({room:r.id, x: r.x + 30 + Math.random()*(r.w-60), y: r.y + 30 + Math.random()*(r.h-60)});
+    }
   }
-
-  // other players
-  for(const id in players){ if(id === me.id) continue; drawPlayer(players[id]); }
-
-  // me on top
-  drawPlayer(me);
-}
-
-/* =======================================================
-   4. GAME LOOP
-======================================================= */
-function update(){
-  me.x += me.dx; me.y += me.dy;
-  // simple clamp
-  me.x = Math.max(16, Math.min(canvas.width-16, me.x));
-  me.y = Math.max(16, Math.min(canvas.height-16, me.y));
-  // broadcast state to peers
-  send({type:'state', p:{x:me.x,y:me.y,alive:me.alive,name:me.name,color:me.color,id:me.id}});
-}
-
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
-requestAnimationFrame(loop);
-
-/* =======================================================
-   5. INPUT
-======================================================= */
-window.addEventListener('keydown', e=>{
-  if(e.key==='ArrowUp' || e.key==='w') me.dy=-2.4;
-  if(e.key==='ArrowDown' || e.key==='s') me.dy=2.4;
-  if(e.key==='ArrowLeft' || e.key==='a') me.dx=-2.4;
-  if(e.key==='ArrowRight' || e.key==='d') me.dx=2.4;
-});
-window.addEventListener('keyup', e=>{
-  if(['ArrowUp','ArrowDown','w','s'].includes(e.key)) me.dy=0;
-  if(['ArrowLeft','ArrowRight','a','d'].includes(e.key)) me.dx=0;
-});
-
-/* =======================================================
-   6. MULTIPLAYER SIGNALING BASE (skeleton)
-   - send() and onMessage() are simple wrappers used by
-     networking chunk that will be appended next. They are
-     safe no-ops for now so the file runs single-player.
-======================================================= */
-function send(obj){
-  // placeholder: networking chunk will override this function
-  // when peers are connected it should send JSON to them.
-  try{
-    // no-op in singleplayer
-  }catch(e){ console.warn('send error', e); }
-}
-
-function onMessage(id, data){
-  // called when remote peer sends data
-  // networking chunk will implement routing of state updates
-  if(data && data.type === 'state'){
-    let p = players[id] || {id:id};
-    p.x = data.p.x; p.y = data.p.y; p.alive = data.p.alive; p.name = data.p.name; p.color = data.p.color;
-    players[id] = p;
-  }
-}
-
-/* =======================================================
-   7. SIMPLE LOBBY UI HANDLERS (prepare for networking chunk)
-======================================================= */
-const hostBtn = document.getElementById('hostBtn');
-const joinBtn = document.getElementById('joinBtn');
-const nameInput = document.getElementById('name');
-
-hostBtn.addEventListener('click', ()=>{
-  localName = nameInput.value.trim() || ('Host' + Math.floor(Math.random()*999));
-  isHost = true; me.id = 'p_' + Math.floor(Math.random()*1000000); me.name = localName;
-  log('Hosting locally as ' + localName + ' ('+me.id+')');
-});
-
-joinBtn.addEventListener('click', ()=>{
-  localName = nameInput.value.trim() || ('Guest' + Math.floor(Math.random()*999));
-  isHost = false; me.id = 'p_' + Math.floor(Math.random()*1000000); me.name = localName;
-  log('Joined locally as ' + localName + ' ('+me.id+')');
-});
-
-/* seed simple tasks so visuals show up */
-(function seedSimpleTasks(){
-  tasks = {};
-  tasks['t1'] = {id:'t1', x:200, y:200, done:false};
-  tasks['t2'] = {id:'t2', x:600, y:170, done:false};
-  tasks['t3'] = {id:'t3', x:420, y:420, done:false};
 })();
 
-/* =======================================================
-   END OF PART 1
-   This chunk ends here (no closing </script> </body> </html> so
-   the next part you paste will continue the script seamlessly.
-   Type `NEXT` to request Part 2 (Lines 401–800).
-======================================================= */
-</script>
-<script>
-/* =======================================================
-   PART 2: NETWORKING, HOST AUTHORITY, ROLES, MEETINGS
-   (Lines ~401–800)
-   - PeerJS direct-join if available (recommended)
-   - Fallback: localStorage LAN beacon (limited, best-effort)
-   - Host authoritative assignments: roles, start game
-   - Basic kill & report mechanics and meeting/voting initiation
-======================================================= */
-
-/* ---------- Networking layer (abstraction) ---------- */
-/* send(msg): sends to connected peers
-   onRemote(id,msg): invoked when a remote message arrives
-   connectAsHost(): initialize host networking
-   connectAsClient(): initialize client networking
-*/
-
-const Net = {
-  mode: 'offline', // 'peerjs', 'lan', or 'offline'
-  peer: null,
-  conn: null,   // PeerJS connection or generic conn object
-  clients: {},  // peerId -> connection
-  init: function(){
-    // auto-detect PeerJS
-    if(window.Peer){ this.mode = 'peerjs'; log('Networking: PeerJS detected (cloud broker)'); }
-    else {
-      // use localStorage beacon fallback (LAN only)
-      this.mode = 'lan';
-      log('Networking: PeerJS not found — using local LAN beacon fallback');
-    }
-  },
-  broadcast: function(msg){
-    // send to all connected clients
-    if(this.mode === 'peerjs'){
-      for(const id in this.clients){
-        const c = this.clients[id];
-        if(c && c.open) try{ c.send(msg); } catch(e){ console.warn('send failed',e); }
-      }
-    } else if(this.mode === 'lan'){
-      // store beacon in localStorage — other tabs/peers poll it
-      const key = 'amonglite_beacon';
-      const payload = {ts: Date.now(), from: me.id, msg: msg};
-      try{ localStorage.setItem(key, JSON.stringify(payload)); } catch(e){ console.warn('ls send fail', e); }
-    } else {
-      // offline: no-op
-    }
-  },
-  sendToHost: function(msg){ // client->host
-    if(this.mode === 'peerjs'){
-      // assume single conn is available in this.conn
-      try{ if(this.conn && this.conn.open) this.conn.send(msg); } catch(e){ console.warn('sendToHost fail',e); }
-    } else if(this.mode === 'lan'){
-      this.broadcast({to:'host',payload:msg});
-    }
-  },
-  onReceive: function(from, msg){
-    // central router: deliver to application-level handler
-    onRemote(from, msg);
-  }
+const State = {
+  players: {},   // id -> player
+  tasks: {},     // id -> task (x,y,done,progress,room)
+  myId: null,
+  myName: null,
+  hostId: null,
+  inGame: false
 };
 
+/* ----------------- Player & Task classes ----------------- */
+class Player {
+  constructor(id, name, color='red', isBot=false){
+    this.id = id; this.name = name; this.color = color;
+    this.x = 200 + Math.random()*200; this.y = 200 + Math.random()*200;
+    this.vx = 0; this.vy = 0; this.speed = 140;
+    this.alive = true; this.role = 'crewmate'; this.isBot = isBot;
+    this.ready = false;
+    this.taskProgress = 0; this.currentTask = null;
+    this.cooldownReadyAt = 0;
+  }
+}
+
+class Task {
+  constructor(id,x,y,room){ this.id=id; this.x=x; this.y=y; this.room=room; this.done=false; this.progress=0; }
+}
+
+/* ----------------- Canvas & rendering ----------------- */
+const canvas = el('canvas');
+const ctx = canvas.getContext('2d');
+let CW = canvas.width, CH = canvas.height;
+let camera = {x:0,y:0};
+
+function adaptDPR(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = canvas.clientWidth || CW;
+  const cssH = canvas.clientHeight || CH;
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CW = canvas.width / dpr; CH = canvas.height / dpr;
+}
+adaptDPR(); window.addEventListener('resize', adaptDPR);
+
+function drawMap(){
+  ctx.fillStyle = '#08181d'; ctx.fillRect(0,0,CW,CH);
+  for(const r of Map.rooms){
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.fillRect(r.x - camera.x, r.y - camera.y, r.w, r.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.font = '14px sans-serif'; ctx.fillText(r.name, r.x + 12 - camera.x, r.y + 22 - camera.y);
+  }
+  for(const tid in State.tasks){
+    const t = State.tasks[tid];
+    ctx.beginPath();
+    ctx.fillStyle = t.done ? 'rgba(120,255,140,0.8)' : 'rgba(255,210,90,0.95)';
+    ctx.arc(t.x - camera.x, t.y - camera.y, 10, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawPlayers(){
+  for(const id in State.players){
+    const p = State.players[id];
+    ctx.beginPath();
+    ctx.fillStyle = p.alive ? p.color : '#6f7a84';
+    ctx.arc(p.x - camera.x, p.y - camera.y, 18, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#eaf6ff'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(p.name, p.x - camera.x, p.y - 26 - camera.y);
+    if(p.role==='impostor' && State.hostId === State.myId && p.isBot){ // host debug show
+      ctx.fillStyle = 'rgba(255,100,100,0.85)'; ctx.fillRect(p.x - camera.x - 6, p.y - camera.y - 6, 12,12);
+    }
+  }
+}
+
+/* ----------------- Input ----------------- */
+const inputs = {left:false,right:false,up:false,down:false,interact:false};
+window.addEventListener('keydown', (e)=>{
+  const k = e.key.toLowerCase();
+  if(k==='a' || e.key==='arrowleft') inputs.left=true;
+  if(k==='d' || e.key==='arrowright') inputs.right=true;
+  if(k==='w' || e.key==='arrowup') inputs.up=true;
+  if(k==='s' || e.key==='arrowdown') inputs.down=true;
+  if(k==='e' || k===' ') inputs.interact=true;
+  if(k==='k') attemptKillNearby();
+  if(k==='r') attemptReportNearby();
+  if(k==='v') callMeetingByMe();
+  if(k==='h') toggleHelp();
+});
+window.addEventListener('keyup', (e)=>{
+  const k = e.key.toLowerCase();
+  if(k==='a' || e.key==='arrowleft') inputs.left=false;
+  if(k==='d' || e.key==='arrowright') inputs.right=false;
+  if(k==='w' || e.key==='arrowup') inputs.up=false;
+  if(k==='s' || e.key==='arrowdown') inputs.down=false;
+  if(k==='e' || k===' ') inputs.interact=false;
+});
+
+/* ----------------- Local player creation ----------------- */
+function createLocalPlayer(name){
+  const id = 'p_' + Math.floor(Math.random()*900000 + 10000);
+  const p = new Player(id, name || ('Player'+id.slice(-4)), pickColor());
+  State.players[id] = p; State.myId = id; State.myName = p.name;
+  updatePlayerList();
+  refreshTaskPanel();
+  return p;
+}
+function pickColor(){
+  const list = ['#ff6b6b','#6bb0ff','#8be38b','#c28bff','#ffd166','#ff9bb3','#ffb86b','#9ad3bc'];
+  const used = Object.values(State.players).map(x=>x.color);
+  for(const c of list) if(!used.includes(c)) return c;
+  return list[Math.floor(Math.random()*list.length)];
+}
+
+/* ----------------- tasks seeding ----------------- */
+function seedTasks(n=6){
+  State.tasks = {};
+  const anchors = shuffle(Map.anchors.slice());
+  for(let i=0;i<n && i<anchors.length;i++){
+    const a = anchors[i];
+    State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room);
+  }
+  refreshTaskPanel();
+}
+
+/* ----------------- UI wiring ----------------- */
+el('createLocalBtn').addEventListener('click', ()=> {
+  const name = el('nameInput').value.trim() || ('You'+Math.floor(Math.random()*999));
+  createLocalPlayer(name);
+  appendLog(`[SYSTEM] Created local player ${name}`);
+});
+el('addBotBtn').addEventListener('click', ()=>{
+  const id = 'bot_' + Math.floor(Math.random()*90000+1000);
+  const bot = new Player(id, 'Bot'+Math.floor(Math.random()*999), pickColor(), true);
+  State.players[id] = bot;
+  updatePlayerList();
+  appendLog(`[SYSTEM] Added bot ${bot.name}`);
+});
+el('readyBtn').addEventListener('click', ()=>{
+  const p = State.players[State.myId]; if(!p) return;
+  p.ready = !p.ready; updatePlayerList(); appendLog(`[SYSTEM] ${p.name} ${p.ready ? 'is ready' : 'is not ready'}`);
+});
+el('startBtn').addEventListener('click', ()=> {
+  if(State.hostId !== State.myId){ appendLog('[SYSTEM] Only host can start'); return; }
+  hostStartGame();
+});
+el('chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const t = el('chatInput').value.trim(); if(!t) return; sendChat(State.myId, t); el('chatInput').value=''; } });
+
+/* ----------------- Player list UI ----------------- */
+function updatePlayerList(){
+  const node = el('playerList'); node.innerHTML = '';
+  for(const id in State.players){
+    const p = State.players[id];
+    const div = document.createElement('div'); div.className='player-row';
+    div.innerHTML = `<div><strong>${p.name}</strong> <span class="small">${p.isBot?'<em>BOT</em>':''}</span></div><div>${p.ready?'<span class="small">Ready</span>':''}</div>`;
+    node.appendChild(div);
+  }
+}
+
+/* ----------------- Chat ----------------- */
+function sendChat(id, text){
+  const p = State.players[id]; if(!p) return;
+  appendLog(`${p.name}: ${text}`);
+  // broadcast chat to peers
+  Net.broadcast({type:'chat', from:id, text});
+}
+
+/* ----------------- Networking (LAN beacon + manual SDP) - No backend ----------------- */
+
+/*
+  Two no-backend methods:
+   1) LAN beacon using localStorage key "amonglite_beacon" - works across tabs/same origin;
+      can be used as a simple discovery or state broadcast on same machine/origin.
+   2) Manual WebRTC Offer/Answer copy-paste UI — produce offer JSON, copy to remote, remote creates answer JSON, paste back.
+      This is the reliable "no backend" cross-device option (manual but works without servers).
+*/
+
+/* Net abstraction */
+const Net = {
+  mode: 'lan',          // 'lan' or 'manual-webrtc'
+  clients: {},          // for manual webrtc: peerId -> {pc,dc}
+  connToHost: null,     // single connection for client -> host (manual)
+  init: function(){ appendLog('[NET] Initialized (no-backend mode)'); },
+  broadcast: function(msg){
+    // LAN: write beacon to localStorage (other tabs can read via storage event)
+    try{
+      const payload = {ts: Date.now(), from: State.myId, msg};
+      localStorage.setItem('amonglite_beacon', JSON.stringify(payload));
+    }catch(e){ console.warn('LS broadcast fail', e); }
+    // Also send via manual webs if open
+    for(const pid in this.clients){
+      const conn = this.clients[pid].dc;
+      try { if(conn && conn.readyState === 'open') conn.send(JSON.stringify(msg)); } catch(e){}
+    }
+    if(this.connToHost && this.connToHost.readyState === 'open'){
+      try{ this.connToHost.send(JSON.stringify(msg)); }catch(e){} }
+  },
+  sendToHost: function(msg){
+    // in manual WebRTC client send to host via connToHost
+    if(this.connToHost && this.connToHost.readyState === 'open'){ try{ this.connToHost.send(JSON.stringify(msg)); }catch(e){} } 
+    else { this.broadcast(msg); }
+  }
+};
 Net.init();
 
-/* ---------- PeerJS helper (if available) ---------- */
-async function setupPeerJSAsHost(){
-  // create Peer with deterministic id (me.id)
-  Net.peer = new Peer(me.id);
-  Net.peer.on('open', id => {
-    log('PeerJS host ready: ' + id);
-    // wait for incoming connections
-  });
-  Net.peer.on('connection', conn => {
-    log('Peer connected: ' + conn.peer);
-    Net.clients[conn.peer] = conn;
-    conn.on('data', data => {
-      Net.onReceive(conn.peer, data);
-    });
-    conn.on('close', ()=>{ delete Net.clients[conn.peer]; log('Peer disconnected: '+conn.peer); });
-  });
+/* LAN beacon listener */
+window.addEventListener('storage', (ev)=>{
+  if(ev.key !== 'amonglite_beacon' || !ev.newValue) return;
+  try{
+    const data = JSON.parse(ev.newValue);
+    if(!data || !data.msg) return;
+    // Deliver to onRemote as from the 'from' id
+    onRemote(data.from || 'unknown', data.msg);
+  }catch(e){}
+});
+
+/* Manual WebRTC (create offer/answer via UI) */
+let manualPC = null;
+let manualDC = null;
+function createOfferManual(){
+  manualPC = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+  manualDC = manualPC.createDataChannel('game');
+  manualDC.onopen = ()=> appendLog('[NET] DataChannel open (offer)');
+  manualDC.onmessage = (ev)=> { try{ const m = JSON.parse(ev.data); onRemote(manualPeerId || 'peer', m); }catch(e){} };
+  manualPC.onicecandidate = (ev)=> {
+    if(ev.candidate) return; // wait for full localDescription
+    const offer = manualPC.localDescription;
+    const box = el('signalBox'); box.value = JSON.stringify({type:'offer', sdp: offer});
+    appendLog('[NET] Offer created; copy the Offer JSON and send to remote');
+  };
+  manualPC.createOffer().then(offer => manualPC.setLocalDescription(offer));
 }
 
-async function setupPeerJSAsClient(hostId){
-  Net.peer = new Peer(me.id);
-  Net.peer.on('open', id => { log('PeerJS client ready: ' + id); });
-  const conn = Net.peer.connect(hostId, {reliable:true});
-  Net.conn = conn;
-  conn.on('open', ()=>{ log('Connected to host ' + hostId); conn.send({type:'join', id:me.id, name:me.name, color:me.color}); });
-  conn.on('data', data => { Net.onReceive(conn.peer || hostId, data); });
-  conn.on('close', ()=>{ log('Disconnected from host'); });
+let manualPeerId = null;
+function createAnswerManual(){
+  // expects that signalBox contains an offer JSON
+  try{
+    const raw = el('signalBox').value.trim();
+    if(!raw) { alert('Paste offer JSON in the signal box first'); return; }
+    const obj = JSON.parse(raw);
+    if(obj.type !== 'offer') { alert('Provided JSON is not an offer'); return; }
+    manualPC = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    manualPC.ondatachannel = (ev)=> {
+      manualDC = ev.channel;
+      manualDC.onmessage = ev2 => { try{ const m = JSON.parse(ev2.data); onRemote(manualPeerId || 'peer', m); }catch(e){} };
+      manualDC.onopen = ()=> appendLog('[NET] DataChannel open (answer)');
+    };
+    manualPC.onicecandidate = (ev)=> {
+      if(ev.candidate) return;
+      const answer = manualPC.localDescription;
+      el('signalBox').value = JSON.stringify({type:'answer', sdp: answer});
+      appendLog('[NET] Answer created; copy the Answer JSON and send back to the Offerer');
+    };
+    manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=>{
+      manualPC.createAnswer().then(ans => manualPC.setLocalDescription(ans));
+    }).catch(e=>{ alert('Failed to set remote description: ' + e.message); });
+  }catch(e){ alert('Invalid JSON'); }
 }
 
-/* ---------- LAN beacon fallback (localStorage) ---------- */
-/* This is a very rough LAN discovery method: hosts write beacons
-   to localStorage; other browser instances on same machine (or same
-   origin) can read them. It only works on the same machine or
-   different tabs on the same browser origin — NOT an internet-wide solution.
-*/
-(function lanBeaconPoller(){
-  if(Net.mode !== 'lan') return;
-  window.addEventListener('storage', (ev)=>{
-    if(ev.key === 'amonglite_beacon' && ev.newValue){
-      try{
-        const data = JSON.parse(ev.newValue);
-        if(data && data.msg){
-          // deliver to router
-          const from = data.from || 'unknown';
-          Net.onReceive(from, data.msg);
-        }
-      }catch(e){}
-    }
-  });
-})();
+/* Paste offer (host gets answer) */
+el('pasteOfferBtn').addEventListener('click', ()=> {
+  try{
+    const raw = el('signalBox').value.trim();
+    if(!raw) return alert('Paste offer JSON first');
+    const obj = JSON.parse(raw);
+    if(obj.type !== 'offer') return alert('Not an offer JSON');
+    // Host side: create pc and set remote, create answer, then setLocal and show answer
+    const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    pc.ondatachannel = ev => {
+      const ch = ev.channel;
+      ch.onmessage = ev2 => { try{ onRemote('manualPeer', JSON.parse(ev2.data)); }catch(_){} };
+      ch.onopen = ()=> { appendLog('[NET] Manual DataChannel open (host)'); Net.clients['manualPeer'] = {pc, dc: ch}; };
+    };
+    pc.onicecandidate = ev => {
+      if(ev.candidate) return;
+      const answer = pc.localDescription;
+      el('signalBox').value = JSON.stringify({type:'answer', sdp: answer});
+      appendLog('[NET] Answer ready — paste it back to the offerer');
+    };
+    pc.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=>{
+      pc.createAnswer().then(ans => pc.setLocalDescription(ans));
+    }).catch(e=> alert('Error setting remote desc: ' + e.message));
+  }catch(e){ alert('Invalid JSON'); }
+});
 
-/* ---------- Application-level message router ---------- */
+/* Paste answer (offerer receives answer) */
+el('pasteAnswerBtn') && el('pasteAnswerBtn').addEventListener('click', ()=> {
+  try{
+    const raw = el('signalBox').value.trim(); if(!raw) return alert('Paste answer JSON first');
+    const obj = JSON.parse(raw);
+    if(obj.type !== 'answer') return alert('Not an answer JSON');
+    if(manualPC){
+      manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> appendLog('[NET] Manual connection established'));
+    } else alert('No local offer created yet');
+  }catch(e){ alert('Invalid JSON'); }
+});
+
+/* UI buttons for manual create */
+el('offerBtn').addEventListener('click', ()=> { createOfferManual(); });
+el('answerBtn').addEventListener('click', ()=> { createAnswerManual(); });
+
+/* ----------------- Application-level router ----------------- */
 function onRemote(from, msg){
-  // msg is an object
   if(!msg || !msg.type) return;
-  // handle messages:
   switch(msg.type){
+    case 'chat':
+      appendLog(`${State.players[msg.from] ? State.players[msg.from].name : msg.from}: ${msg.text}`);
+      break;
     case 'join':
-      // client asks to join host
-      if(State.hostId === me.id){ // I'm the host
-        // add remote as player (placeholder)
-        const pid = msg.id;
-        if(!State.players[pid]){
-          const p = new Player(pid, msg.name, msg.color || pickColor(), false);
-          State.players[pid] = p;
-          log(`${p.name} joined (peer ${pid})`);
-          updatePlayerList();
-        }
-        // send host game state or acknowledged join
-        Net.broadcast({type:'welcome', hostId: me.id, players: Object.keys(State.players)});
+      if(State.hostId === State.myId){
+        if(!State.players[msg.id]) State.players[msg.id] = new Player(msg.id, msg.name, msg.color || pickColor());
+        updatePlayerList();
+        Net.broadcast({type:'welcome', hostId: State.myId});
       }
       break;
-
     case 'welcome':
-      // Host responded to join: set hostId
-      State.hostId = msg.hostId;
-      log('Connected to host: ' + msg.hostId);
+      State.hostId = msg.hostId; appendLog(`[NET] Welcome from host ${msg.hostId}`);
       break;
-
     case 'state':
-      // remote player state update
-      if(msg.p && msg.p.id){
-        // accept update for that player
-        const pId = msg.p.id;
-        if(pId === me.id) return;
-        const p = State.players[pId] || new Player(pId, msg.p.name || ('P'+pId.slice(-4)), msg.p.color || pickColor(), false);
-        p.x = msg.p.x; p.y = msg.p.y; p.alive = msg.p.alive; p.role = msg.p.role || p.role;
-        State.players[pId] = p;
+      if(msg.p && msg.p.id && msg.p.id !== State.myId){
+        if(!State.players[msg.p.id]) State.players[msg.p.id] = new Player(msg.p.id, msg.p.name||('P'+msg.p.id.slice(-4)), msg.p.color || pickColor());
+        const p = State.players[msg.p.id]; p.x = msg.p.x; p.y = msg.p.y; p.alive = msg.p.alive; p.role = msg.p.role || p.role;
       }
       break;
-
     case 'start':
-      // host started game: receives authoritative start state
-      if(msg.payload && msg.payload.hostId){
-        State.inGame = true;
-        State.hostId = msg.payload.hostId;
-        // adopt tasks and roles if provided
-        if(msg.payload.tasks) State.tasks = msg.payload.tasks;
-        if(msg.payload.players){
-          // update players list and roles
-          for(const pid in msg.payload.players){
-            const meta = msg.payload.players[pid];
-            if(State.players[pid]){
-              State.players[pid].role = meta.role; State.players[pid].alive = true;
-            } else {
-              State.players[pid] = new Player(pid, meta.name || 'P', meta.color || pickColor(), false);
-              State.players[pid].role = meta.role;
-            }
-          }
-        }
-        appendChatSystem('Game started by host.');
-        drawHUD();
-      }
+      // host starting game
+      State.inGame = true; State.hostId = msg.by;
+      if(msg.tasks) State.tasks = msg.tasks; appendLog('[GAME] Game started');
       break;
-
     case 'kill':
-      // host authoritative kill; mark target dead
-      if(msg.target){
-        if(State.players[msg.target]){ State.players[msg.target].alive = false; appendChatSystem(`${State.players[msg.target].name} was killed.`); }
-      }
+      if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendLog(`[GAME] ${State.players[msg.target].name} was killed`); }
       break;
-
     case 'report':
-      // a report was triggered; start meeting
-      appendChatSystem(`${msg.byName} reported a body at ${msg.x},${msg.y}`);
-      beginMeeting(msg.by, msg.bodyId, msg.x, msg.y);
-      break;
-
+      beginMeeting(msg.by, msg.bodyId, msg.x, msg.y); break;
     case 'vote':
-      // vote message — host will tally (host authoritative)
-      if(State.hostId && State.hostId === me.id){
-        // tally votes in host
-        tallyVote(msg.by, msg.target);
-      }
+      // forward to host for tally
+      if(State.hostId === State.myId){ tallyVote(msg.by, msg.target); }
       break;
-
     case 'eject':
-      // host tells clients someone was ejected
-      if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendChatSystem(`${State.players[msg.target].name} was ejected.`); }
+      if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendLog(`[GAME] ${State.players[msg.target].name} ejected`); }
       break;
-
     default:
       console.log('unknown msg', msg);
   }
 }
 
-/* ---------- High-level host/client connect functions ---------- */
-async function connectAsHost(){
-  // ensure local player exists
-  if(!State.players[State.myId]) {
-    appendChatSystem('Please create/join a lobby before hosting.');
-    return;
-  }
-  State.hostId = State.myId;
-  appendChatSystem('You are host. Waiting for peers...');
-  if(Net.mode === 'peerjs'){
-    await setupPeerJSAsHost();
-  } else {
-    // lan mode: no extra setup needed
-    appendChatSystem('LAN beacon ready — peers can discover you (same origin/tab).');
-  }
-}
-
-async function connectAsClient(hostId){
-  // hostId can be empty in lan mode (discovery automatic)
-  appendChatSystem('Connecting to host: ' + (hostId || '(lan)'));
-  if(Net.mode === 'peerjs'){
-    await setupPeerJSAsClient(hostId);
-    // send join
-    try{ Net.conn.send({type:'join', id:me.id, name:me.name, color:me.color}); } catch(e){ console.warn(e); }
-  } else {
-    // lan: announce join via beacon
-    Net.broadcast({type:'join', id:me.id, name:me.name, color:me.color});
-  }
-}
-
-/* ---------- Host: assign roles and start game ---------- */
+/* ----------------- Host start & authority ----------------- */
 function hostStartGame(){
-  // only host can call
-  if(State.hostId !== me.id){ appendChatSystem('Only host can start the game.'); return; }
-  // determine players list
+  if(State.hostId !== State.myId){ appendLog('[GAME] Only host can start'); return; }
   const pids = Object.keys(State.players);
-  if(pids.length < 2 && Object.values(State.players).filter(p=>p.isBot).length===0){
-    appendChatSystem('Need at least 2 players (or add bots).');
-    return;
-  }
-  // count impostors (1 per 4 players)
+  if(pids.length < 2) appendLog('[GAME] Need at least 2 players (or add bots)');
   const impCount = Math.max(1, Math.floor(pids.length / 4));
-  const shuffled = shuffleArray(pids.slice());
+  const shuffled = shuffle(pids.slice());
   const impostors = shuffled.slice(0, impCount);
-  for(const pid of pids){
-    const p = State.players[pid];
-    p.alive = true;
-    p.currentTask = null;
-    p.taskProgress = 0;
-    p.role = impostors.includes(pid) ? 'impostor' : 'crewmate';
+  for(const id of pids){
+    const p = State.players[id];
+    p.alive = true; p.currentTask = null; p.taskProgress = 0;
+    p.role = impostors.includes(id) ? 'impostor' : 'crewmate';
+    p.cooldownReadyAt = 0;
   }
-  // seed tasks
   seedTasks(Math.max(5, Math.floor(pids.length * 1.4)));
   State.inGame = true;
-  // broadcast start to peers
-  Net.broadcast({type:'start', payload:{hostId: me.id, tasks: State.tasks, players: (()=>{ const map={}; for(const id of pids){ map[id] = {name: State.players[id].name, color: State.players[id].color, role: State.players[id].role}; } return map; })()}});
-  appendChatSystem('Game started (host).');
-  drawHUD();
+  // broadcast start
+  Net.broadcast({type:'start', by: State.myId, tasks: State.tasks});
+  appendLog('[GAME] Host started the game');
 }
 
-/* ---------- Kill action (client sends request to host) ---------- */
-function attemptKill(targetId){
-  // only impostors can kill; client should send request to host
-  if(!State.players[me.id] || State.players[me.id].role !== 'impostor'){ appendChatSystem('You are not an impostor.'); return; }
-  const meP = State.players[me.id];
-  const target = State.players[targetId];
-  if(!target || !target.alive) { appendChatSystem('Invalid target.'); return; }
-  const dist = Math.hypot(meP.x - target.x, meP.y - target.y);
-  if(dist > 36){ appendChatSystem('Too far to kill.'); return; }
-  // request host to perform kill
-  if(State.hostId === me.id){
-    // host is local — directly perform kill
-    State.players[targetId].alive = false;
-    Net.broadcast({type:'kill', target: targetId});
-    appendChatSystem(`You killed ${State.players[targetId].name}`);
-  } else {
-    // send request to host
-    Net.sendToHost({type:'killRequest', by: me.id, target: targetId});
-  }
-}
-
-/* ---------- Host receives killRequest and authoritatively kills ---------- */
-function handleKillRequest(byId, targetId){
-  // verify distance and cooldown
-  const killer = State.players[byId];
-  const target = State.players[targetId];
-  if(!killer || !target) return;
-  if(killer.role !== 'impostor') return;
-  const nowTs = Date.now()/1000;
-  if(killer.cooldownReadyAt && nowTs < killer.cooldownReadyAt) { appendChatSystem('Kill on cooldown'); return; }
-  const dist = Math.hypot(killer.x - target.x, killer.y - target.y);
-  if(dist > 48) { appendChatSystem('Kill attempt too far'); return; }
-  // perform kill
-  target.alive = false;
-  killer.cooldownReadyAt = nowTs + 10; // 10s cooldown
-  Net.broadcast({type:'kill', target: targetId});
-  appendChatSystem(`${killer.name} killed ${target.name} (host recorded).`);
-}
-
-/* ---------- Report a body (anyone can report) ---------- */
-function reportBody(reporterId, bodyId, x, y){
-  // broadcast report to all peers (host will trigger meeting)
-  Net.broadcast({type:'report', by: reporterId, bodyId: bodyId, byName: State.players[reporterId].name, x:x, y:y});
-}
-
-/* ---------- Begin meeting / voting flow ---------- */
-function beginMeeting(callerId, bodyId, x, y){
-  // freeze gameplay: set meeting state, show UI
-  gameState = 'meeting';
-  appendChatSystem('Meeting called by ' + (State.players[callerId] && State.players[callerId].name));
-  // simple immediate open voting UI (we'll do a text-based selection)
-  openVotingDialog();
-}
-
-/* ---------- Tally vote (host side) ---------- */
-const voteTally = {}; // temp tally
-function tallyVote(byId, targetId){
-  voteTally[byId] = targetId || 'skip';
-  // if all votes in -> compute result
-  const voters = Object.keys(State.players).filter(id => State.players[id].alive);
-  const allVoted = voters.every(v => voteTally[v] !== undefined || State.players[v].isBot);
-  // For simplicity, bots auto-skip or vote randomly
-  for(const id of voters){
-    if(State.players[id].isBot && voteTally[id] === undefined){
-      if(Math.random() < 0.6) voteTally[id] = 'skip'; else {
-        // random pick someone except self
-        const choices = voters.filter(x => x !== id);
-        voteTally[id] = choices[Math.floor(Math.random()*choices.length)];
-      }
-    }
-  }
-  const updatedAll = voters.every(v => voteTally[v] !== undefined);
-  if(updatedAll){
-    // count votes
-    const counts = {};
-    for(const v in voteTally){ const t = voteTally[v]; counts[t] = (counts[t]||0) + 1; }
-    // find top (excluding 'skip' unless skip wins)
-    let top = null, topCount = 0;
-    for(const t in counts){ if(counts[t] > topCount){ top = t; topCount = counts[t]; } }
-    if(top && top !== 'skip'){
-      // eject top
-      if(State.players[top]){ State.players[top].alive = false; appendChatSystem(`${State.players[top].name} was ejected.`); Net.broadcast({type:'eject', target: top}); }
-    } else appendChatSystem('No ejection (skip).');
-    // clear voteTally and resume game
-    for(const k in voteTally) delete voteTally[k];
-    gameState = 'playing';
-  } else {
-    appendChatSystem('Waiting for votes...');
-  }
-}
-
-/* ---------- Voting UI (simple prompt) ---------- */
-function openVotingDialog(){
-  // For chunked simplicity we'll use prompt (replace later with modal)
-  const live = Object.values(State.players).filter(p=>p.alive);
-  const names = live.map(p => `${p.name}(${p.id})`).join('\\n');
-  const choice = prompt('Vote - type player id to vote or leave blank to skip:\\n' + names);
-  const target = choice ? choice.trim() : 'skip';
-  if(State.hostId === me.id){
-    tallyVote(me.id, target === 'skip' ? 'skip' : target);
-  } else {
-    Net.sendToHost({type:'vote', by: me.id, target: target});
-  }
-}
-
-/* ---------- Hook into Net.onReceive to catch killRequest from clients ---------- */
-(function hookNetReceive(){
-  const original = Net.onReceive;
-  Net.onReceive = function(from, msg){
-    // invoke original router first
-    onRemote(from, msg);
-    // additional host-only handling
-    if(State.hostId === me.id){
-      if(msg.type === 'killRequest'){
-        handleKillRequest(msg.by, msg.target);
-      } else if(msg.type === 'joinRequest'){
-        // handle join request (simple)
-        if(!State.players[msg.id]) State.players[msg.id] = new Player(msg.id, msg.name, msg.color || pickColor(), false);
-        Net.broadcast({type:'welcome', hostId: me.id, players: Object.keys(State.players)});
-      }
-    }
-  };
-})();
-
-/* ---------- Utility: sendToHost wrapper for Net if not present ---------- */
-Net.sendToHost = Net.sendToHost || function(msg){ Net.broadcast({to:State.hostId || 'host', payload:msg}); };
-
-/* ---------- Wire UI buttons for networking actions ---------- */
-document.getElementById('hostBtn').addEventListener('click', async ()=>{
-  if(!State.players[State.myId]) {
-    // create local player
-    const p = createLocalPlayerInternal(nameInput.value || ('Host'+Math.floor(Math.random()*999)));
-    State.myId = p.id;
-  }
-  await connectAsHost();
-});
-
-document.getElementById('joinBtn').addEventListener('click', async ()=>{
-  if(!State.players[State.myId]) createLocalPlayerInternal(nameInput.value || ('Guest'+Math.floor(Math.random()*999)));
-  // in PeerJS mode, ask for host id via prompt
-  if(Net.mode === 'peerjs'){
-    const hostId = prompt('Enter host Peer ID to join (ask host to share):');
-    if(hostId) connectAsClient(hostId);
-  } else {
-    // lan mode: announce presence
-    connectAsClient();
-  }
-});
-
-/* ---------- Ensure State has a local player if none yet ---------- */
-if(!State.players[State.myId]){
-  const p = createLocalPlayerInternal(nameInput.value || ('You' + Math.floor(Math.random()*999)));
-  State.myId = p.id;
-}
-
-/* ---------- Part 2 end ---------- */
-/* Next chunk (Part 3) will add:
-   - polish for UI modals (report, vote UI)
-   - host authoritative sync loop (periodic state broadcast)
-   - refined kill & cooldown UI, vents/skills, tasks UI
-   - improved animations and sounds
-   Type NEXT when you're ready for Part 3.
-*/
-</script>
-<script>
-/* =======================================================
-   PART 3: Host Sync Loop, Kill/Report, Meetings & Voting UI
-   (continues from Part 2)
-======================================================= */
-
-/* ---------- Ensure helper existence (createLocalPlayerInternal) ---------- */
-if(typeof createLocalPlayerInternal !== 'function'){
-  function createLocalPlayerInternal(name){
-    const id = 'p_' + Math.floor(Math.random()*900000 + 10000);
-    const player = new Player(id, name || ('Player'+id.slice(-4)), pickColor(), false);
-    State.players[id] = player;
-    State.myId = id;
-    return player;
-  }
-}
-
-/* ---------- Meeting & Voting Modal UI ---------- */
-(function createMeetingModal(){
-  const modal = document.createElement('div');
-  modal.id = 'meetingModal';
-  Object.assign(modal.style, {
-    position:'fixed', inset:'0', display:'none', alignItems:'center', justifyContent:'center',
-    background:'rgba(1,6,10,0.6)', zIndex:9999
-  });
-  const card = document.createElement('div');
-  Object.assign(card.style, {background:'#07121a', padding:'16px', borderRadius:'10px', width:'min(720px,92%)', color:'#e6eef6'});
-
-  card.innerHTML = `<h3 style="margin:0 0 8px 0">Emergency Meeting</h3>
-    <div id="meetingInfo" style="margin-bottom:8px">Discussion — Vote who to eject</div>
-    <div id="meetingOptions" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px"></div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button id="voteSkipBtn" class="btn">Skip</button>
-      <button id="voteSubmitBtn" class="btn secondary">Submit Vote</button>
-      <div style="margin-left:auto;font-size:13px;color:#9fb0c8" id="meetingTimer">Time left: 30</div>
-    </div>
-    <div style="margin-top:12px"><small class="small">Discuss in chat, then vote. Host tallies results.</small></div>`;
-
-  modal.appendChild(card);
-  document.body.appendChild(modal);
-
-  // hooks
-  document.getElementById('voteSkipBtn').addEventListener('click', ()=>{
-    submitVote('skip');
-  });
-  document.getElementById('voteSubmitBtn').addEventListener('click', ()=>{
-    // selected option is marked with data-selected
-    const opts = document.querySelectorAll('#meetingOptions button');
-    let target = null;
-    opts.forEach(b => { if(b.dataset.selected === '1') target = b.dataset.pid; });
-    if(!target) target = 'skip';
-    submitVote(target);
-  });
-})();
-
-/* ---------- Utility: show meeting modal and populate options ---------- */
-function showMeetingModal(){
-  const modal = document.getElementById('meetingModal');
-  const opts = document.getElementById('meetingOptions');
-  opts.innerHTML = '';
-  // show all alive players
-  const choices = Object.values(State.players).filter(p => p.alive);
-  for(const p of choices){
-    const b = document.createElement('button');
-    b.className = 'btn small';
-    b.textContent = p.name;
-    b.dataset.pid = p.id;
-    b.style.minWidth = '110px';
-    b.addEventListener('click', ()=> {
-      // mark selection visually
-      document.querySelectorAll('#meetingOptions button').forEach(x => { x.dataset.selected = '0'; x.style.boxShadow=''; });
-      b.dataset.selected = '1'; b.style.boxShadow = '0 6px 18px rgba(0,0,0,0.45) inset';
-    });
-    opts.appendChild(b);
-  }
-  modal.style.display = 'flex';
-  // start countdown
-  let t = 30;
-  const timerEl = document.getElementById('meetingTimer');
-  timerEl.innerText = `Time left: ${t}`;
-  const interval = setInterval(()=>{
-    t--; timerEl.innerText = `Time left: ${t}`;
-    if(t<=0){ clearInterval(interval); modal.style.display='none'; submitVote('skip'); }
-  },1000);
-}
-
-/* ---------- Submit vote (client or host) ---------- */
-function submitVote(targetId){
-  // if host => tally locally, else send to host
-  if(State.hostId === me.id){
-    tallyVote(me.id, targetId);
-  } else {
-    Net.sendToHost({type:'vote', by: me.id, target: targetId});
-    appendChatSystem('Vote submitted.');
-  }
-  // hide modal
-  const modal = document.getElementById('meetingModal');
-  modal.style.display = 'none';
-}
-
-/* ---------- Kill & Report keys ---------- */
-window.addEventListener('keydown', (e)=>{
-  if(e.key.toLowerCase() === 'k'){ // attempt kill
-    attemptKillNearby();
-  } else if(e.key.toLowerCase() === 'r'){ // report body
-    attemptReportNearby();
-  }
-});
-
-/* ---------- Attempt kill near (client-side initiator) ---------- */
+/* ----------------- Kill & report flow ----------------- */
 function attemptKillNearby(){
-  // find nearest alive player (not me) within range
-  const meP = State.players[State.myId];
-  if(!meP || meP.role !== 'impostor' || !meP.alive){ appendChatSystem('Cannot kill: not impostor or dead.'); return; }
-  // find nearest alive target
+  const me = State.players[State.myId]; if(!me || me.role !== 'impostor' || !me.alive) { appendLog('[GAME] Cannot kill'); return; }
+  const now = nowS(); if(me.cooldownReadyAt && now < me.cooldownReadyAt){ appendLog('[GAME] Kill on cooldown'); return; }
   let nearest = null; let nd = Infinity;
-  for(const id in State.players){
-    if(id === State.myId) continue;
-    const p = State.players[id];
-    if(!p.alive) continue;
-    const d = Math.hypot(p.x - meP.x, p.y - meP.y);
-    if(d < nd){ nd = d; nearest = p; }
-  }
-  if(!nearest || nd > 48){ appendChatSystem('No target in range to kill.'); return; }
-  // request kill via Net (host authoritative)
-  if(State.hostId === me.id){
-    // local host acts directly
-    handleKillRequest(me.id, nearest.id);
+  for(const id in State.players){ if(id === State.myId) continue; const p = State.players[id]; if(!p.alive) continue; const d = Math.hypot(p.x - me.x, p.y - me.y); if(d < nd){ nd = d; nearest = p; } }
+  if(!nearest || nd > 48){ appendLog('[GAME] No target in range'); return; }
+  if(State.hostId === State.myId){ // local host
+    nearest.alive = false; me.cooldownReadyAt = now + 10; Net.broadcast({type:'kill', target: nearest.id}); appendLog(`[GAME] You killed ${nearest.name}`); 
   } else {
     Net.sendToHost({type:'killRequest', by: me.id, target: nearest.id});
-    appendChatSystem(`Kill requested for ${nearest.name}`);
+    appendLog('[GAME] Kill request sent to host');
   }
 }
 
-/* ---------- Attempt to report nearby dead body ---------- */
+function handleKillRequest(by, target){
+  // host authoritative checks
+  const killer = State.players[by]; const victim = State.players[target];
+  if(!killer || !victim) return;
+  if(killer.role !== 'impostor') return;
+  const now = nowS();
+  if(killer.cooldownReadyAt && now < killer.cooldownReadyAt) return;
+  const d = Math.hypot(killer.x - victim.x, killer.y - victim.y);
+  if(d > 48) return;
+  victim.alive = false; killer.cooldownReadyAt = now + 10;
+  Net.broadcast({type:'kill', target: victim.id});
+  appendLog(`[GAME] Host recorded kill: ${killer.name} -> ${victim.name}`);
+}
+
 function attemptReportNearby(){
-  // find nearest dead player within range
   let nearest = null; let nd = Infinity;
-  for(const id in State.players){
-    const p = State.players[id];
-    if(p.alive) continue;
-    const d = Math.hypot(p.x - me.x, p.y - me.y);
-    if(d < nd){ nd = d; nearest = p; }
+  for(const id in State.players){ const p = State.players[id]; if(p.alive) continue; const d = Math.hypot(p.x - (State.players[State.myId]||{}).x, p.y - (State.players[State.myId]||{}).y); if(d < nd){ nd = d; nearest = p; } }
+  if(!nearest || nd > 48){ appendLog('[GAME] No dead body nearby to report'); return; }
+  Net.broadcast({type:'report', by: State.myId, bodyId: nearest.id, x: nearest.x, y: nearest.y, byName: State.players[State.myId].name});
+  appendLog('[GAME] Reported body: ' + (nearest.name || nearest.id));
+}
+
+/* ----------------- Meeting & Voting ----------------- */
+function beginMeeting(callerId, bodyId, x, y){
+  gameStateBackup = State.inGame; State.inGame = false;
+  el('meetingModal').style.display = 'flex';
+  const opts = el('meetingOptions'); opts.innerHTML = '';
+  const alive = Object.values(State.players).filter(p => p.alive);
+  for(const p of alive){
+    const b = document.createElement('button'); b.className='btn small-btn'; b.textContent = p.name; b.dataset.pid = p.id;
+    b.onclick = ()=> { document.querySelectorAll('#meetingOptions button').forEach(x=>x.dataset.selected=0); b.dataset.selected=1; };
+    opts.appendChild(b);
   }
-  if(!nearest || nd > 48){ appendChatSystem('No dead body nearby to report.'); return; }
-  // perform report: broadcast
-  reportBody(State.myId, nearest.id, nearest.x, nearest.y);
-}
-
-/* ---------- Host periodic authoritative broadcast ---------- */
-let hostBroadcastInterval = null;
-function startHostBroadcast(){
-  if(hostBroadcastInterval) clearInterval(hostBroadcastInterval);
-  hostBroadcastInterval = setInterval(()=>{
-    // construct minimal authoritative snapshot (players + tasks)
-    const snap = {players:{}, tasks:{}};
-    for(const id in State.players){
-      const p = State.players[id];
-      snap.players[id] = {x:p.x,y:p.y,alive:p.alive,role: p.role, name: p.name, color: p.color};
-    }
-    for(const tid in State.tasks){
-      const t = State.tasks[tid];
-      snap.tasks[tid] = {x:t.x,y:t.y,done:t.done,progress:t.progress};
-    }
-    Net.broadcast({type:'stateSnapshot', payload: snap});
-  }, 200); // 200ms authoritative ticks
-}
-
-/* ---------- Client handling of stateSnapshot ---------- */
-(function patchSnapshotHandler(){
-  const originalOnRemote = onRemote;
-  onRemote = function(from, msg){
-    // first process snapshot messages quickly
-    if(msg && msg.type === 'stateSnapshot' && State.hostId && from === State.hostId){
-      // update players and tasks
-      const snap = msg.payload;
-      if(snap.players){
-        for(const id in snap.players){
-          if(id === State.myId) continue;
-          const p = State.players[id] || new Player(id, snap.players[id].name || ('P'+id.slice(-4)), snap.players[id].color || pickColor(), false);
-          p.x = snap.players[id].x; p.y = snap.players[id].y; p.alive = snap.players[id].alive; p.role = snap.players[id].role;
-          State.players[id] = p;
-        }
-      }
-      if(snap.tasks){
-        State.tasks = State.tasks || {};
-        for(const tid in snap.tasks){ const s = snap.tasks[tid]; State.tasks[tid] = {id:tid,x:s.x,y:s.y,done:s.done,progress:s.progress}; }
-      }
-      return; // skip default router (host authoritative)
-    }
-    // else fallback to original router behavior
-    originalOnRemote(from, msg);
+  el('meetingVote').onclick = ()=> {
+    const sel = opts.querySelector('button[data-selected="1"]');
+    const target = sel ? sel.dataset.pid : 'skip';
+    appendLog(`[VOTE] ${State.players[State.myId].name} voted ${target}`);
+    if(State.hostId === State.myId) tallyVote(State.myId, target);
+    else Net.sendToHost({type:'vote', by: State.myId, target});
+    el('meetingModal').style.display='none';
+    State.inGame = gameStateBackup;
   };
-})();
-
-/* ---------- Chat improvements ---------- */
-function appendChatSystem(txt){
-  const el = document.createElement('div'); el.style.opacity = 0.9; el.style.color = '#bcd';
-  el.innerText = '[SYSTEM] ' + txt; chatMessages.appendChild(el); chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-function sendChat(id, txt){
-  const line = document.createElement('div'); line.innerText = `${State.players[id].name}: ${txt}`; chatMessages.appendChild(line); chatMessages.scrollTop = chatMessages.scrollHeight;
-  // broadcast to peers
-  Net.broadcast({type:'chat', from:id, text:txt});
+  el('meetingSkip').onclick = ()=> { el('meetingModal').style.display='none'; State.inGame = gameStateBackup; Net.broadcast({type:'vote', by: State.myId, target:'skip'}); };
 }
 
-/* handle chat incoming in onRemote (enhance) */
-(function patchChatInOnRemote(){
-  const orig = onRemote;
-  onRemote = function(from,msg){
-    if(msg && msg.type === 'chat'){
-      const p = State.players[msg.from] || {name: msg.from};
-      const d = document.createElement('div'); d.innerText = `${p.name}: ${msg.text}`; chatMessages.appendChild(d); chatMessages.scrollTop = chatMessages.scrollHeight;
-      return;
-    }
-    return orig(from,msg);
-  };
-})();
-
-/* ---------- End of Part 3 ---------- */
-/* Next chunk (Part 4) will add:
-   - UI polish (modal styling improvements)
-   - task panel for interactive tasks (minigames placeholder)
-   - vents mechanic and fixed cooldown visuals
-   - more robust host/client reconnection handling
-   Type NEXT to continue.
-*/
-</script>
-<script>
-/* =======================================================
-   PART 4: UI polish, Tasks panel, Vents, Cooldowns & Reconnect
-   (continues from Part 3)
-   - Adds task UI placeholder (interactive minigame stub)
-   - Vents mechanic (impostor teleport between vents)
-   - Kill/reported cooldown visuals and on-screen indicators
-   - Simple reconnect/rejoin handlers and persistence
-======================================================= */
-
-/* ---------- Safety: ensure globals exist ---------- */
-State = State || window.State || { players: {}, tasks: {}, myId: null, inGame: false, hostId: null };
-me = me || { x: 480, y: 300, dx: 0, dy: 0, color: '#6be7ff', alive: true, id: null, name: null };
-
-/* ---------- UI Polishing: small overlays for cooldowns and task panel ---------- */
-(function createTaskPanel(){
-  const panel = document.createElement('div');
-  panel.id = 'taskPanel';
-  Object.assign(panel.style, {
-    position:'fixed', right:'18px', bottom:'18px', width:'320px', background:'linear-gradient(180deg,#021018,#04202b)',
-    padding:'12px', borderRadius:'10px', color:'#e6eef6', zIndex:999
-  });
-  panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between">
-      <strong>Tasks</strong>
-      <div id="taskCount" style="font-size:13px;color:#9fb0c8">0/0</div>
-    </div>
-    <div id="taskList" style="margin-top:8px;max-height:240px;overflow:auto"></div>
-    <div style="display:flex;gap:8px;margin-top:10px">
-      <button id="openTasksBtn" class="btn">Open Task UI</button>
-      <button id="leaveTaskBtn" class="btn secondary">Leave Task</button>
-    </div>
-    <div id="cooldownHud" style="margin-top:8px;font-size:13px;color:#9fb0c8">Kill Cooldown: <span id="cooldownVal">Ready</span></div>`;
-  document.body.appendChild(panel);
-
-  document.getElementById('openTasksBtn').addEventListener('click', ()=> openTaskMinigame());
-  document.getElementById('leaveTaskBtn').addEventListener('click', ()=> closeTaskMinigame());
-})();
-
-/* update task panel contents (call when tasks change) */
-function refreshTaskPanel(){
-  const list = document.getElementById('taskList');
-  const countEl = document.getElementById('taskCount');
-  list.innerHTML = '';
-  const tKeys = Object.keys(State.tasks || {}).sort();
-  let doneCount = 0;
-  for(const tid of tKeys){
-    const t = State.tasks[tid];
-    if(t.done) doneCount++;
-    const item = document.createElement('div');
-    Object.assign(item.style, {display:'flex',alignItems:'center',justifyContent:'space-between',padding:'6px',borderRadius:'6px',background:'rgba(255,255,255,0.02)',marginBottom:'6px'});
-    item.innerHTML = `<div><strong style="font-size:13px">${tid}</strong><div style="font-size:12px;color:#9fb0c8">${t.room || ''}</div></div>
-                      <div style="text-align:right"><div style="font-size:12px">${t.done ? 'Done' : Math.round(t.progress)+'%'}</div>
-                      <button class="btn small" data-tid="${tid}">${t.done ? 'View' : 'Go'}</button></div>`;
-    list.appendChild(item);
-  }
-  countEl.innerText = `${doneCount}/${tKeys.length}`;
-  // wire Go buttons
-  list.querySelectorAll('button[data-tid]').forEach(b=>{
-    b.onclick = (ev)=> {
-      const tid = b.dataset.tid;
-      const t = State.tasks[tid];
-      if(t){
-        // move local player near the task
-        me.x = t.x + Math.random()*12 - 6;
-        me.y = t.y + Math.random()*12 - 6;
-        appendChatSystem(`Moving to ${tid}...`);
-      }
-    };
-  });
+/* tally votes on host */
+const voteTally = {};
+function tallyVote(by, target){
+  voteTally[by] = target;
+  // bots auto-vote; check if all alive have voted (host knows)
+  const voters = Object.keys(State.players).filter(id => State.players[id].alive);
+  // auto-fill bots
+  for(const id of voters){ if(State.players[id].isBot && !voteTally[id]) voteTally[id] = Math.random() < 0.6 ? 'skip' : (voters[Math.floor(Math.random()*voters.length)] || 'skip'); }
+  const all = voters.every(v => voteTally[v]);
+  if(!all){ appendLog('[VOTE] Waiting for votes...'); return; }
+  // count
+  const counts = {}; for(const v in voteTally){ counts[voteTally[v]] = (counts[voteTally[v]]||0) + 1; }
+  // find highest (excluding skip perhaps)
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const top = entries[0] ? entries[0][0] : 'skip';
+  if(top && top !== 'skip' && State.players[top]){ State.players[top].alive = false; Net.broadcast({type:'eject', target: top}); appendLog('[VOTE] ' + State.players[top].name + ' ejected.'); }
+  else appendLog('[VOTE] No one ejected (skip).');
+  // clear
+  for(const k in voteTally) delete voteTally[k];
 }
 
-/* ---------- Task minigame placeholder (simple progress bar modal) ---------- */
-let taskModalOpen = false;
-function openTaskMinigame(){
-  if(taskModalOpen) return;
-  // find first nearby incomplete task
-  const nearby = Object.values(State.tasks || {}).find(t => !t.done && Math.hypot(t.x - me.x, t.y - me.y) < 32);
-  if(!nearby){
-    appendChatSystem('No nearby task to open. Move closer to a task icon.');
-    return;
-  }
-  taskModalOpen = true;
-  const modal = document.createElement('div');
-  modal.id = 'taskMinigame';
-  Object.assign(modal.style, {position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)',zIndex:9999});
-  modal.innerHTML = `<div style="background:#091b20;padding:18px;border-radius:10px;color:#e6eef6;width:360px">
-      <h3 style="margin:0 0 8px 0">Task: ${nearby.id}</h3>
-      <div style="font-size:13px;color:#9fb0c8;margin-bottom:10px">${nearby.room || 'Unknown'}</div>
-      <div style="background:#012a30;height:16px;border-radius:8px;overflow:hidden"><div id="taskBar" style="width:${nearby.progress}%;height:100%;background:#ffd166"></div></div>
-      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-        <button id="taskCancel" class="btn secondary">Cancel</button>
-        <button id="taskContinue" class="btn">Work</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  document.getElementById('taskCancel').addEventListener('click', ()=> { closeTaskMinigame(); });
-  const workBtn = document.getElementById('taskContinue');
-  let progressInterval = null;
-  workBtn.addEventListener('mousedown', ()=>{
-    // simulate work: progress while held down (desktop)
-    progressInterval = setInterval(()=> {
-      nearby.progress = Math.min(100, nearby.progress + 2.8);
-      document.getElementById('taskBar').style.width = nearby.progress + '%';
-      if(nearby.progress >= 100){ nearby.done = true; nearby.progress = 100; appendChatSystem(`Task ${nearby.id} completed`); clearInterval(progressInterval); closeTaskMinigame(); refreshTaskPanel(); }
-    }, 120);
-  });
-  window.addEventListener('mouseup', ()=> { if(progressInterval) clearInterval(progressInterval); });
-  // allow tap on mobile: single clicks increment
-  workBtn.addEventListener('click', ()=> {
-    nearby.progress = Math.min(100, nearby.progress + 10);
-    document.getElementById('taskBar').style.width = nearby.progress + '%';
-    if(nearby.progress >= 100){ nearby.done = true; nearby.progress = 100; appendChatSystem(`Task ${nearby.id} completed`); closeTaskMinigame(); refreshTaskPanel(); }
-  });
-}
-
-function closeTaskMinigame(){
-  const modal = document.getElementById('taskMinigame');
-  if(modal) document.body.removeChild(modal);
-  taskModalOpen = false;
-}
-
-/* ---------- Vents system (impostor-only teleport spots) ---------- */
-/* vents are placed in certain map rooms; an impostor can use vents to teleport to another vent. */
-const Vents = (function seedVents(){
-  // simple vents positions — map-relative (use existing rooms)
-  const vents = [];
-  // create one vent per room center
-  if(Map && Map.rooms){
-    for(const r of Map.rooms){
-      vents.push({id: 'vent_' + r.id, x: Math.round(r.x + r.w/2), y: Math.round(r.y + r.h/2), room: r.id});
-    }
-  }
-  return vents;
-})();
-
-(function createVentUI(){
-  const panel = document.createElement('div');
-  panel.id = 'ventPanel';
-  Object.assign(panel.style, {position:'fixed',left:'18px',bottom:'18px',width:'220px',background:'linear-gradient(180deg,#04151a,#05262b)',padding:'10px',borderRadius:'10px',color:'#dff7ff',zIndex:999});
-  panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between"><strong>Vents</strong><span style="font-size:12px;color:#9fb0c8">Impostor only</span></div>
-    <div id="ventList" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px"></div>`;
-  document.body.appendChild(panel);
-  refreshVentList();
-})();
-
-function refreshVentList(){
-  const list = document.getElementById('ventList');
-  list.innerHTML = '';
-  for(const v of Vents){
-    const b = document.createElement('button');
-    b.className = 'btn small';
-    b.textContent = v.room;
-    b.dataset.vid = v.id;
-    b.style.minWidth = '90px';
-    b.onclick = ()=> {
-      useVent(v.id);
-    };
-    list.appendChild(b);
-  }
-}
-
-/* use vent: teleport if player is impostor and close to a vent */
-function useVent(ventId){
-  const meP = State.players[State.myId];
-  if(!meP){ appendChatSystem('Local player missing'); return; }
-  if(meP.role !== 'impostor'){ appendChatSystem('Only impostors can use vents'); return; }
-  // check if near some vent to enter
-  // allow remote vent use if host-authorized; here we just teleport local and broadcast request
-  const target = Vents.find(v => v.id === ventId);
-  if(!target) return;
-  // teleport: set position near vent target
-  meP.x = target.x + (Math.random()*12 - 6);
-  meP.y = target.y + (Math.random()*12 - 6);
-  appendChatSystem(`Used vent to ${target.room}`);
-  // broadcast movement to host/peers
-  Net.broadcast({type:'state', p:{id:meP.id, x:meP.x, y:meP.y, alive:meP.alive, name:meP.name, color:meP.color}});
-}
-
-/* ---------- Cooldown UI updates ---------- */
-function updateCooldownUI(){
-  const cEl = document.getElementById('cooldownVal');
-  const meP = State.players[State.myId] || me;
-  if(!meP || !meP.cooldownReadyAt){ cEl.innerText = 'Ready'; return; }
-  const nowSec = Date.now()/1000;
-  const rem = Math.max(0, Math.round(meP.cooldownReadyAt - nowSec));
-  if(rem <= 0) cEl.innerText = 'Ready'; else cEl.innerText = `${rem}s`;
-}
-setInterval(updateCooldownUI, 500);
-
-/* ---------- Reconnect & persistence ---------- */
-// Save basic local info to localStorage so on refresh user can rejoin
-function saveLocalCache(){
-  try{
-    localStorage.setItem('amonglite_local', JSON.stringify({myId: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : me.name}));
-  }catch(e){}
-}
-function loadLocalCache(){
-  try{
-    const raw = localStorage.getItem('amonglite_local');
-    if(!raw) return;
-    const obj = JSON.parse(raw);
-    if(obj && obj.myId){
-      // create player with same id and name
-      if(!State.players[obj.myId]) State.players[obj.myId] = new Player(obj.myId, obj.name || ('P'+obj.myId.slice(-4)), pickColor(), false);
-      State.myId = obj.myId;
-      appendChatSystem('Restored session: ' + obj.name);
-    }
-  }catch(e){}
-}
-window.addEventListener('beforeunload', saveLocalCache);
-loadLocalCache();
-
-/* ---------- Minor polish: small decals when tasks complete ---------- */
-function spawnTaskCompleteParticle(x,y){
-  // small puff (temporary)
-  const el = document.createElement('div');
-  Object.assign(el.style, {position:'absolute',left:(x-6)+'px',top:(y-6)+'px',width:'12px',height:'12px',background:'#9ef',borderRadius:'50%',opacity:1,pointerEvents:'none',transition:'opacity 600ms, transform 600ms'});
-  document.body.appendChild(el);
-  requestAnimationFrame(()=>{ el.style.opacity = '0'; el.style.transform = 'translateY(-20px)'; });
-  setTimeout(()=> el.remove(), 700);
-}
-
-/* ---------- Hook: when a task becomes done, spawn a particle and refresh UI ---------- */
-(function watchTaskCompletion(){
-  const origTick = function(){ /* placeholder - nothing */ };
-  // We'll do simple periodic check
-  setInterval(()=>{
-    for(const tid in State.tasks){
-      const t = State.tasks[tid];
-      if(t.done && !t._notified){
-        t._notified = true;
-        // world-to-screen transform: approximate using camera (camera.x camera.y exist in earlier part)
-        const sx = (t.x || 0) - (camera.x || 0);
-        const sy = (t.y || 0) - (camera.y || 0);
-        spawnTaskCompleteParticle(sx + 100, sy + 100); // crude offset but visually shows effect
-        refreshTaskPanel();
-      }
-    }
-  }, 900);
-})();
-
-/* ---------- Repaint task panel on initial load ---------- */
-refreshTaskPanel();
-
-/* ---------- End of Part 4 ---------- */
-/* Next chunk (Part 5) will add:
-   - Full meeting UI polish (names, tally)
-   - Sound cues and SFX stubs
-   - More robust networking reconnection logic
-   - Improved minigames (wiring, memory, slider) and visual polish
-   Type NEXT to continue.
-*/
-</script>
-<script>
-/* =======================================================
-   PART 5: Meetings UI polish, sounds, reconnection, minigames
-   (continues from Part 4)
-   - Better meeting UI & vote tally display
-   - Simple sound cues using AudioContext (stubs)
-   - Reconnection attempts for PeerJS & LAN fallback handling
-   - Two small minigames (wiring and memory) as task implementations
-   - Minor UX polish & safety checks
-======================================================= */
-
-/* ---------- Safety checks: required globals exist ---------- */
-State = window.State || State || { players:{}, tasks:{}, myId:null, inGame:false, hostId:null };
-Net = window.Net || Net || {mode:'lan', broadcast:()=>{}, sendToHost:()=>{}};
-me = State.players[State.myId] || me || {x:480,y:300,dx:0,dy:0,color:'#6be7ff',alive:true,id:State.myId||null,name:'You'};
-
-/* ---------- Audio cues (simple) ---------- */
-const AudioEngine = (function(){
-  let ac = null;
-  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ ac = null; }
-  function beep(freq=440, time=0.08, vol=0.05){
-    if(!ac) return;
-    const o = ac.createOscillator();
-    const g = ac.createGain();
-    o.type = 'sine'; o.frequency.value = freq;
-    g.gain.value = vol;
-    o.connect(g); g.connect(ac.destination);
-    o.start(); o.stop(ac.currentTime + time);
-  }
-  function chime(){ beep(880,0.06,0.05); setTimeout(()=>beep(660,0.06,0.04),80); }
-  return {beep,chime,ac};
-})();
-
-/* ---------- Meeting UI polish: tally display ---------- */
-(function ensureMeetingPanel(){
-  if(document.getElementById('voteTallyPanel')) return;
-  const panel = document.createElement('div');
-  panel.id='voteTallyPanel';
-  Object.assign(panel.style,{position:'fixed',left:'50%',top:'12px',transform:'translateX(-50%)',background:'rgba(2,12,15,0.9)',padding:'8px 12px',borderRadius:'8px',color:'#dff7ff',zIndex:9999,display:'none',minWidth:'320px'});
-  panel.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><strong>Voting</strong><div id="votingSubtitle" style="margin-left:auto;font-size:13px;color:#9fb0c8">Discuss & vote</div></div>
-    <div id="voteTallyList" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:8px"><button id="voteCloseBtn" class="btn secondary">Close</button></div>`;
-  document.body.appendChild(panel);
-  document.getElementById('voteCloseBtn').addEventListener('click', ()=>{ panel.style.display='none'; });
-})();
-
-function showVoteTally(tally){
-  const panel = document.getElementById('voteTallyPanel');
-  const list = document.getElementById('voteTallyList');
-  list.innerHTML = '';
-  // tally: { targetId : count, ... }
-  for(const pid in tally){
-    const name = State.players[pid] ? State.players[pid].name : pid;
-    const row = document.createElement('div');
-    row.style.display='flex'; row.style.justifyContent='space-between'; row.style.padding='6px'; row.style.background='rgba(255,255,255,0.02)'; row.style.borderRadius='6px';
-    row.innerHTML = `<div>${name}</div><div><strong>${tally[pid]}</strong></div>`;
-    list.appendChild(row);
-  }
-  panel.style.display='block';
-}
-
-/* ---------- Reconnection / keepalive logic ---------- */
-let reconnectAttempts = 0;
-function tryReconnect(){
-  if(Net.mode === 'peerjs' && Net.peer){
-    // PeerJS will manage reconnections; attempt to re-init after delay
-    if(reconnectAttempts > 5) { appendChatSystem('Reconnection failed after multiple attempts.'); return; }
-    reconnectAttempts++;
-    appendChatSystem('Attempting reconnect... ('+reconnectAttempts+')');
-    setTimeout(()=> {
-      try { Net.peer.reconnect && Net.peer.reconnect(); } catch(e){ console.warn('peer reconnect err', e); }
-    }, 1200 * reconnectAttempts);
-  } else if(Net.mode === 'lan'){
-    // lan beacon: announce again
-    Net.broadcast({type:'beacon', from: me.id});
-    appendChatSystem('LAN beacon rebroadcast.');
-  } else {
-    appendChatSystem('Offline mode — cannot reconnect automatically.');
-  }
-}
-
-/* ping heartbeat to detect disconnects */
-setInterval(()=> {
-  if(Net.mode === 'peerjs'){
-    // check client connections
-    for(const id in Net.clients){
-      const c = Net.clients[id];
-      if(!c || c.open === false || c.readyState === 'closed'){
-        appendChatSystem('Peer disconnected: '+id);
-        delete Net.clients[id];
-      }
-    }
-  }
-  // broadcast simple ping
-  Net.broadcast({type:'ping', from: me.id});
-}, 3000);
-
-/* ---------- Minigame: Wiring (simple match pairs) ---------- */
-function openWiringMinigame(task){
-  // modal with two columns: left connectors and right connectors; user must drag match lines or click pairs
-  const modal = document.createElement('div');
-  modal.id = 'wiringMinigame';
-  Object.assign(modal.style, {position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.6)',zIndex:9999});
-  const container = document.createElement('div');
-  Object.assign(container.style, {background:'#07121a',padding:'14px',borderRadius:'10px',color:'#dff7ff',width:'600px'});
-  container.innerHTML = `<h3 style="margin:0 0 8px 0">Wiring</h3><div style="display:flex;gap:18px">
-    <div id="wireLeft" style="flex:1"></div>
-    <div id="wireRight" style="flex:1"></div>
-  </div><div style="margin-top:12px;display:flex;justify-content:flex-end"><button id="wireClose" class="btn secondary">Close</button></div>`;
-  modal.appendChild(container); document.body.appendChild(modal);
-
-  const left = container.querySelector('#wireLeft'); const right = container.querySelector('#wireRight');
-  // create 5 pairs
-  const count = 5;
-  const letters = [];
-  for(let i=0;i<count;i++) letters.push(String.fromCharCode(65+i));
-  const shuffledRight = shuffleArray(letters.slice());
-  // left list
-  left.innerHTML = ''; right.innerHTML = '';
-  for(const L of letters){
-    const b = document.createElement('div'); b.innerText = L; b.style.padding='6px'; b.style.margin='6px'; b.style.background='rgba(255,255,255,0.02)'; b.dataset.val = L;
-    left.appendChild(b);
-  }
-  for(const R of shuffledRight){
-    const b = document.createElement('div'); b.innerText = R; b.style.padding='6px'; b.style.margin='6px'; b.style.background='rgba(255,255,255,0.02)'; b.dataset.val = R;
-    right.appendChild(b);
-  }
-  // click-pair interactions
-  let selLeft = null;
-  left.querySelectorAll('div').forEach(el=>{
-    el.style.cursor='pointer';
-    el.onclick = ()=>{ if(selLeft){ selLeft.style.boxShadow=''; } selLeft = el; el.style.boxShadow='inset 0 0 0 3px rgba(255,255,255,0.06)'; };
-  });
-  right.querySelectorAll('div').forEach(el=>{
-    el.style.cursor='pointer';
-    el.onclick = ()=>{ if(!selLeft) return; // check match
-      if(selLeft.dataset.val === el.dataset.val){
-        selLeft.style.background='rgba(120,255,140,0.6)'; el.style.background='rgba(120,255,140,0.6)';
-        selLeft.onclick = null; el.onclick = null;
-        selLeft.style.boxShadow=''; selLeft = null;
-        AudioEngine.chime();
-      } else {
-        // wrong
-        AudioEngine.beep(220,0.1,0.06);
-        selLeft.style.boxShadow=''; selLeft = null;
-      }
-      // check victory
-      const remaining = left.querySelectorAll('div:not([onclick])').length;
-      if(remaining === left.children.length) {
-        appendChatSystem('Wiring completed!');
-        closeWiringMinigame();
-        task.done = true; refreshTaskPanel();
-      }
-    };
-  });
-
-  container.querySelector('#wireClose').onclick = closeWiringMinigame;
-  function closeWiringMinigame(){ if(modal) modal.remove(); }
-}
-
-/* ---------- Minigame: Memory (sequence) ---------- */
-function openMemoryMinigame(task){
-  const modal = document.createElement('div');
-  modal.id='memoryMinigame';
-  Object.assign(modal.style,{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.7)',zIndex:9999});
-  const box = document.createElement('div'); Object.assign(box.style,{background:'#07121a',padding:'16px',borderRadius:'10px',color:'#dff7ff',width:'420px'});
-  box.innerHTML = `<h3 style="margin:0 0 8px 0">Memory</h3><div id="memGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px"></div><div style="margin-top:12px;display:flex;justify-content:flex-end"><button id="memClose" class="btn secondary">Close</button></div>`;
-  modal.appendChild(box); document.body.appendChild(modal);
-  const grid = box.querySelector('#memGrid');
-  // create 8 pairs shuffled
-  const symbols = ['★','▲','●','■','♦','♥','♣','☼'];
-  const deck = shuffleArray(symbols.concat(symbols));
-  const state = {revealed: {}, matched:{}};
-  for(let i=0;i<16;i++){
-    const cell = document.createElement('div'); cell.style.height='48px'; cell.style.background='rgba(255,255,255,0.02)'; cell.style.display='flex'; cell.style.alignItems='center'; cell.style.justifyContent='center'; cell.style.fontSize='22px'; cell.style.cursor='pointer';
-    cell.dataset.i = i; cell.dataset.sym = deck[i];
-    cell.innerText = '';
-    cell.onclick = ()=>{
-      if(state.matched[i]) return;
-      cell.innerText = cell.dataset.sym;
-      if(state.revealed.first === undefined) { state.revealed.first = i; }
-      else if(state.revealed.second === undefined && i !== state.revealed.first){ state.revealed.second = i;
-        const a = state.revealed.first, b = state.revealed.second;
-        if(deck[a] === deck[b]){ state.matched[a]=true; state.matched[b]=true; AudioEngine.chime(); } else { AudioEngine.beep(200,0.12,0.06); setTimeout(()=>{ grid.querySelectorAll('[data-i=\"'+a+'"],[data-i=\"'+b+'\"]').forEach(c=>c.innerText=''); },600); }
-        state.revealed.first = undefined; state.revealed.second = undefined;
-        // check complete
-        const matchedCount = Object.keys(state.matched).length;
-        if(matchedCount >= 16){ appendChatSystem('Memory completed'); modal.remove(); task.done = true; refreshTaskPanel(); }
-      }
-    };
-    grid.appendChild(cell);
-  }
-  box.querySelector('#memClose').onclick = ()=>{ modal.remove(); };
-}
-
-/* ---------- Hook minigame dispatcher: open by task type ---------- */
-function openTaskMinigameForTaskId(tid){
-  const task = State.tasks[tid];
-  if(!task) return;
-  // decide minigame type by task id hash
-  if(tid.includes('wire') || Math.random()<0.4) openWiringMinigame(task);
-  else openMemoryMinigame(task);
-}
-
-/* ---------- Robust network reconnection for PeerJS clients ---------- */
-if(Net.mode === 'peerjs'){
-  // If client has Net.conn but it closed, try to reconnect automatically
-  setInterval(()=>{
-    if(Net.conn && Net.conn.open === false && State.hostId && State.hostId !== me.id){
-      appendChatSystem('Attempting to reconnect to host via PeerJS...');
-      tryReconnect();
-    }
-  }, 3500);
-}
-
-/* ---------- Minor UX polish: hover names & tooltips ---------- */
-/* When hovering player show small tooltip (local only) */
-canvas.addEventListener('mousemove', (ev)=>{
-  const rect = canvas.getBoundingClientRect();
-  const mx = ev.clientX - rect.left;
-  const my = ev.clientY - rect.top;
-  let hovered = null;
-  for(const id in State.players){
-    const p = State.players[id];
-    const d = Math.hypot(p.x - mx, p.y - my);
-    if(d < 20){ hovered = p; break; }
-  }
-  if(hovered){
-    canvas.title = hovered.name + (hovered.role ? ' • ' + hovered.role : '');
-  } else canvas.title = '';
+/* ----------------- Host and client connect UI (LAN beacon) ----------------- */
+let beaconInterval = null;
+el('hostBtn').addEventListener('click', ()=>{
+  // start advertising via localStorage beacon; also make this player host
+  if(!State.myId){ createLocalPlayer(el('nameInput').value || ('Host'+Math.floor(Math.random()*999))); }
+  State.hostId = State.myId;
+  appendLog('[NET] Hosting via LAN beacon; other tabs on same origin may discover you.');
+  if(beaconInterval) clearInterval(beaconInterval);
+  beaconInterval = setInterval(()=> {
+    try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), host: State.hostId, players: Object.keys(State.players)})); }catch(e){}
+  }, 800);
 });
 
-/* ---------- FINISH PART 5 ---------- */
-/* Next chunk (Part 6) will:
-   - Add audio manager full listing and SFX mapping
-   - Add transitions/animations (CSS + canvas)
-   - Add advanced minigames: slider and sequence wiring with scoring
-   - Finalize export: combine file and provide notes to run locally
-   Type NEXT to continue.
-*/
-</script>
-<script>
-/* =======================================================
-   PART 6: Audio Manager, Animations, Advanced Minigames,
-   polishing finishes and export notes (continues from Part 5)
-   - AudioManager: named SFX and music stubs (uses AudioContext)
-   - Canvas fade transitions and simple tween helper
-   - Advanced Task: Slider (hold to align) and Sequence (timed taps)
-   - Final notes + graceful shutdown / export helpers
-======================================================= */
+el('joinBtn').addEventListener('click', ()=>{
+  // announce presence and attempt discovery; other tabs will see beacon event via storage
+  appendLog('[NET] Announcing presence via beacon (check other tabs on same origin)');
+  try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), join: State.myId, name: State.myName || el('nameInput').value || 'Guest'})); }catch(e){}
+});
 
-/* ---------- Safety: ensure core globals exist ---------- */
-State = window.State || State || { players:{}, tasks:{}, myId:null, inGame:false, hostId:null };
-Net = window.Net || Net || { mode:'lan', broadcast:()=>{}, sendToHost:()=>{} };
-me = State.players[State.myId] || me || { x:480, y:300, dx:0, dy:0, color:'#6be7ff', alive:true, id:State.myId||'p_local', name:'You' };
+/* Respond to beacon reads in storage event already wired above (onRemote) */
 
-/* ---------- AudioManager ---------- */
-const AudioManager = (function(){
-  let ac = null;
-  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ ac = null; }
-  function playTone(freq, dur=0.08, type='sine', vol=0.05){
-    if(!ac) return;
-    const o = ac.createOscillator();
-    const g = ac.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.value = vol;
-    o.connect(g); g.connect(ac.destination);
-    o.start(); o.stop(ac.currentTime + dur);
+/* ----------------- Host authoritative state broadcast (simple) ----------------- */
+let hostTick = null;
+function startHostTick(){
+  if(hostTick) clearInterval(hostTick);
+  hostTick = setInterval(()=> {
+    if(State.hostId !== State.myId) return;
+    const snap = {players:{}, tasks:{}};
+    for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,alive:p.alive,role:p.role,name:p.name,color:p.color}; }
+    for(const tid in State.tasks){ const t = State.tasks[tid]; snap.tasks[tid] = {x:t.x,y:t.y,done:t.done,progress:t.progress}; }
+    Net.broadcast({type:'state', p: {id: State.myId, playersSnap: snap}});
+  }, 300);
+}
+
+/* When clients receive a 'state' with playersSnap do merging in onRemote
+   (above we treat type:'state' for individual p updates; host state uses playersSnap) */
+
+/* ----------------- Game loop ----------------- */
+let last = performance.now();
+function step(now){
+  const dt = Math.min(0.05,(now-last)/1000); last = now;
+  // local movement
+  const me = State.players[State.myId];
+  if(me && State.inGame && me.alive){
+    let dx=0,dy=0;
+    if(inputs.left) dx-=1; if(inputs.right) dx+=1; if(inputs.up) dy-=1; if(inputs.down) dy+=1;
+    if(dx||dy){ const len=Math.hypot(dx,dy)||1; me.x += (dx/len) * me.speed * dt; me.y += (dy/len) * me.speed * dt; }
+    // clamp to map view
+    me.x = clamp(me.x, 20, Map.width-20); me.y = clamp(me.y, 20, Map.height-20);
+    // broadcast state update to peers (simple)
+    Net.broadcast({type:'state', p: {id: me.id, x: me.x, y: me.y, alive: me.alive, name: me.name, color: me.color, role: me.role}});
   }
-  function playBuffer(buff, vol=1){
-    if(!ac || !buff) return;
-    const s = ac.createBufferSource();
-    s.buffer = buff;
-    const g = ac.createGain(); g.gain.value = vol;
-    s.connect(g); g.connect(ac.destination);
-    s.start();
-  }
-  // simple SFX set
-  function sfx(name){
-    switch(name){
-      case 'click': playTone(880,0.04, 'square', 0.04); break;
-      case 'error': playTone(220,0.16, 'sawtooth', 0.06); break;
-      case 'complete': playTone(1320,0.06,'sine',0.05); setTimeout(()=>playTone(880,0.06,'sine',0.04),80); break;
-      case 'report': playTone(540,0.12,'triangle',0.06); break;
-      case 'kill': playTone(120,0.24,'sine',0.06); break;
-      default: playTone(660,0.04,'sine',0.03);
+
+  // bots movement
+  for(const id in State.players){
+    const p = State.players[id];
+    if(p.isBot && p.alive && State.inGame){
+      // bot wander toward nearest incomplete task
+      const tasks = Object.values(State.tasks).filter(t=>!t.done);
+      if(tasks.length){
+        let nearest = tasks[0]; let nd = Math.hypot(nearest.x-p.x, nearest.y-p.y);
+        for(const t of tasks){ const d = Math.hypot(t.x-p.x,t.y-p.y); if(d<nd){ nd=d; nearest=t; } }
+        const dx = nearest.x - p.x, dy = nearest.y - p.y; const len = Math.hypot(dx,dy)||1;
+        p.x += (dx/len) * p.speed * 0.4 * dt; p.y += (dy/len) * p.speed * 0.4 * dt;
+        if(Math.hypot(nearest.x-p.x, nearest.y-p.y) < 14){ nearest.progress = Math.min(100, nearest.progress + 25*dt); if(nearest.progress>=100){ nearest.done=true; appendLog(`[BOT] ${p.name} completed ${nearest.id}`); } }
+      }
     }
   }
-  return {sfx, playBuffer, ac};
-})();
 
-/* ---------- Simple Tween helper for UI fade/scale ---------- */
-function tween({from=0,to=1,duration=400,easing=(t)=>t, onUpdate=(v)=>{}, onComplete=()=>{}}){
-  const start = performance.now();
-  function step(now){
-    const t = Math.min(1, (now - start) / duration);
-    const v = from + (to - from) * easing(t);
-    onUpdate(v);
-    if(t < 1) requestAnimationFrame(step); else onComplete();
-  }
+  // camera center on me
+  if(State.players[State.myId]) { camera.x = clamp(State.players[State.myId].x - CW/2, 0, Map.width - CW); camera.y = clamp(State.players[State.myId].y - CH/2, 0, Map.height - CH); }
+  // render
+  render();
   requestAnimationFrame(step);
 }
+requestAnimationFrame(step);
 
-/* ---------- Canvas transition (fade overlay) ---------- */
-function screenFlash(color='white', dur=300){
-  const overlay = document.createElement('div');
-  Object.assign(overlay.style, {position:'fixed',inset:0,background:color,opacity:0,pointerEvents:'none',zIndex:99999});
-  document.body.appendChild(overlay);
-  tween({from:0,to:0.9,duration:dur/2,onUpdate:v=>overlay.style.opacity=v*0.9,onComplete:()=>{
-    setTimeout(()=> {
-      tween({from:0.9,to:0,duration:dur/2,onUpdate:v=>overlay.style.opacity=v,onComplete:()=>overlay.remove()});
-    }, 80);
-  }});
+function render(){
+  // clear
+  ctx.fillStyle = '#08181d'; ctx.fillRect(0,0,CW,CH);
+  ctx.save(); ctx.translate(-camera.x, -camera.y);
+  drawMap(); drawPlayers();
+  ctx.restore();
+  // UI overlays: tasks list
+  ctx.save(); ctx.resetTransform();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(12,12,260,120);
+  ctx.fillStyle = '#cfefff'; ctx.font='13px sans-serif'; ctx.fillText('Tasks:', 22,32);
+  let y=52;
+  for(const tid in State.tasks){ if(y>118) break; const t=State.tasks[tid]; ctx.fillStyle = t.done ? '#8df59a' : '#ffd66b'; ctx.fillText(`${tid} ${t.done?'(Done)':''}`,22,y); y+=18; }
+  ctx.restore();
 }
 
-/* ---------- Advanced Minigame: Slider (precision alignment) ---------- */
-function openSliderMinigame(task){
-  const modal = document.createElement('div');
-  modal.id = 'sliderMinigame';
-  Object.assign(modal.style,{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.7)',zIndex:9999});
-  const box = document.createElement('div');
-  Object.assign(box.style,{background:'#041e24',padding:18,borderRadius:10,width:420,color:'#dff7ff'});
-  box.innerHTML = `<h3 style="margin:0 0 8px 0">Align the Slider</h3>
-    <div style="background:#022a30;height:40px;border-radius:8px;position:relative;overflow:hidden;">
-      <div id="targetZone" style="position:absolute;left:60%;width:60px;height:100%;background:rgba(255,209,102,0.7)"></div>
-      <div id="sliderKnob" style="position:absolute;left:0;top:0;width:24px;height:100%;background:#ffd166;border-radius:8px"></div>
-    </div>
-    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
-      <button id="sliderCancel" class="btn secondary">Close</button>
-      <button id="sliderTry" class="btn">Try</button>
-    </div>`;
-  modal.appendChild(box); document.body.appendChild(modal);
-
-  const knob = box.querySelector('#sliderKnob');
-  const target = box.querySelector('#targetZone');
-  const trackWidth = 420 - 36; // approx inner width
-  let animId = null;
-  let pos = 0; let dir = 1;
-  function animateKnob(){
-    pos += dir * 6;
-    if(pos < 0){ pos = 0; dir = 1; }
-    if(pos > trackWidth - 24){ pos = trackWidth - 24; dir = -1; }
-    knob.style.left = pos + 'px';
-    animId = requestAnimationFrame(animateKnob);
-  }
-  animId = requestAnimationFrame(animateKnob);
-  box.querySelector('#sliderTry').onclick = ()=>{
-    const knobRect = knob.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    const overlap = Math.max(0, Math.min(knobRect.right, targetRect.right) - Math.max(knobRect.left, targetRect.left));
-    const success = overlap > 12; // threshold
-    if(success){ AudioManager.sfx('complete'); appendChatSystem('Slider task success'); task.done = true; refreshTaskPanel(); closeSlider(); }
-    else { AudioManager.sfx('error'); appendChatSystem('Slider task failed'); }
-  };
-  box.querySelector('#sliderCancel').onclick = closeSlider;
-  function closeSlider(){ if(animId) cancelAnimationFrame(animId); modal.remove(); }
+/* ----------------- Task Panel refresh ----------------- */
+function refreshTaskPanel(){
+  // physical task list in UI: quick implementation using player list area
+  // simply update chat with task counts for now
+  // (UI task panel was earlier in multi-part version; here we keep it compact)
+  const total = Object.keys(State.tasks).length;
+  const done = Object.values(State.tasks).filter(t=>t.done).length;
+  el('hud').innerText = State.inGame ? `${State.players[State.myId] ? State.players[State.myId].name : 'You'} • ${State.players[State.myId] ? State.players[State.myId].role.toUpperCase() : ''}` : `Lobby • Tasks ${done}/${total}`;
 }
 
-/* ---------- Advanced Minigame: Sequence (timed taps) ---------- */
-function openSequenceMinigame(task){
-  const modal = document.createElement('div');
-  modal.id = 'seqMinigame';
-  Object.assign(modal.style,{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.7)',zIndex:9999});
-  const box = document.createElement('div');
-  Object.assign(box.style,{background:'#041e24',padding:18,borderRadius:10,width:380,color:'#dff7ff',textAlign:'center'});
-  box.innerHTML = `<h3 style="margin:0 0 6px 0">Sequence Tap</h3><div id="seqArea" style="display:flex;gap:8px;justify-content:center;margin-top:12px"></div>
-    <div style="margin-top:12px;display:flex;justify-content:center;gap:8px"><button id="seqCancel" class="btn secondary">Close</button></div>`;
-  modal.appendChild(box); document.body.appendChild(modal);
-
-  const seqArea = box.querySelector('#seqArea');
-  const length = 5;
-  const pattern = [];
-  for(let i=0;i<length;i++) pattern.push(Math.floor(Math.random()*4));
-  let current = 0;
-  // create 4 pads
-  for(let i=0;i<4;i++){
-    const p = document.createElement('div'); p.style.width='64px'; p.style.height='64px'; p.style.borderRadius='10px'; p.style.background='rgba(255,255,255,0.03)'; p.style.display='flex'; p.style.alignItems='center'; p.style.justifyContent='center'; p.style.cursor='pointer';
-    p.dataset.idx = i; p.innerText = i+1;
-    p.onclick = ()=> {
-      const idx = Number(p.dataset.idx);
-      if(pattern[current] === idx){
-        // correct
-        p.style.background = 'rgba(120,255,140,0.6)';
-        AudioManager.sfx('click');
-        current++;
-        if(current >= length){ appendChatSystem('Sequence completed!'); task.done = true; refreshTaskPanel(); modal.remove(); }
-        setTimeout(()=>{ p.style.background='rgba(255,255,255,0.03)'; }, 200);
-      } else {
-        // fail
-        AudioManager.sfx('error');
-        appendChatSystem('Sequence failed');
-        modal.remove();
-      }
-    };
-    seqArea.appendChild(p);
-  }
-
-  box.querySelector('#seqCancel').onclick = ()=> modal.remove();
+/* ----------------- Helpers & initial seeds ----------------- */
+function initDemo(){
+  if(!State.players[State.myId]) createLocalPlayer(el('nameInput').value || ('You'+Math.floor(Math.random()*999)));
+  updatePlayerList();
+  seedTasks(8);
+  refreshTaskPanel();
 }
+initDemo();
 
-/* ---------- Wire advanced minigame dispatch ---------- */
-function openAdvancedMinigameForTaskId(tid){
-  const task = State.tasks[tid];
-  if(!task) return;
-  const r = Math.random();
-  if(r < 0.33) openSliderMinigame(task);
-  else if(r < 0.66) openSequenceMinigame(task);
-  else openWiringMinigame(task);
-}
-
-/* ---------- Finalization helpers: export/save map and state ---------- */
-/* Provide button to export current map & tasks as JSON for reuse */
-(function createExportPanel(){
-  const btn = document.createElement('button');
-  btn.className = 'btn secondary';
-  btn.style.position = 'fixed';
-  btn.style.right = '18px';
-  btn.style.top = '18px';
-  btn.style.zIndex = 9999;
-  btn.innerText = 'Export Map/Tasks';
-  document.body.appendChild(btn);
-  btn.onclick = ()=> {
-    const payload = {map: Map, tasks: State.tasks, players: (()=>{ const out = {}; for(const id in State.players){ const p = State.players[id]; out[id] = {name: p.name, color:p.color, role:p.role}; } return out; })()};
-    const data = JSON.stringify(payload, null, 2);
-    const blob = new Blob([data], {type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = 'amonglite_export.json'; a.click(); URL.revokeObjectURL(url);
-    appendChatSystem('Export created (download started).');
-  };
-})();
-
-/* ---------- Graceful shutdown helper ---------- */
-function shutdownGame(){
-  appendChatSystem('Shutting down local game...');
-  try{
-    if(Net.mode === 'peerjs' && Net.peer) Net.peer.destroy();
-  }catch(e){}
-  // clear intervals
-  if(hostBroadcastInterval) clearInterval(hostBroadcastInterval);
-  // remove modals
-  ['taskMinigame','wiringMinigame','memoryMinigame','sliderMinigame','seqMinigame'].forEach(id=>{ const el = document.getElementById(id); if(el) el.remove(); });
-  appendChatSystem('Shutdown complete.');
-}
-
-/* ---------- End of Part 6 ---------- */
-/* NEXT will produce Part 7 which will:
-   - finalize remaining polish, add more artful UI transitions,
-   - build an instruction / help overlay and keyboard shortcuts,
-   - and then produce a final bundled single-file export note with instructions to run locally.
-   Type NEXT to continue.
-*/
-</script>
-<script>
-/* =======================================================
-   PART 7: Final Polish, Help Overlay, Shortcuts, Export Notes
-   (finalizing the single-file AmongLite prototype)
-   - Help / Controls overlay
-   - Keyboard shortcuts map & tooltips
-   - Save/load lobby + basic replay export
-   - Final guidance printed to console and UI
-   - This chunk completes the interactive features and exports
-======================================================= */
-
-/* ---------- Safety: ensure State and helpers exist ---------- */
-State = window.State || State || { players:{}, tasks:{}, myId:null, inGame:false, hostId:null };
-me = State.players[State.myId] || me || { x:480, y:300, dx:0, dy:0, color:'#6be7ff', alive:true, id: State.myId || 'p_local', name:'You' };
-
-/* ---------- Help overlay (toggle with H) ---------- */
-(function createHelpOverlay(){
-  if(document.getElementById('helpOverlay')) return;
-  const ov = document.createElement('div');
-  ov.id = 'helpOverlay';
-  Object.assign(ov.style, {
-    position:'fixed', inset:0, display:'none', alignItems:'center', justifyContent:'center',
-    background:'linear-gradient(rgba(3,6,8,0.75), rgba(3,6,8,0.75))', zIndex:99999, color:'#dff7ff'
-  });
-  const card = document.createElement('div');
-  Object.assign(card.style, {width:'min(900px,94%)', maxHeight:'86vh', overflow:'auto', background:'#06161a', padding:'18px', borderRadius:'12px'});
-  card.innerHTML = `<h2 style="margin:0 0 8px 0">AmongLite — Help & Controls</h2>
-    <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div style="flex:1 1 320px">
-        <h4>Movement</h4>
-        <ul>
-          <li>W / Arrow Up — Move up</li>
-          <li>S / Arrow Down — Move down</li>
-          <li>A / Arrow Left — Move left</li>
-          <li>D / Arrow Right — Move right</li>
-        </ul>
-        <h4>Actions</h4>
-        <ul>
-          <li>E or Space — Interact / Work on task</li>
-          <li>K — Kill (Impostor only)</li>
-          <li>R — Report nearest body</li>
-          <li>V — Call meeting</li>
-          <li>H — Toggle this help overlay</li>
-        </ul>
-      </div>
-      <div style="flex:1 1 320px">
-        <h4>Lobby & Networking</h4>
-        <ul>
-          <li>Host — creates a local host (PeerJS if included, otherwise LAN beacon fallback).</li>
-          <li>Join — attempt to join a host. For PeerJS you'll need host's Peer ID (prompt).</li>
-          <li>Add Bot — add an AI participant to the lobby.</li>
-        </ul>
-        <h4>Tasks & Minigames</h4>
-        <ul>
-          <li>Tasks appear as yellow icons in rooms — press Open Task UI or move near and press E to start minigames.</li>
-          <li>Minigames include Wiring, Memory, Slider, Sequence, and more — completing tasks advances crewmate progress.</li>
-        </ul>
-      </div>
-      <div style="flex:1 1 240px">
-        <h4>Tips</h4>
-        <ul>
-          <li>Host is authoritative — they assign roles and resolve kills/ejections.</li>
-          <li>Use vents only as an impostor — venting is visible to experienced players.</li>
-          <li>This prototype uses local methods for signaling; for internet play, integrate a signaling server.</li>
-        </ul>
-      </div>
-    </div>
-    <div style="margin-top:12px;display:flex;justify-content:flex-end;gap:8px">
-      <button id="helpClose" class="btn secondary">Close</button>
-    </div>
-  `;
-  ov.appendChild(card); document.body.appendChild(ov);
-  document.getElementById('helpClose').addEventListener('click', ()=> ov.style.display='none');
-})();
-
-window.addEventListener('keydown', (e)=>{
-  if(e.key.toLowerCase() === 'h'){
-    const ov = document.getElementById('helpOverlay');
-    if(ov) ov.style.display = (ov.style.display === 'flex' ? 'none' : 'flex');
-  }
+/* ----------------- Help & UI handlers ----------------- */
+function toggleHelp(){ const h = el('helpOverlay'); h.style.display = (h.style.display === 'flex') ? 'none' : 'flex'; }
+el('helpBtn').addEventListener('click', toggleHelp);
+el('helpClose').addEventListener('click', ()=> el('helpOverlay').style.display='none');
+el('exportBtn').addEventListener('click', ()=> {
+  const snap = {map: Map, tasks: State.tasks, players: (()=>{ const o={}; for(const id in State.players){ const p=State.players[id]; o[id]={name:p.name,color:p.color,role:p.role,alive:p.alive}; } return o; })()};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(snap,null,2)], {type:'application/json'}));
+  const a = document.createElement('a'); a.href=url; a.download='amonglite_snapshot.json'; a.click(); URL.revokeObjectURL(url); appendLog('[SYS] exported snapshot');
 });
 
-/* ---------- Keyboard shortcut quick reference (status bar) ---------- */
-(function createShortcutBar(){
-  if(document.getElementById('shortcutsBar')) return;
-  const bar = document.createElement('div');
-  bar.id = 'shortcutsBar';
-  Object.assign(bar.style, {position:'fixed',left:'12px',top:'12px',background:'rgba(0,0,0,0.45)',padding:'8px 12px',borderRadius:'8px',color:'#dff7ff',fontSize:'13px',zIndex:9999});
-  bar.innerHTML = `Shortcuts: <strong>H</strong> help • <strong>V</strong> meeting • <strong>K</strong> kill • <strong>R</strong> report`;
-  document.body.appendChild(bar);
+/* ----------------- OnRemote hook: extend to handle host killRequest etc. ------------------- */
+(function extendOnRemote(){
+  const original = onRemote;
+  onRemote = function(from, msg){
+    original(from, msg);
+    // host special: handle killRequest messages
+    if(State.hostId === State.myId && msg && msg.type === 'killRequest'){ handleKillRequest(msg.by, msg.target); }
+  };
 })();
 
-/* ---------- Save & Load lobby state (local export/import) ---------- */
-(function createSaveLoadUI(){
-  if(document.getElementById('saveLoadPanel')) return;
-  const panel = document.createElement('div');
-  panel.id = 'saveLoadPanel';
-  Object.assign(panel.style,{position:'fixed',left:'12px',bottom:'12px',background:'rgba(0,0,0,0.45)',padding:'10px',borderRadius:'8px',color:'#dff7ff',zIndex:9999});
-  panel.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><button id="saveLobbyBtn" class="btn small">Save Lobby</button><button id="loadLobbyBtn" class="btn small secondary">Load Lobby</button></div>`;
-  document.body.appendChild(panel);
-  document.getElementById('saveLobbyBtn').addEventListener('click', ()=>{
-    const payload = {players: {}, tasks: State.tasks, hostId: State.hostId};
-    for(const id in State.players){ const p = State.players[id]; payload.players[id] = {name:p.name,color:p.color,role:p.role,isBot:p.isBot}; }
-    const data = JSON.stringify(payload, null, 2);
-    try{ localStorage.setItem('amonglite_saved', data); appendChatSystem('Lobby saved to localStorage.'); } catch(e){ appendChatSystem('Save failed: ' + e.message); }
-  });
-  document.getElementById('loadLobbyBtn').addEventListener('click', ()=>{
-    try{
-      const raw = localStorage.getItem('amonglite_saved');
-      if(!raw) { appendChatSystem('No saved lobby found in localStorage.'); return; }
-      const obj = JSON.parse(raw);
-      // restore players
-      State.players = {};
-      for(const id in obj.players){ const meta = obj.players[id]; State.players[id] = new Player(id, meta.name || ('P'+id.slice(-4)), meta.color || pickColor(), meta.isBot || false); State.players[id].role = meta.role || 'crewmate'; }
-      State.tasks = obj.tasks || {};
-      State.hostId = obj.hostId || State.hostId;
-      appendChatSystem('Lobby loaded from localStorage.');
-      updatePlayerList();
-      refreshTaskPanel();
-    }catch(e){ appendChatSystem('Load failed: ' + e.message); }
-  });
-})();
+/* ----------------- handleKillRequest for host ----------------- */
+function handleKillRequest(by, target){
+  const killer = State.players[by]; const victim = State.players[target];
+  if(!killer || !victim) return;
+  if(killer.role !== 'impostor') return;
+  const now = nowS(); if(killer.cooldownReadyAt && now < killer.cooldownReadyAt) return;
+  const d = Math.hypot(killer.x - victim.x, killer.y - victim.y);
+  if(d > 48) return;
+  victim.alive = false; killer.cooldownReadyAt = now + 10;
+  Net.broadcast({type:'kill', target: victim.id});
+  appendLog(`[HOST] ${killer.name} killed ${victim.name}`);
+}
 
-/* ---------- Replay / Session export (simple snapshot) ---------- */
-(function createReplayExport(){
-  if(document.getElementById('exportReplayBtn')) return;
-  const btn = document.createElement('button');
-  btn.id = 'exportReplayBtn';
-  btn.className = 'btn small';
-  Object.assign(btn.style,{position:'fixed',right:'12px',bottom:'12px',zIndex:9999});
-  btn.innerText = 'Export Replay';
-  document.body.appendChild(btn);
-  btn.addEventListener('click', ()=>{
-    // capture minimal timeline: players + tasks snapshot
-    const snap = {ts: Date.now(), players: {}, tasks: State.tasks};
-    for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,name:p.name,color:p.color,role:p.role,alive:p.alive}; }
-    const url = URL.createObjectURL(new Blob([JSON.stringify(snap, null, 2)], {type:'application/json'}));
-    const a = document.createElement('a'); a.href=url; a.download = 'amonglite_replay_'+Date.now()+'.json'; a.click(); URL.revokeObjectURL(url);
-    appendChatSystem('Exported replay snapshot.');
-  });
-})();
+/* ----------------- finalize host tick when hosting ----------------- */
+setInterval(()=>{ if(State.hostId === State.myId) startHostTick(); }, 1000);
 
-/* ---------- Final console & run instructions (print to console) ---------- */
-console.log('AmongLite single-file prototype — parts assembled.');
-console.log('To run multiplayer across devices on the internet, integrate a signaling server (PeerJS or socket) or use a hosted broker.');
-console.log('Local testing: open two browser windows/tabs and use Host / Join (LAN fallback) or PeerJS with same origin to connect.');
+/* ----------------- simple persist on unload ----------------- */
+window.addEventListener('beforeunload', ()=> {
+  try{ localStorage.setItem('amonglite_local', JSON.stringify({myId: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : el('nameInput').value})); }catch(e){}
+});
 
-/* ---------- Final message to UI ---------- */
-appendChatSystem('AmongLite assembled. Press H for help. Use Host/Join to test multiplayer.');
+/* restore local id if exists */
+try{
+  const saved = JSON.parse(localStorage.getItem('amonglite_local') || '{}');
+  if(saved && saved.myId && !State.players[saved.myId]){ State.players[saved.myId] = new Player(saved.myId, saved.name || ('P'+saved.myId.slice(-4)), pickColor()); State.myId = saved.myId; updatePlayerList(); }
+}catch(e){}
 
-/* ---------- Final notes (displayed in a small end panel) ---------- */
-(function createFinalNote(){
-  if(document.getElementById('finalNote')) return;
-  const n = document.createElement('div');
-  n.id = 'finalNote';
-  Object.assign(n.style,{position:'fixed',left:'50%',bottom:'12px',transform:'translateX(-50%)',background:'rgba(0,0,0,0.55)',color:'#cfe',padding:'8px 12px',borderRadius:'8px',zIndex:9999});
-  n.innerHTML = 'Prototype complete — to fully publish: host a small signaling server (optional), add assets, and deploy via static host. Press H for controls.';
-  document.body.appendChild(n);
-})();
-
-/* ---------- End of Part 7 (finalizing) ---------- */
-/* This completes the multi-part single-file AmongLite prototype.
-   You now have the game split into parts that you can paste sequentially.
-   If you want, I can now:
-     - produce the full combined single-file HTML (all parts stitched)
-     - provide a minimal Node.js signaling server (20–40 lines) for PeerJS
-     - optimize & compress the file to a single downloadable HTML
-   Tell me which you'd like next.
-*/
+/* ===========================
+   End of single-file prototype
+   - This file runs entirely in the browser and requires NO backend.
+   - For cross-device manual P2P: use Offer/Answer copy-paste (create offer on host, paste into remote, create answer, paste back).
+   - For same-origin quick tests: Host and Join via LAN beacon will communicate via localStorage events (tabs on same origin).
+   - Improvements you can request: full automatic signaling (needs a tiny signaling server), voice, art/sprites, more robust reconnection.
+   =========================== */
 </script>
-<!-- =======================================================
-     END OF AMONGLITE SINGLE-FILE GAME
-     ======================================================= -->
-
 </body>
 </html>

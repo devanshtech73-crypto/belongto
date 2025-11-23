@@ -1,596 +1,389 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AmongLite — Full (No Backend)</title>
-<style>
-  :root{--bg:#07121a;--panel:#0e2733;--accent:#ffd166;--muted:#9fb0c8}
-  html,body{height:100%;margin:0;background:linear-gradient(180deg,#041019,#08202a);color:#e6f7ff;font-family:Inter,Arial,Helvetica,sans-serif}
-  #wrap{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
-  .game{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
-  canvas{border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);background:#091822}
-  .panel{width:360px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:10px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5);overflow:auto}
-  h2{margin:0 0 8px 0;font-size:16px}
-  .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
-  input,textarea,select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
-  button{padding:8px 10px;border-radius:8px;border:none;background:var(--accent);color:#042226;cursor:pointer}
-  button.secondary{background:#9ad3bc}
-  .muted{color:var(--muted);font-size:13px}
-  .players{max-height:180px;overflow:auto;margin:8px 0;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px}
-  .player-row{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid rgba(255,255,255,0.02)}
-  .chat{background:rgba(255,255,255,0.02);padding:6px;border-radius:8px}
-  .chat .msgs{max-height:160px;overflow:auto;padding:6px}
-  .hud{position:fixed;left:50%;transform:translateX(-50%);top:12px;background:rgba(0,0,0,0.45);padding:8px;border-radius:8px;z-index:20}
-  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:9999}
-  .card{background:#07121a;padding:16px;border-radius:10px;color:#e6eef6;min-width:320px;max-width:96%}
-  .small{font-size:13px;color:var(--muted)}
-  .btn-sm{padding:6px 8px;border-radius:6px}
-  textarea{min-height:80px}
-  @media (max-width:1100px){ .panel{display:none} canvas{width:100%;height:64vh} }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlight Station - Local Solo</title>
+    <!-- Load Tailwind CSS for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Tailwind slate-900 */
+            color: #e2e8f0; /* Tailwind slate-200 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #gameCanvas {
+            background-color: #2c3e50; /* Darker background for the spaceship */
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            max-width: 90vw;
+            height: 70vh;
+        }
+        .info-card {
+            background-color: #1e293b; /* Tailwind slate-800 */
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            width: 100%;
+        }
+        .action-button {
+            padding: 10px 20px;
+            border-radius: 9999px; /* Pill shape */
+            font-weight: bold;
+            transition: transform 0.1s;
+            cursor: pointer;
+        }
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        }
+    </style>
 </head>
-<body>
-<div id="wrap">
-  <div class="game">
-    <div class="hud" id="hud">Lobby</div>
-    <canvas id="canvas" width="1180" height="720"></canvas>
-    <div class="small muted" style="margin-top:8px">W/A/S/D or Arrow keys — Move · K Kill (Impostor) · R Report · V Meeting · H Help</div>
-  </div>
+<body class="min-h-screen">
 
-  <div class="panel" id="ui">
-    <h2>AmongLite — No Backend Multiplayer</h2>
+    <h1 class="text-3xl font-bold mb-4 text-white">Starlight Station 🚀 (Solo Mode)</h1>
+    <p class="text-sm mb-4 text-slate-400">Move with WASD or Arrow Keys. Customize your crewmate before starting!</p>
 
-    <div class="row">
-      <input id="nameInput" placeholder="Your name (e.g. Devansh)"/>
-      <button id="createBtn" class="btn-sm">Create</button>
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas" class="mb-4"></canvas>
+
+    <!-- Game Controls and Status -->
+    <div id="game-ui" class="flex flex-col md:flex-row gap-4 w-full max-w-5xl">
+        
+        <!-- Status Panel -->
+        <div class="info-card w-full md:w-1/3">
+            <div id="role-display" class="text-lg font-bold mb-2">Role: <span class="text-slate-400">?</span></div>
+            <div id="status-display" class="text-sm mb-2 text-green-500">STATUS: ALIVE</div>
+            <p id="player-name-display" class="text-xs text-slate-400 truncate">Character: N/A</p>
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="controls" class="info-card w-full md:w-2/3 flex flex-wrap gap-3 justify-center items-center">
+            
+            <!-- Dynamic Action Button (Task/Sabotage/Kill Placeholder) -->
+            <button id="action-button" class="action-button bg-blue-500 hover:bg-blue-600 text-white shadow-lg">
+                Action (Task)
+            </button>
+
+            <!-- Report Button -->
+            <button id="report-button" class="action-button bg-orange-500 hover:bg-orange-600 text-white shadow-lg">
+                🚨 Report Body
+            </button>
+            
+            <!-- Emergency Button -->
+            <button id="emergency-button" class="action-button bg-red-500 hover:bg-red-600 text-white shadow-lg">
+                📢 Emergency Meeting
+            </button>
+        </div>
+    </div>
+    
+    <!-- Character Creation Modal (Start Screen) -->
+    <div id="start-modal" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+        <div class="bg-slate-800 p-8 rounded-xl shadow-2xl max-w-md w-full">
+            <h3 class="text-2xl font-bold mb-6 text-white text-center">Customize Your Crewmate</h3>
+            
+            <div class="mb-4">
+                <label for="player-name-input" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
+                <input type="text" id="player-name-input" placeholder="Enter name" maxlength="10" value="Solo Player"
+                       class="w-full px-4 py-2 rounded-lg bg-slate-700 border border-slate-600 text-white focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <div class="mb-6">
+                <label for="player-color-input" class="block text-sm font-medium text-slate-300 mb-1">Color</label>
+                <input type="color" id="player-color-input" value="#ff0000"
+                       class="w-full h-10 rounded-lg cursor-pointer">
+            </div>
+
+            <button id="start-game-button" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition text-lg">
+                Start Station (Begin Solo Mission)
+            </button>
+        </div>
     </div>
 
-    <div class="row">
-      <button id="hostBtn">Host (LAN beacon)</button>
-      <button id="joinBtn" class="secondary">Join (LAN)</button>
+    <!-- Custom Modal (Replaces alert()) -->
+    <div id="custom-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-slate-700 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h3 id="modal-title" class="text-xl font-bold mb-4 text-white"></h3>
+            <p id="modal-message" class="text-slate-300 mb-6"></p>
+            <button id="close-modal" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg transition">
+                Close
+            </button>
+        </div>
     </div>
-
-    <div style="margin-top:8px">
-      <div class="small muted">Manual WebRTC (for different devices): Create Offer → copy → paste to remote → remote Create Answer → paste back.</div>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button id="createOfferBtn" class="btn-sm">Create Offer</button>
-        <button id="createAnswerBtn" class="btn-sm secondary">Create Answer</button>
-      </div>
-      <textarea id="signalBox" placeholder="Offer/Answer JSON - copy/paste here"></textarea>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button id="pasteOfferBtn" class="btn-sm">Paste Offer (host)</button>
-        <button id="pasteAnswerBtn" class="btn-sm secondary">Paste Answer (offerer)</button>
-      </div>
-    </div>
-
-    <div style="margin-top:10px"><strong>Players</strong></div>
-    <div class="players" id="playerList"></div>
-
-    <div style="margin-top:10px"><strong>Chat</strong></div>
-    <div class="chat">
-      <div class="msgs" id="chatMsgs"></div>
-      <input id="chatInput" placeholder="Type and press Enter"/>
-    </div>
-
-    <div style="margin-top:10px;display:flex;gap:8px">
-      <button id="addBotBtn" class="btn-sm">Add Bot</button>
-      <button id="readyBtn" class="btn-sm secondary">Ready</button>
-      <button id="startBtn" class="btn-sm">Start</button>
-    </div>
-
-    <div style="margin-top:10px;display:flex;gap:8px">
-      <button id="helpBtn" class="btn-sm">Help (H)</button>
-      <button id="exportBtn" class="btn-sm secondary">Export Snapshot</button>
-    </div>
-
-    <div style="margin-top:8px" class="small muted">Tip: Serve via a local static server (e.g. python -m http.server) for the best WebRTC behavior across devices.</div>
-  </div>
-</div>
-
-<!-- Meeting Modal -->
-<div id="meetingModal" class="modal"><div class="card" id="meetingCard"><h3>Emergency Meeting</h3><div id="meetingOptions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button id="meetingSkip" class="btn-sm">Skip</button><button id="meetingVote" class="btn-sm secondary">Vote</button></div></div></div>
-
-<!-- Help Modal -->
-<div id="helpModal" class="modal"><div class="card"><h2>Help & Controls</h2>
-  <div style="display:flex;gap:16px;flex-wrap:wrap">
-    <div style="flex:1">
-      <h4>Movement</h4><ul><li>W/A/S/D or Arrow keys — Move</li><li>Space/E — Interact</li></ul>
-      <h4>Actions</h4><ul><li>K — Kill (impostor)</li><li>R — Report nearest body</li><li>V — Call meeting</li></ul>
-    </div>
-    <div style="flex:1">
-      <h4>Networking</h4><ul><li>Host — advertise via LAN beacon (same origin)</li><li>Join — discover host (same origin)</li><li>Manual WebRTC — use offer/answer copy-paste across devices</li></ul>
-    </div>
-  </div>
-  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button id="helpClose" class="btn-sm secondary">Close</button></div>
-</div></div>
 
 <script>
-/* =========================
-   AmongLite — Full (No backend)
-   Single-file prototype.
-   ========================= */
+    
+    // --- Global Variables and Setup ---
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const PLAYER_SIZE = 16;
+    const MOVEMENT_SPEED = 3;
+    
+    // Initial local state, will be updated by character creation modal
+    let localPlayer = { x: 100, y: 100, color: '#ff0000', role: 'crewmate', isDead: false, name: 'Solo Player' };
+    let isGameActive = false;
+    let keys = {};
+    
+    const MAP_SIZE = 1000;
+    const MAP_BOUNDARIES = [
+        // [x, y, w, h] - Rectangular solid walls
+        [0, 0, MAP_SIZE, 50], // Top wall
+        [0, MAP_SIZE - 50, MAP_SIZE, 50], // Bottom wall
+        [0, 0, 50, MAP_SIZE], // Left wall
+        [MAP_SIZE - 50, 0, 50, MAP_SIZE], // Right wall
+        [200, 200, 20, 400], // Internal divider 1
+        [600, 400, 300, 20], // Internal divider 2
+        [400, 700, 20, 200], // Storage room wall
+        [600, 100, 20, 200]  // Engine room wall
+    ];
 
-/* ------------- Utilities ------------- */
-const $ = id => document.getElementById(id);
-function rand(min=0,max=1){ return min + Math.random()*(max-min); }
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-function now(){ return performance.now(); }
-function ts(){ return Math.floor(Date.now()/1000); }
+    // --- Game Setup and Loop ---
 
-/* ------------- Map, State, Models ------------- */
-const MapData = {
-  width:1600, height:960,
-  rooms:[
-    {id:'caf', name:'Cafeteria', x:120,y:100,w:420,h:300},
-    {id:'eng', name:'Engine',   x:820,y:100,w:420,h:300},
-    {id:'sec', name:'Security', x:120,y:460,w:420,h:300},
-    {id:'med', name:'MedBay',   x:820,y:460,w:420,h:300}
-  ],
-  anchors:[]
-};
-(function seedAnchors(){
-  for(const r of MapData.rooms){
-    for(let i=0;i<6;i++){
-      MapData.anchors.push({room:r.id, x: r.x + 30 + Math.random()*(r.w-60), y: r.y + 30 + Math.random()*(r.h-60)});
+    function startGame() {
+        const nameInput = document.getElementById('player-name-input');
+        const colorInput = document.getElementById('player-color-input');
+        
+        localPlayer.name = nameInput.value.trim().substring(0, 10) || 'Solo Player';
+        localPlayer.color = colorInput.value;
+        
+        // Randomly assign a role for solo play flavor
+        const roles = ['crewmate', 'imposter'];
+        localPlayer.role = roles[Math.floor(Math.random() * roles.length)];
+
+        document.getElementById('player-name-display').textContent = `Character: ${localPlayer.name}`;
+        document.getElementById('role-display').innerHTML = `Your Role: <span class="${localPlayer.role === 'imposter' ? 'text-red-500 font-bold' : 'text-green-500'}">${localPlayer.role.toUpperCase()}</span>`;
+        document.getElementById('start-modal').classList.add('hidden');
+        
+        isGameActive = true;
+        
+        // Ensure initial button state is set
+        updateActionButton();
+
+        requestAnimationFrame(gameLoop); // Start the main game loop
     }
-  }
-})();
+    
+    function updateActionButton() {
+        const actionButton = document.getElementById('action-button');
+        if (localPlayer.role === 'imposter') {
+            actionButton.textContent = '😈 Sabotage';
+            actionButton.classList.remove('bg-blue-500');
+            actionButton.classList.add('bg-purple-600', 'hover:bg-purple-700');
+            actionButton.onclick = () => showModal('Sabotage Initiated', 'You locked the doors in the reactor. Wait for the chaos to ensue!');
+        } else {
+            actionButton.textContent = '✅ Do Task';
+            actionButton.classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            actionButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            actionButton.onclick = () => showModal('Task Complete', 'You successfully calibrated the distributor.');
+        }
+    }
 
-const State = {
-  players:{},   // id -> player
-  tasks:{},     // id -> task
-  myId:null,
-  hostId:null,
-  inGame:false
-};
+    function checkCollision(nextX, nextY) {
+        // Check collision with map boundaries
+        const playerRect = { x: nextX, y: nextY, w: PLAYER_SIZE, h: PLAYER_SIZE };
+        
+        for (const [mx, my, mw, mh] of MAP_BOUNDARIES) {
+            // Simple AABB collision detection
+            if (playerRect.x < mx + mw &&
+                playerRect.x + playerRect.w > mx &&
+                playerRect.y < my + mh &&
+                playerRect.y + playerRect.h > my) {
+                return true; // Collision detected
+            }
+        }
+        return false;
+    }
 
-class Player {
-  constructor(id,name,color='#6be7ff',isBot=false){
-    this.id=id; this.name=name; this.color=color;
-    this.x = 200 + Math.random()*400; this.y = 200 + Math.random()*300;
-    this.vx=0; this.vy=0; this.speed = 140;
-    this.alive=true; this.role='crewmate'; this.isBot=isBot; this.ready=false;
-    this.currentTask=null; this.taskProgress=0; this.cooldownReadyAt=0;
-  }
-}
-class Task {
-  constructor(id,x,y,room){ this.id=id; this.x=x; this.y=y; this.room=room; this.done=false; this.progress=0; }
-}
+    function updateGame() {
+        if (!isGameActive) return;
+        if (localPlayer.isDead) return;
 
-/* ------------- Canvas & rendering ------------- */
-const canvas = $('canvas'), ctx = canvas.getContext('2d');
-let DPR = Math.min(window.devicePixelRatio || 1, 2);
-function adaptDPR(){ DPR = Math.min(window.devicePixelRatio || 1, 2); const cssW = canvas.clientWidth || canvas.width; const cssH = canvas.clientHeight || canvas.height; canvas.width = Math.floor(cssW * DPR); canvas.height = Math.floor(cssH * DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
-adaptDPR(); window.addEventListener('resize', adaptDPR);
-let CW = canvas.width / DPR, CH = canvas.height / DPR;
-let camera = {x:0,y:0};
+        let newX = localPlayer.x;
+        let newY = localPlayer.y;
 
-function drawMap(){
-  ctx.fillStyle = '#071f24'; ctx.fillRect(0,0,CW,CH);
-  for(const r of MapData.rooms){ ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.fillRect(r.x-camera.x, r.y-camera.y, r.w, r.h); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.font='14px sans-serif'; ctx.fillText(r.name, r.x+12-camera.x, r.y+22-camera.y); }
-  for(const tid in State.tasks){ const t = State.tasks[tid]; ctx.beginPath(); ctx.fillStyle = t.done ? 'rgba(120,255,140,0.8)' : 'rgba(255,210,90,0.95)'; ctx.arc(t.x-camera.x, t.y-camera.y, 10,0,Math.PI*2); ctx.fill(); }
-}
+        if (keys['ArrowUp'] || keys['w']) newY -= MOVEMENT_SPEED;
+        if (keys['ArrowDown'] || keys['s']) newY += MOVEMENT_SPEED;
+        if (keys['ArrowLeft'] || keys['a']) newX -= MOVEMENT_SPEED;
+        if (keys['ArrowRight'] || keys['d']) newX += MOVEMENT_SPEED;
+        
+        // Apply collision checking
+        if (!checkCollision(newX, localPlayer.y)) {
+            localPlayer.x = newX;
+        }
+        if (!checkCollision(localPlayer.x, newY)) {
+            localPlayer.y = newY;
+        }
 
-function drawPlayers(){
-  for(const id in State.players){
-    const p = State.players[id];
-    ctx.beginPath(); ctx.fillStyle = p.alive ? p.color : '#6f7a84'; ctx.arc(p.x-camera.x, p.y-camera.y, 18,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#eaf6ff'; ctx.font='12px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name, p.x-camera.x, p.y-26-camera.y);
-    if(p.role === 'impostor' && State.hostId === State.myId && p.isBot){ ctx.fillStyle='rgba(255,100,100,0.9)'; ctx.fillRect(p.x-camera.x-6, p.y-camera.y-6, 12,12); }
-  }
-}
+        // Keep player within the main play area (beyond hard boundaries)
+        localPlayer.x = Math.max(50, Math.min(MAP_SIZE - 50 - PLAYER_SIZE, localPlayer.x));
+        localPlayer.y = Math.max(50, Math.min(MAP_SIZE - 50 - PLAYER_SIZE, localPlayer.y));
+    }
 
-function render(){
-  CW = canvas.width / DPR; CH = canvas.height / DPR;
-  ctx.clearRect(0,0,CW,CH);
-  ctx.save(); ctx.translate(0,0);
-  drawMap(); drawPlayers();
-  ctx.restore();
-  // HUD small task list
-  ctx.save(); ctx.resetTransform();
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(12,12,260,120);
-  ctx.fillStyle='#cfefff'; ctx.font='13px sans-serif'; ctx.fillText('Tasks:',22,32);
-  let y = 52;
-  for(const tid in State.tasks){ if(y>118) break; const t=State.tasks[tid]; ctx.fillStyle = t.done ? '#8df59a' : '#ffd66b'; ctx.fillText(`${tid} ${t.done ? '(Done)' : ''}`,22,y); y+=18; }
-  ctx.restore();
-}
+    function drawMap() {
+        // Draw the background (Space Station Floor)
+        ctx.fillStyle = '#333';
+        ctx.fillRect(0, 0, MAP_SIZE, MAP_SIZE);
+        
+        // Draw the solid walls
+        ctx.fillStyle = '#1e293b'; // Slate gray/blue for walls
+        MAP_BOUNDARIES.forEach(([x, y, w, h]) => {
+            ctx.fillRect(x, y, w, h);
+        });
+        
+        // Draw task zones
+        ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
+        ctx.fillRect(100, 100, 50, 50); // Task 1: Reactor
+        ctx.fillRect(800, 800, 50, 50); // Task 2: Shields
+        ctx.fillRect(450, 80, 100, 20); // Task 3: Admin
+        ctx.font = '10px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Reactor', 100, 165);
+        ctx.fillText('Shields', 800, 795);
+        ctx.fillText('Admin Panel', 450, 75);
+    }
 
-/* ------------- Input & controls ------------- */
-const inputs = {left:false,right:false,up:false,down:false,interact:false};
-window.addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(k==='a' || k==='arrowleft') inputs.left=true; if(k==='d' || k==='arrowright') inputs.right=true; if(k==='w' || k==='arrowup') inputs.up=true; if(k==='s' || k==='arrowdown') inputs.down=true; if(k==='e' || k===' ') inputs.interact=true; if(k==='k') attemptKillNearby(); if(k==='r') attemptReportNearby(); if(k==='v') callMeetingByMe(); if(k==='h') $('helpModal').style.display = $('helpModal').style.display === 'flex' ? 'none' : 'flex';});
-window.addEventListener('keyup', e=>{ const k=e.key.toLowerCase(); if(k==='a' || k==='arrowleft') inputs.left=false; if(k==='d' || k==='arrowright') inputs.right=false; if(k==='w' || k==='arrowup') inputs.up=false; if(k==='s' || k==='arrowdown') inputs.down=false; if(k==='e' || k===' ') inputs.interact=false; });
+    function drawLocalPlayer() {
+        const { x, y, color, name } = localPlayer;
+        
+        // 1. Draw the player body (capsule shape)
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x + PLAYER_SIZE / 2, y + PLAYER_SIZE / 2, PLAYER_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
 
-/* ------------- Local player creation & UI ------------- */
-function createLocalPlayer(name){
-  const id = 'p_' + Math.floor(Math.random()*900000 + 10000);
-  const p = new Player(id, name || ('You'+Math.floor(Math.random()*999)), pickColor(), false);
-  State.players[id] = p; State.myId = id; updatePlayerList(); seedTasksIfEmpty(); refreshHUD();
-  appendChat(`[SYSTEM] Local player created: ${p.name} (${id})`);
-  return p;
-}
-function pickColor(){
-  const list = ['#ff6b6b','#6bb0ff','#8be38b','#c28bff','#ffd166','#ff9bb3','#ffb86b','#9ad3bc'];
-  const used = Object.values(State.players).map(x=>x.color);
-  for(const c of list) if(!used.includes(c)) return c;
-  return list[Math.floor(Math.random()*list.length)];
-}
-$('createBtn').addEventListener('click', ()=> { createLocalPlayer($('nameInput').value.trim() || ('You'+Math.floor(Math.random()*999))); });
+        // 2. Draw the visor
+        ctx.fillStyle = '#add8e6'; // Light blue
+        ctx.fillRect(x + PLAYER_SIZE * 0.2, y + PLAYER_SIZE * 0.2, PLAYER_SIZE * 0.6, PLAYER_SIZE * 0.4);
 
-/* ------------- Task seeding & panel ------------- */
-function seedTasksIfEmpty(){
-  if(Object.keys(State.tasks).length > 0) return;
-  const anchors = shuffle(MapData.anchors.slice());
-  const count = Math.max(6, Math.floor(Object.keys(State.players).length * 1.5) || 6);
-  for(let i=0;i<count && i<anchors.length;i++){
-    const a = anchors[i]; State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room);
-  }
-  refreshHUD();
-}
+        // 3. Draw the backpack
+        ctx.fillStyle = color;
+        ctx.fillRect(x - PLAYER_SIZE * 0.3, y + PLAYER_SIZE * 0.2, PLAYER_SIZE * 0.3, PLAYER_SIZE * 0.6);
 
-/* ------------- UI helpers ------------- */
-function updatePlayerList(){
-  const node = $('playerList'); node.innerHTML = '';
-  for(const id in State.players){
-    const p = State.players[id];
-    const div = document.createElement('div'); div.className='player-row';
-    div.innerHTML = `<div><strong>${p.name}</strong> <span class="small">${p.isBot?'<em>BOT</em>':''}</span></div><div>${p.ready?'<span class="small">Ready</span>':''}</div>`;
-    node.appendChild(div);
-  }
-}
-function appendChat(msg){
-  const cm = $('chatMsgs'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight;
-}
-$('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ const msg = $('chatInput').value.trim(); if(!msg) return; sendChat(msg); $('chatInput').value=''; }});
-function sendChat(text){ if(!State.myId) return appendChat('[SYSTEM] Create a player first'); appendChat(`${State.players[State.myId].name}: ${text}`); Net.broadcast({type:'chat', from: State.myId, text}); }
+        // 4. Draw the name tag
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff';
+        ctx.fillText(name, x + PLAYER_SIZE / 2, y - 5);
+        
+        // 5. Highlight (always highlight local player)
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(x + PLAYER_SIZE / 2, y + PLAYER_SIZE / 2, PLAYER_SIZE / 2 + 2, 0, Math.PI * 2);
+        ctx.stroke();
 
-/* ------------- Bots ------------- */
-$('addBotBtn').addEventListener('click', ()=>{
-  const id = 'bot_'+Math.floor(Math.random()*900000);
-  const bot = new Player(id, 'Bot'+Math.floor(Math.random()*900), pickColor(), true);
-  State.players[id] = bot; updatePlayerList(); appendChat(`[SYSTEM] Bot added: ${bot.name}`);
-});
+        // 6. Draw "dead" status if applicable
+        if (localPlayer.isDead) {
+            ctx.strokeStyle = '#f00';
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + PLAYER_SIZE, y + PLAYER_SIZE);
+            ctx.moveTo(x + PLAYER_SIZE, y);
+            ctx.lineTo(x, y + PLAYER_SIZE);
+            ctx.stroke();
+            ctx.fillStyle = '#f00';
+            ctx.fillText('DEAD', x + PLAYER_SIZE / 2, y + PLAYER_SIZE + 15);
+        }
+    }
 
-/* ------------- Ready & Start ------------- */
-$('readyBtn').addEventListener('click', ()=>{
-  if(!State.myId) return appendChat('[SYSTEM] Create a player first');
-  State.players[State.myId].ready = !State.players[State.myId].ready; updatePlayerList();
-  appendChat(`[SYSTEM] ${State.players[State.myId].name} ${State.players[State.myId].ready ? 'is ready' : 'is not ready'}`);
-});
-$('startBtn').addEventListener('click', ()=> { if(State.hostId !== State.myId) return appendChat('[SYSTEM] Only host can start'); hostStartGame(); });
+    function drawGame() {
+        // Center the canvas view on the local player (camera effect)
+        ctx.save();
+        
+        // Calculate translation (to center the player on the canvas viewport)
+        const translateX = canvas.width / 2 - (localPlayer.x + PLAYER_SIZE / 2);
+        const translateY = canvas.height / 2 - (localPlayer.y + PLAYER_SIZE / 2);
+        ctx.translate(translateX, translateY);
 
-/* ------------- Export snapshot ------------- */
-$('exportBtn').addEventListener('click', ()=>{
-  const snap = {ts: Date.now(), players: {}, tasks: State.tasks};
-  for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,name:p.name,color:p.color,role:p.role,alive:p.alive}; }
-  const blob = new Blob([JSON.stringify(snap,null,2)], {type:'application/json'}); const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'amonglite_snapshot_'+Date.now()+'.json'; a.click(); URL.revokeObjectURL(url);
-  appendChat('[SYSTEM] Snapshot exported');
-});
+        // 1. Draw the map
+        drawMap();
+        
+        // 2. Draw the player
+        drawLocalPlayer();
+        
+        ctx.restore();
+    }
 
-/* ------------- HUD refresh ------------- */
-function refreshHUD(){
-  const me = State.players[State.myId]; if(!me){ $('hud').innerText = 'Lobby'; return; }
-  $('hud').innerText = State.inGame ? `${me.name} • ${me.role.toUpperCase()} • ${me.alive ? 'Alive' : 'Dead'}` : `Lobby • ${me.name}`;
-}
+    function gameLoop() {
+        // Only run game logic if active
+        if (!isGameActive) return;
 
-/* ------------- Networking (LAN beacon + manual WebRTC) ------------- */
-const Net = {
-  mode:'lan', clients:{}, connToHost:null,
-  init(){ appendChat('[NET] Initialized (no-backend LAN + manual WebRTC)'); },
-  broadcast(msg){
-    try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), from: State.myId, msg})); }catch(e){ console.warn('LS fail',e); }
-    // send via manual DCs if present
-    for(const id in this.clients){ try{ const dc = this.clients[id].dc; if(dc && dc.readyState === 'open') dc.send(JSON.stringify(msg)); }catch(_){} }
-    if(this.connToHost && this.connToHost.readyState === 'open'){ try{ this.connToHost.send(JSON.stringify(msg)); }catch(_){} }
-  },
-  sendToHost(msg){ if(this.connToHost && this.connToHost.readyState === 'open') { try{ this.connToHost.send(JSON.stringify(msg)); }catch(_){} } else this.broadcast(msg); }
-};
-Net.init();
+        // Set canvas size to match the container/window for responsiveness
+        canvas.width = window.innerWidth * 0.9;
+        canvas.height = window.innerHeight * 0.7;
 
-/* LAN beacon receiver */
-window.addEventListener('storage', ev => {
-  if(ev.key !== 'amonglite_beacon' || !ev.newValue) return;
-  try{
-    const data = JSON.parse(ev.newValue);
-    if(!data || !data.msg) return;
-    onRemote(data.from || 'unknown', data.msg);
-  }catch(e){}
-});
+        updateGame();
+        drawGame();
+        
+        requestAnimationFrame(gameLoop);
+    }
+    
+    // --- Game Actions (Placeholders) ---
+    
+    function reportDeadBody() {
+        if (localPlayer.isDead) {
+            showModal('Alert', 'You are deceased.');
+            return;
+        }
+        showModal('Reporting Body', `${localPlayer.name} reported a ghost body in the cafeteria! (Placeholder)`);
+    }
+    
+    function callEmergencyMeeting() {
+        if (localPlayer.isDead) {
+            showModal('Alert', 'You are deceased.');
+            return;
+        }
+        showModal('EMERGENCY MEETING!', `${localPlayer.name} called an emergency meeting. Who is sus?`);
+    }
 
-/* Manual WebRTC helpers (offer/answer copy/paste) */
-let manualPC = null, manualDC = null;
-function createManualOffer(){
-  manualPC = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-  manualDC = manualPC.createDataChannel('game');
-  manualDC.onopen = ()=> appendChat('[NET] Manual DC open (offer)');
-  manualDC.onmessage = ev => { try{ const m = JSON.parse(ev.data); onRemote('manualPeer', m); }catch(e){} };
-  manualPC.onicecandidate = ev => { if(!ev.candidate){ const offer = manualPC.localDescription; $('signalBox').value = JSON.stringify({type:'offer', sdp:offer}); appendChat('[NET] Offer ready - copy it to remote'); } };
-  manualPC.createOffer().then(o => manualPC.setLocalDescription(o));
-}
-function acceptManualOfferAndCreateAnswer(){
-  try{
-    const raw = $('signalBox').value.trim(); if(!raw) return alert('Paste offer JSON first');
-    const obj = JSON.parse(raw); if(obj.type !== 'offer') return alert('Not an offer');
-    const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    pc.ondatachannel = ev => {
-      const ch = ev.channel;
-      ch.onopen = ()=> appendChat('[NET] Manual DC open (answer)');
-      ch.onmessage = e => { try{ onRemote('manualPeer', JSON.parse(e.data)); }catch(_){} };
-      Net.clients['manualPeer'] = {pc, dc: ch};
+    // --- Modal/Message Box (Replaces alert()) ---
+    
+    function showModal(title, message) {
+        const modal = document.getElementById('custom-modal');
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-message').textContent = message;
+        modal.classList.remove('hidden');
+    }
+    
+    function closeModal() {
+        document.getElementById('custom-modal').classList.add('hidden');
+    }
+
+    // --- Keyboard and Window Events ---
+
+    window.addEventListener('keydown', (e) => {
+        // Prevent default behavior for arrow keys and space
+        if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+            e.preventDefault();
+        }
+        keys[e.key] = true;
+    });
+
+    window.addEventListener('keyup', (e) => {
+        keys[e.key] = false;
+    });
+    
+    // --- Initialization on Load ---
+    window.onload = function() {
+        // Attach handlers
+        document.getElementById('close-modal').onclick = closeModal;
+        document.getElementById('emergency-button').onclick = callEmergencyMeeting;
+        document.getElementById('report-button').onclick = reportDeadBody;
+        document.getElementById('start-game-button').onclick = startGame;
+        
+        // Set canvas size initially
+        canvas.width = window.innerWidth * 0.9;
+        canvas.height = window.innerHeight * 0.7;
+
+        // Start by showing the character creation screen
+        document.getElementById('start-modal').classList.remove('hidden');
     };
-    pc.onicecandidate = ev => { if(!ev.candidate){ $('signalBox').value = JSON.stringify({type:'answer', sdp:pc.localDescription}); appendChat('[NET] Answer ready - copy it back to offerer'); } };
-    pc.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> pc.createAnswer().then(a=>pc.setLocalDescription(a))).catch(e=>alert('Failed: '+e.message));
-  }catch(e){ alert('Invalid JSON'); }
-}
-function pasteAnswerToOfferer(){
-  try{
-    const raw = $('signalBox').value.trim(); if(!raw) return alert('Paste answer JSON here');
-    const obj = JSON.parse(raw); if(obj.type !== 'answer') return alert('Not an answer');
-    if(!manualPC) return alert('No offer created locally');
-    manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> appendChat('[NET] Manual connection established')).catch(e=>alert('Set remote failed: '+e.message));
-  }catch(e){ alert('Invalid JSON'); }
-}
-$('createOfferBtn').addEventListener('click', createManualOffer);
-$('createAnswerBtn').addEventListener('click', ()=> { try{ const raw = $('signalBox').value.trim(); if(!raw) { alert('To create an answer: paste the offer into the box then click Create Answer'); } else acceptManualOfferAndCreateAnswer(); }catch(e){}} );
-$('pasteOfferBtn').addEventListener('click', ()=> acceptManualOfferAndCreateAnswer());
-$('pasteAnswerBtn').addEventListener('click', ()=> pasteAnswerToOfferer());
-
-/* ------------- Application-level router for messages ------------- */
-function onRemote(from, msg){
-  if(!msg || !msg.type) return;
-  switch(msg.type){
-    case 'chat': appendChat(`${State.players[msg.from] ? State.players[msg.from].name : msg.from}: ${msg.text}`); break;
-    case 'join':
-      if(State.hostId === State.myId){
-        if(!State.players[msg.id]) State.players[msg.id] = new Player(msg.id, msg.name, msg.color || pickColor());
-        updatePlayerList(); Net.broadcast({type:'welcome', host: State.myId});
-      }
-      break;
-    case 'welcome': State.hostId = msg.host; appendChat(`[NET] Connected to host ${msg.host}`); break;
-    case 'state': // small state broadcast
-      if(msg.p){
-        const pId = msg.p.id;
-        if(!State.players[pId]) State.players[pId] = new Player(pId, msg.p.name || ('P'+pId.slice(-4)), msg.p.color || pickColor());
-        const p = State.players[pId]; p.x = msg.p.x; p.y = msg.p.y; p.alive = !!msg.p.alive; p.role = msg.p.role || p.role;
-        updatePlayerList();
-      }
-      break;
-    case 'start':
-      State.inGame = true; appendChat('[GAME] Start received'); if(msg.tasks) State.tasks = msg.tasks; refreshHUD(); break;
-    case 'kill': if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendChat(`[GAME] ${State.players[msg.target].name} was killed`); } break;
-    case 'report': beginMeeting(msg.by, msg.bodyId, msg.x, msg.y); break;
-    case 'vote':
-      if(State.hostId === State.myId) tallyVote(msg.by, msg.target);
-      break;
-    case 'eject': if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendChat(`[GAME] ${State.players[msg.target].name} ejected`); } break;
-    default: console.log('unknown msg', msg);
-  }
-}
-
-/* ------------- Host logic: assign roles and start ------------- */
-function hostStartGame(){
-  if(State.hostId !== State.myId) return appendChat('[SYSTEM] Only host can start');
-  const pids = Object.keys(State.players);
-  if(pids.length < 2) return appendChat('[SYSTEM] Need at least 2 players (or add bots)');
-  const impCount = Math.max(1, Math.floor(pids.length / 4));
-  const shuffled = shuffle(pids.slice()); const impostors = shuffled.slice(0, impCount);
-  for(const id of pids){ const p = State.players[id]; p.alive = true; p.currentTask = null; p.taskProgress = 0; p.role = impostors.includes(id) ? 'impostor' : 'crewmate'; p.cooldownReadyAt = 0; }
-  seedTasksIfEmpty();
-  State.inGame = true; Net.broadcast({type:'start', by: State.myId, tasks: State.tasks});
-  appendChat('[GAME] Host started the game'); refreshHUD();
-}
-
-/* ------------- Kill, report, meeting, voting ------------- */
-function attemptKillNearby(){
-  const me = State.players[State.myId]; if(!me || me.role !== 'impostor' || !me.alive) return appendChat('[GAME] Cannot kill');
-  const nowSec = ts(); if(me.cooldownReadyAt && nowSec < me.cooldownReadyAt) return appendChat('[GAME] Kill on cooldown');
-  let nearest = null; let nd = Infinity;
-  for(const id in State.players){ if(id===State.myId) continue; const p = State.players[id]; if(!p.alive) continue; const d = Math.hypot(p.x-me.x,p.y-me.y); if(d<nd){ nd=d; nearest=p; } }
-  if(!nearest || nd>48) return appendChat('[GAME] No target in range');
-  if(State.hostId === State.myId){ nearest.alive=false; me.cooldownReadyAt = ts()+10; Net.broadcast({type:'kill', target: nearest.id}); appendChat(`[GAME] You killed ${nearest.name}`); }
-  else { Net.sendToHost({type:'killRequest', by: me.id, target: nearest.id}); appendChat('[GAME] Kill request sent to host'); }
-}
-function attemptReportNearby(){
-  let nearest=null; let nd=Infinity;
-  for(const id in State.players){ const p = State.players[id]; if(p.alive) continue; const me = State.players[State.myId]; if(!me) return; const d = Math.hypot(p.x-me.x,p.y-me.y); if(d<nd){ nd=d; nearest=p; } }
-  if(!nearest || nd>48) return appendChat('[GAME] No dead body nearby');
-  Net.broadcast({type:'report', by: State.myId, bodyId: nearest.id, x: nearest.x, y: nearest.y}); appendChat('[GAME] Body reported');
-}
-function callMeetingByMe(){ Net.broadcast({type:'report', by: State.myId, bodyId: null, x: State.players[State.myId].x, y: State.players[State.myId].y}); appendChat('[GAME] Meeting called'); }
-
-let meetingBackup = null;
-function beginMeeting(callerId, bodyId, x, y){
-  meetingBackup = {inGame: State.inGame}; State.inGame = false;
-  $('meetingModal').style.display = 'flex';
-  const opts = $('meetingOptions'); opts.innerHTML = '';
-  const alive = Object.values(State.players).filter(p=>p.alive);
-  for(const p of alive){ const b = document.createElement('button'); b.className='btn-sm'; b.textContent = p.name; b.dataset.pid = p.id; b.onclick = ()=>{ opts.querySelectorAll('button').forEach(x=>x.dataset.selected=0); b.dataset.selected=1; }; opts.appendChild(b); }
-  $('meetingVote').onclick = ()=>{ const sel = opts.querySelector('button[data-selected="1"]'); const target = sel ? sel.dataset.pid : 'skip'; if(State.hostId === State.myId) tallyVote(State.myId, target); else Net.sendToHost({type:'vote', by: State.myId, target}); $('meetingModal').style.display='none'; State.inGame = meetingBackup.inGame; };
-  $('meetingSkip').onclick = ()=>{ $('meetingModal').style.display='none'; State.inGame = meetingBackup.inGame; Net.broadcast({type:'vote', by: State.myId, target: 'skip'}); };
-}
-
-/* Vote tally (host authoritative) */
-const voteTally = {};
-function tallyVote(by, target){
-  voteTally[by] = target;
-  const voters = Object.keys(State.players).filter(id=>State.players[id].alive);
-  // auto-vote bots
-  for(const id of voters){ if(State.players[id].isBot && !voteTally[id]) voteTally[id] = Math.random() < 0.6 ? 'skip' : (voters[Math.floor(Math.random()*voters.length)] || 'skip'); }
-  const all = voters.every(v => voteTally[v]);
-  if(!all) return appendChat('[VOTE] Waiting for votes...');
-  const counts = {}; for(const v in voteTally){ counts[voteTally[v]] = (counts[voteTally[v]]||0)+1; }
-  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]); const top = entries[0] ? entries[0][0] : 'skip';
-  if(top && top !== 'skip' && State.players[top]){ State.players[top].alive=false; Net.broadcast({type:'eject', target: top}); appendChat(`[VOTE] ${State.players[top].name} ejected`); }
-  else appendChat('[VOTE] No ejection (skip)');
-  for(const k in voteTally) delete voteTally[k];
-}
-
-/* ------------- Host processing of killRequests (if any) ------------- */
-(function patchHostRequestHandling(){
-  const origOnRemote = onRemote;
-  onRemote = function(from, msg){
-    origOnRemote(from,msg);
-    if(State.hostId === State.myId && msg && msg.type === 'killRequest'){ handleKillRequest(msg.by, msg.target); }
-  };
-})();
-function handleKillRequest(by,target){
-  const killer = State.players[by], victim = State.players[target];
-  if(!killer || !victim) return;
-  if(killer.role !== 'impostor') return;
-  const nowSec = ts(); if(killer.cooldownReadyAt && nowSec < killer.cooldownReadyAt) return;
-  const d = Math.hypot(killer.x-victim.x,killer.y-victim.y); if(d > 48) return;
-  victim.alive=false; killer.cooldownReadyAt = nowSec + 10; Net.broadcast({type:'kill', target: victim.id}); appendChat(`[HOST] ${killer.name} killed ${victim.name}`);
-}
-
-/* ------------- Host periodic authoritative broadcast ------------- */
-let hostTick = null;
-function startHostTick(){
-  if(hostTick) clearInterval(hostTick);
-  hostTick = setInterval(()=> {
-    if(State.hostId !== State.myId) return;
-    const snap = {players:{}, tasks:{}};
-    for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,alive:p.alive,role:p.role,name:p.name,color:p.color}; }
-    for(const tid in State.tasks){ const t = State.tasks[tid]; snap.tasks[tid] = {x:t.x,y:t.y,done:t.done,progress:t.progress}; }
-    Net.broadcast({type:'hostSnapshot', payload: snap});
-  }, 250);
-}
-(function patchSnapshotHandler(){
-  const orig = onRemote;
-  onRemote = function(from,msg){
-    if(msg && msg.type === 'hostSnapshot' && State.hostId && from === State.hostId){
-      const snap = msg.payload;
-      if(snap.players) for(const id in snap.players){ if(id === State.myId) continue; const s = snap.players[id]; if(!State.players[id]) State.players[id] = new Player(id, s.name || ('P'+id.slice(-4)), s.color || pickColor()); const p = State.players[id]; p.x = s.x; p.y = s.y; p.alive = s.alive; p.role = s.role; }
-      if(snap.tasks) State.tasks = (function(){ const out={}; for(const tid in snap.tasks){ const t=snap.tasks[tid]; out[tid] = new Task(tid, t.x, t.y, t.room || ''); out[tid].done = t.done; out[tid].progress = t.progress; } return out; })();
-      return;
-    }
-    return orig(from,msg);
-  };
-})();
-
-/* ------------- Bot behavior ------------- */
-function updateBots(dt){
-  for(const id in State.players){
-    const p = State.players[id];
-    if(!p.isBot || !p.alive || !State.inGame) continue;
-    const tasks = Object.values(State.tasks).filter(t=>!t.done);
-    if(tasks.length===0) continue;
-    let nearest = tasks[0], nd = Math.hypot(tasks[0].x-p.x, tasks[0].y-p.y);
-    for(const t of tasks){ const d = Math.hypot(t.x-p.x,t.y-p.y); if(d<nd){ nd=d; nearest=t; } }
-    const dx = nearest.x - p.x, dy = nearest.y - p.y; const len = Math.hypot(dx,dy)||1;
-    p.x += (dx/len) * p.speed * 0.45 * dt; p.y += (dy/len) * p.speed * 0.45 * dt;
-    if(Math.hypot(nearest.x - p.x, nearest.y - p.y) < 12){ nearest.progress = Math.min(100, nearest.progress + 30*dt); if(nearest.progress >= 100){ nearest.done = true; appendChat(`[BOT] ${p.name} completed ${nearest.id}`); } }
-  }
-}
-
-/* ------------- Task interactions (open task minigame placeholders) ------------- */
-function openTaskMinigameNearby(){
-  const me = State.players[State.myId]; if(!me || !State.inGame || !me.alive) return;
-  for(const tid in State.tasks){ const t = State.tasks[tid]; if(!t.done && Math.hypot(t.x-me.x,t.y-me.y) < 28){ openSimpleTask(tid); return; } }
-  appendChat('[TASK] No nearby incomplete task');
-}
-function openSimpleTask(tid){
-  const t = State.tasks[tid]; if(!t) return;
-  // simple progress modal
-  const modal = document.createElement('div'); modal.className='modal'; modal.style.display='flex';
-  const card = document.createElement('div'); card.className='card'; card.innerHTML = `<h3>Task ${tid}</h3><div style="background:#012a30;height:18px;border-radius:8px;overflow:hidden"><div id="bar" style="width:${t.progress}%;height:100%;background:#ffd166"></div></div><div style="display:flex;justify-content:flex-end;margin-top:8px"><button id="taskClose" class="btn-sm secondary">Close</button><button id="taskWork" class="btn-sm">Work</button></div>`;
-  modal.appendChild(card); document.body.appendChild(modal);
-  let workInterval = null;
-  card.querySelector('#taskWork').addEventListener('mousedown', ()=> {
-    workInterval = setInterval(()=> { t.progress = Math.min(100, t.progress + 3); card.querySelector('#bar').style.width = t.progress + '%'; if(t.progress >= 100){ t.done=true; appendChat(`[TASK] ${tid} completed`); clearInterval(workInterval); modal.remove(); } }, 120);
-  });
-  window.addEventListener('mouseup', ()=> { if(workInterval) clearInterval(workInterval); });
-  card.querySelector('#taskClose').addEventListener('click', ()=> { if(workInterval) clearInterval(workInterval); modal.remove(); });
-}
-
-/* ------------- Game loop ------------- */
-let last = now();
-function loop(nowTime){
-  const dt = Math.min(0.05,(nowTime-last)/1000); last = nowTime;
-  // update local player velocity from inputs
-  const me = State.players[State.myId];
-  if(me && State.inGame && me.alive){
-    let dx=0,dy=0; if(inputs.left) dx-=1; if(inputs.right) dx+=1; if(inputs.up) dy-=1; if(inputs.down) dy+=1;
-    if(dx || dy){ const len = Math.hypot(dx,dy)||1; me.x += (dx/len) * me.speed * dt; me.y += (dy/len) * me.speed * dt; }
-    // clamp
-    me.x = clamp(me.x, 20, MapData.width - 20); me.y = clamp(me.y, 20, MapData.height - 20);
-    // broadcast small state
-    Net.broadcast({type:'state', p:{id: me.id, x: me.x, y: me.y, alive: me.alive, role: me.role, name: me.name, color: me.color}});
-  }
-  // bots
-  updateBots(dt);
-  // center camera
-  if(State.players[State.myId]){ camera.x = clamp(State.players[State.myId].x - CW/2, 0, MapData.width - CW); camera.y = clamp(State.players[State.myId].y - CH/2, 0, MapData.height - CH); }
-  render();
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-/* ------------- Helpers & setup ------------- */
-function refreshAll(){
-  updatePlayerList(); refreshHUD(); seedTasksIfEmpty();
-}
-function refreshHUD(){ const me = State.players[State.myId]; $('hud').innerText = State.inGame ? (me ? `${me.name} • ${me.role.toUpperCase()} • ${me.alive ? 'Alive' : 'Dead'}` : 'In Game') : (me ? `Lobby • ${me.name}` : 'Lobby'); }
-function appendChat(msg){ appendChat; } // avoid lint issue: function above
-
-/* ------------- LAN Host / Join buttons ------------- */
-$('hostBtn').addEventListener('click', ()=> {
-  if(!State.myId) createLocalPlayer($('nameInput').value.trim() || ('Host'+Math.floor(Math.random()*999)));
-  State.hostId = State.myId; appendChat(`[NET] Hosting as ${State.players[State.myId].name}`);
-  if(window._beaconInterval) clearInterval(window._beaconInterval);
-  window._beaconInterval = setInterval(()=> { try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), host: State.hostId, players: Object.keys(State.players)})); }catch(e){} }, 800);
-  startHostTick();
-});
-$('joinBtn').addEventListener('click', ()=> {
-  if(!State.myId) createLocalPlayer($('nameInput').value.trim() || ('Guest'+Math.floor(Math.random()*999)));
-  appendChat('[NET] Announcing join presence via beacon'); try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), join: State.myId, name: State.players[State.myId].name})); }catch(e){}
-});
-
-/* ------------- Beacon reaction: when a host advertises, auto-connect on same origin ------------- */
-window.addEventListener('storage', ev => {
-  if(ev.key !== 'amonglite_beacon' || !ev.newValue) return;
-  try{
-    const data = JSON.parse(ev.newValue);
-    if(data.host && data.host !== State.hostId && data.host !== State.myId){
-      // discovered host
-      appendChat(`[NET] Discovered host: ${data.host}`);
-      State.hostId = data.host;
-      // request join by broadcasting join message
-      Net.broadcast({type:'join', id: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : $('nameInput').value, color: State.players[State.myId] ? State.players[State.myId].color : '#6be7ff'});
-    }
-  }catch(e){}
-});
-
-/* ------------- Restore cached local player ------------- */
-try{
-  const saved = JSON.parse(localStorage.getItem('amonglite_local')||'{}');
-  if(saved && saved.myId && !State.players[saved.myId]){ State.players[saved.myId] = new Player(saved.myId, saved.name || ('P'+saved.myId.slice(-4)), pickColor()); State.myId = saved.myId; updatePlayerList(); appendChat('[SYSTEM] Restored local session'); }
-}catch(e){}
-
-/* ------------- Save local session ------------- */
-window.addEventListener('beforeunload', ()=> { try{ localStorage.setItem('amonglite_local', JSON.stringify({myId: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : $('nameInput').value || '' })); }catch(e){} });
-
-/* ------------- Help modal handlers ------------- */
-$('helpBtn').addEventListener('click', ()=> $('helpModal').style.display = 'flex');
-$('helpClose').addEventListener('click', ()=> $('helpModal').style.display = 'none');
-
-/* ------------- Connect basic actions: click task open, doubleclick to move ------------- */
-canvas.addEventListener('dblclick', e=> {
-  if(!State.myId) return;
-  const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) + camera.x; const my = (e.clientY - rect.top) + camera.y;
-  State.players[State.myId].x = mx; State.players[State.myId].y = my;
-});
-canvas.addEventListener('contextmenu', e=> { e.preventDefault(); openTaskMinigameNearby(); });
-
-/* ------------- Utility: simple implementation of functions used earlier (avoid duplication) ------------- */
-function appendChat(msg){ const cm = $('chatMsgs'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight; }
-function updatePlayerList(){ const node=$('playerList'); node.innerHTML=''; for(const id in State.players){ const p=State.players[id]; const div=document.createElement('div'); div.className='player-row'; div.innerHTML=`<div><strong>${p.name}</strong> <span class="small">${p.isBot?'<em>BOT</em>':''}</span></div><div>${p.ready?'<span class="small">Ready</span>':''}</div>`; node.appendChild(div);} }
-function seedTasksIfEmpty(){ if(Object.keys(State.tasks).length===0){ const anchors = shuffle(MapData.anchors.slice()); for(let i=0;i<8 && i<anchors.length;i++){ const a=anchors[i]; State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room); } refreshHUD(); } }
-function refreshHUD(){ const me = State.players[State.myId]; $('hud').innerText = State.inGame ? (me? `${me.name} • ${me.role.toUpperCase()} • ${me.alive?'Alive':'Dead'}` : 'In Game') : (me?`Lobby • ${me.name}`:'Lobby'); }
-
-/* ------------- Final note printed to console ------------- */
-console.log('AmongLite (no-backend) loaded. Use Host (LAN) for same-origin or Manual WebRTC offer/answer to connect devices.');
 
 </script>
 </body>

@@ -3,363 +3,342 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>SlowRoads-like 3D Driving (Three.js Prototype)</title>
+<title>SlowRoads-like — Mountain Road Prototype</title>
 <style>
-  html,body{height:100%;margin:0;background:#111;overflow:hidden}
+  html,body{height:100%;margin:0;background:#0b0b12;overflow:hidden}
   #ui{position:fixed;left:12px;top:12px;color:#fff;font-family:system-ui,Arial;font-weight:600;z-index:10}
-  #instructions{position:fixed;right:12px;top:12px;color:#ddd;font-family:system-ui,Arial;text-align:right;z-index:10}
+  #hint{position:fixed;right:12px;top:12px;color:#ddd;font-family:system-ui,Arial;text-align:right;z-index:10}
   canvas{display:block}
 </style>
 </head>
 <body>
-<div id="ui">W/S: throttle/brake • A/D: steer • M: toggle mouse steer • Score: <span id="score">0</span></div>
-<div id="instructions">Press click to lock pointer (for mouse steering). Built with Three.js.</div>
+<div id="ui">W/S: throttle/brake • A/D: steer • Score: <span id="score">0</span></div>
+<div id="hint">Third-person back view • Mountain road with hills & trees</div>
+
 <script src="https://unpkg.com/three@0.153.0/build/three.min.js"></script>
+
 <script>
+/* -------------------- Utilities: Perlin noise (compact) -------------------- */
+const Perlin = (function(){
+  const PERM = new Uint8Array(512);
+  (function init(){ const p = new Uint8Array(256); for(let i=0;i<256;i++)p[i]=i; for(let i=255;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); const t=p[i]; p[i]=p[j]; p[j]=t; } for(let i=0;i<512;i++) PERM[i]=p[i&255]; })();
+  function fade(t){ return t*t*t*(t*(t*6-15)+10); }
+  function lerp(a,b,t){ return a + t*(b-a); }
+  function grad(hash,x,y,z){ const h = hash & 15; const u = h<8 ? x : y; const v = h<4 ? y : (h===12||h===14 ? x : z); return ((h&1)? -u : u) + ((h&2)? -v : v); }
+  return {
+    noise(x,y,z=0){
+      const X = Math.floor(x) & 255, Y = Math.floor(y) & 255, Z = Math.floor(z) & 255;
+      x -= Math.floor(x); y -= Math.floor(y); z -= Math.floor(z);
+      const u = fade(x), v = fade(y), w = fade(z);
+      const A = PERM[X]+Y, AA = PERM[A]+Z, AB = PERM[A+1]+Z;
+      const B = PERM[X+1]+Y, BA = PERM[B]+Z, BB = PERM[B+1]+Z;
+      return lerp(lerp(lerp(grad(PERM[AA], x, y, z), grad(PERM[BA], x-1, y, z), u),
+                       lerp(grad(PERM[AB], x, y-1, z), grad(PERM[BB], x-1, y-1, z), u), v),
+                  lerp(lerp(grad(PERM[AA+1], x, y, z-1), grad(PERM[BA+1], x-1, y, z-1), u),
+                       lerp(grad(PERM[AB+1], x, y-1, z-1), grad(PERM[BB+1], x-1, y-1, z-1), u), v), w);
+    }
+  };
+})();
 
-// -------------------- Basic Three.js setup --------------------
+/* -------------------- Basic Three.js setup -------------------- */
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x101216, 0.0006);
+scene.fog = new THREE.FogExp2(0x091017, 0.0006);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(60, 2, 0.1, 10000);
-camera.position.set(0, 6, -12);
+const camera = new THREE.PerspectiveCamera(60,2,0.1,10000);
+camera.position.set(0,6,-10);
 
-// adjust canvas on resize
 function onResize(){
   renderer.setSize(window.innerWidth, window.innerHeight);
-  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
 }
 window.addEventListener('resize', onResize, false);
 onResize();
 
-// -------------------- Lights --------------------
-const hemi = new THREE.HemisphereLight(0xffffff, 0x202040, 0.6);
+/* -------------------- Lighting -------------------- */
+const hemi = new THREE.HemisphereLight(0xBBD1FF, 0x202040, 0.6);
 scene.add(hemi);
 
-const sun = new THREE.DirectionalLight(0xfff6e6, 1.1);
-sun.position.set(30, 60, -10);
+const sun = new THREE.DirectionalLight(0xfff6e6, 1.0);
+sun.position.set(40,80,-30);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -60; sun.shadow.camera.right = 60; sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
-sun.shadow.camera.far = 200;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left = -200; sun.shadow.camera.right = 200; sun.shadow.camera.top = 200; sun.shadow.camera.bottom = -200;
+sun.shadow.camera.far = 600;
 scene.add(sun);
 
-// subtle fill point light for bloom feel
-const fill = new THREE.PointLight(0xffd8b0, 0.12, 50);
-fill.position.set(0, 10, 0);
-scene.add(fill);
+/* -------------------- Terrain (high-res plane displaced by Perlin) -------------------- */
+const terrain = new THREE.Group();
+scene.add(terrain);
 
-// -------------------- Road (procedural strip segments) --------------------
+const TERRAIN_SIZE = 4000;
+const SEG = 200; // more segments -> higher resolution
+const planeGeo = new THREE.PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, SEG, SEG);
+planeGeo.rotateX(-Math.PI/2);
+
+// displace vertices with layered noise for hills & mountains
+for(let i=0;i<planeGeo.attributes.position.count;i++){
+  const x = planeGeo.attributes.position.getX(i);
+  const z = planeGeo.attributes.position.getZ(i);
+  const nx = x * 0.002;
+  const nz = z * 0.002;
+  const e = Perlin.noise(nx*1.0, nz*1.0)*12 + Perlin.noise(nx*0.5, nz*0.5)*25 + Perlin.noise(nx*3.0, nz*3.0)*2;
+  planeGeo.attributes.position.setY(i, e);
+}
+planeGeo.computeVertexNormals();
+
+// create grass texture procedurally (canvas)
+function makeGrassTexture(){
+  const s = 1024;
+  const cv = document.createElement('canvas'); cv.width=s; cv.height=s;
+  const g = cv.getContext('2d');
+  // base green
+  g.fillStyle = '#2c6a2a'; g.fillRect(0,0,s,s);
+  // random blades
+  for(let i=0;i<7000;i++){
+    const x = Math.random()*s, y = Math.random()*s;
+    const h = 6 + Math.random()*12;
+    g.strokeStyle = `rgba(${30+Math.random()*40},${80+Math.random()*80},${30+Math.random()*30},${0.6+Math.random()*0.4})`;
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x,y); g.lineTo(x + (Math.random()-0.5)*4, y - h); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(8,8);
+  return tex;
+}
+const grassTex = makeGrassTexture();
+
+const terrainMat = new THREE.MeshStandardMaterial({ map: grassTex, roughness:0.95, metalness:0.02 });
+const terrainMesh = new THREE.Mesh(planeGeo, terrainMat);
+terrainMesh.receiveShadow = true;
+terrain.add(terrainMesh);
+terrain.position.y = -6;
+
+/* -------------------- Road (spline with elevation from noise) -------------------- */
 const roadGroup = new THREE.Group();
 scene.add(roadGroup);
 
-const ROAD_HALF_WIDTH = 7.5; // meters each side half
-const SEGMENT_LENGTH = 20; // length of a road segment
-const VISIBLE_SEGMENTS = 80;
+const roadCurvePts = [];
+const ROAD_LENGTH = 8000;
+const roadStep = 8;
+for(let z=0; z>-ROAD_LENGTH; z -= roadStep){
+  // centerline x offset from noise (curve)
+  const t = z * -0.002;
+  const cx = Perlin.noise(t*0.7, 0.1)*6 + Perlin.noise(t*0.13, 2.3)*18;
+  const height = Perlin.noise(t*0.8, 0.2)*10 + Perlin.noise(t*0.04, 0.6)*35;
+  roadCurvePts.push(new THREE.Vector3(cx, height, z));
+}
 
-function makeRoadSegment(index){
-  const geometry = new THREE.PlaneGeometry(ROAD_HALF_WIDTH*2, SEGMENT_LENGTH, 2, 2);
-  // give vertices slight variation for texture
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x202428,
-    metalness: 0.1,
-    roughness: 0.85
-  });
-  const mesh = new THREE.Mesh(geometry, material);
+// make road mesh by sampling cross sections along the curve
+function buildRoadMesh(){
+  const roadWidth = 6.5;
+  const geometry = new THREE.BufferGeometry();
+  const verts = [], normals = [], uvs = [], indices = [];
+  for(let i=0;i<roadCurvePts.length-1;i++){
+    const a = roadCurvePts[i].clone();
+    const b = roadCurvePts[i+1].clone();
+    const dir = b.clone().sub(a); dir.y = 0;
+    const left = new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(roadWidth);
+    const r = a.clone().add(left);
+    const l = a.clone().add(left.multiplyScalar(-1));
+    const r2 = b.clone().add(new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(roadWidth));
+    const l2 = b.clone().add(new THREE.Vector3(-dir.z,0,dir.x).normalize().multiplyScalar(-roadWidth));
+    verts.push(r.x, a.y+0.05, r.z, l.x, a.y+0.05, l.z, r2.x, b.y+0.05, r2.z, l2.x, b.y+0.05, l2.z);
+    const base = i*4;
+    indices.push(base, base+1, base+2, base+2, base+1, base+3);
+    uvs.push(0, i/roadCurvePts.length, 1, i/roadCurvePts.length, 0, (i+1)/roadCurvePts.length, 1, (i+1)/roadCurvePts.length);
+  }
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  // road material: dark asphalt with slight sheen
+  const mat = new THREE.MeshStandardMaterial({ color:0x141515, roughness:0.6, metalness:0.05 });
+  const mesh = new THREE.Mesh(geometry, mat);
   mesh.receiveShadow = true;
-  mesh.rotation.x = -Math.PI/2;
-  mesh.position.z = -index * SEGMENT_LENGTH;
-  mesh.position.y = 0;
-  // lane markings: we'll add a separate mesh for dashed center
-  const dashGeo = new THREE.PlaneGeometry(0.2, SEGMENT_LENGTH, 1, 1);
-  const dashMat = new THREE.MeshBasicMaterial({ color: 0xf0f0f0 });
-  const dash = new THREE.Mesh(dashGeo, dashMat);
-  dash.rotation.x = -Math.PI/2;
-  dash.position.z = -index * SEGMENT_LENGTH;
-  dash.position.y = 0.01;
-  dash.position.x = 0;
-  // dashed pattern: alternate visibility by index parity
-  dash.visible = true;
-  mesh.userData.dash = dash;
   return mesh;
 }
+const roadMesh = buildRoadMesh();
+scene.add(roadMesh);
 
-// initialize road pool
-const roadPool = [];
-for(let i=0;i<VISIBLE_SEGMENTS;i++){
-  const seg = makeRoadSegment(i);
-  roadGroup.add(seg);
-  roadGroup.add(seg.userData.dash);
-  roadPool.push(seg);
+/* -------------------- Trees (clusters using cones) -------------------- */
+const treeGroup = new THREE.Group();
+scene.add(treeGroup);
+
+function makeTree(){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,1.0), new THREE.MeshStandardMaterial({color:0x6b3b1f}));
+  trunk.position.y = 0.5; trunk.castShadow = true; g.add(trunk);
+  const leafMat = new THREE.MeshStandardMaterial({ color:0x1f6e2f });
+  const cone1 = new THREE.Mesh(new THREE.ConeGeometry(0.9,1.3,8), leafMat);
+  cone1.position.y = 1.45; cone1.castShadow = true; g.add(cone1);
+  const cone2 = cone1.clone(); cone2.scale.set(0.8,0.8,0.8); cone2.position.y = 2.1; g.add(cone2);
+  return g;
+}
+// scatter many trees along terrain, but avoid road center
+for(let i=0;i<800;i++){
+  const x = (Math.random() - 0.5) * TERRAIN_SIZE * 0.9;
+  const z = -Math.random() * (ROAD_LENGTH*0.9);
+  // avoid river close to road centerline: use noise centerline to compute nearest
+  // approximate nearest road x by sampling a few pts (cheap)
+  // compute terrain height from plane
+  const nx = x * 0.002, nz = z * 0.002;
+  const h = Perlin.noise(nx*1.0, nz*1.0)*12 + Perlin.noise(nx*0.5, nz*0.5)*25;
+  const t = makeTree();
+  t.position.set(x, h, z);
+  t.scale.setScalar(0.9 + Math.random()*0.8);
+  // avoid placing on the actual road corridor (approx)
+  const roadXAtZ = roadCurvePts[Math.floor(Math.abs(z)/roadStep)]?.x || 0;
+  if(Math.abs(x - roadXAtZ) < 18) {
+    i--; continue;
+  }
+  treeGroup.add(t);
 }
 
-// -------------------- Roadside environment --------------------
-const sideGroup = new THREE.Group();
-scene.add(sideGroup);
-
-// simple roadside lines (grass)
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x133214, roughness: 1, metalness: 0 });
-const sideGeo = new THREE.PlaneGeometry(1000, 200, 1, 1);
-const leftSide = new THREE.Mesh(sideGeo, grassMat); leftSide.rotation.x = -Math.PI/2; leftSide.position.x = -ROAD_HALF_WIDTH - 20; leftSide.position.z = -400; leftSide.receiveShadow = true;
-const rightSide = leftSide.clone(); rightSide.position.x = ROAD_HALF_WIDTH + 20;
-sideGroup.add(leftSide); sideGroup.add(rightSide);
-
-// add stylized low-poly trees by repeated cones
-function addTree(x,z){
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,1.2), new THREE.MeshStandardMaterial({color:0x6b3b1f}));
-  trunk.position.set(x,0.6,z);
-  trunk.castShadow = true;
-  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.2,3,6), new THREE.MeshStandardMaterial({color:0x0b5a1e}));
-  leaves.position.set(x,2.0,z);
-  leaves.castShadow = true;
-  sideGroup.add(trunk); sideGroup.add(leaves);
-}
-// scatter trees
-for(let i=0;i<60;i++){
-  let side = (Math.random() < 0.5) ? -1 : 1;
-  addTree(side*(ROAD_HALF_WIDTH+6 + Math.random()*15), -Math.random()*2500);
+/* -------------------- Mountains (distant) -------------------- */
+const mountainGeo = new THREE.ConeGeometry(120, 400, 8);
+const mountainMat = new THREE.MeshStandardMaterial({ color:0x3b3b44, roughness:1 });
+for(let i=0;i<8;i++){
+  const m = new THREE.Mesh(mountainGeo, mountainMat);
+  m.position.set((Math.random()-0.5)*2000, 80, -800 - Math.random()*2000);
+  m.rotation.y = Math.random()*Math.PI;
+  m.receiveShadow = true; m.castShadow = true;
+  scene.add(m);
 }
 
-// -------------------- Player car (procedural mesh) --------------------
+/* -------------------- Player car (detailed procedural) -------------------- */
 function makePlayerCar(){
   const group = new THREE.Group();
-
   // body
-  const bodyGeo = new THREE.BoxGeometry(2.2, 0.8, 4.5);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1f8fd3, metalness: 0.4, roughness: 0.25 });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.castShadow = true;
-  body.position.y = 0.9;
-  group.add(body);
-
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2,0.6,4.0), new THREE.MeshStandardMaterial({ color: 0x2d9bf0, metalness:0.3, roughness:0.2 }));
+  body.position.y = 1.0; body.castShadow = true; group.add(body);
   // cabin
-  const cabinGeo = new THREE.BoxGeometry(1.8, 0.5, 1.6);
-  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x99d7ff, metalness: 0.0, roughness: 0.2, opacity: 0.9, transparent:true });
-  const cabin = new THREE.Mesh(cabinGeo, cabinMat);
-  cabin.position.set(0,1.22,0.0);
-  group.add(cabin);
-
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.45,1.8), new THREE.MeshStandardMaterial({ color: 0xa8e0ff, opacity:0.9, transparent:true }));
+  cabin.position.set(0,1.25,-0.1); cabin.castShadow = true; group.add(cabin);
   // wheels
-  const wheelGeo = new THREE.CylinderGeometry(0.35,0.35,0.45,16);
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111, metalness: 0.0, roughness:0.6 });
-  const positions = [[-1.0,0.4,1.6],[1.0,0.4,1.6],[-1.0,0.4,-1.6],[1.0,0.4,-1.6]];
-  positions.forEach(p=>{
+  const wheelGeo = new THREE.CylinderGeometry(0.35,0.35,0.5,16);
+  const wheelMat = new THREE.MeshStandardMaterial({ color:0x111, roughness:0.8 });
+  const wheelPos = [[-0.9,0.45,1.3],[0.9,0.45,1.3],[-0.9,0.45,-1.3],[0.9,0.45,-1.3]];
+  wheelPos.forEach(p=>{
     const w = new THREE.Mesh(wheelGeo, wheelMat);
-    w.rotation.z = Math.PI/2;
-    w.position.set(p[0], p[1], p[2]);
-    w.castShadow = true;
-    group.add(w);
+    w.rotation.z = Math.PI/2; w.position.set(p[0], p[1], p[2]); w.castShadow = true; group.add(w);
   });
-
-  // headlights
-  const lightMat = new THREE.MeshBasicMaterial({ color: 0xfff5cc });
-  const lh = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.05), lightMat); lh.position.set(-0.5,0.95,-2.35);
-  const rh = lh.clone(); rh.position.x = 0.5;
-  group.add(lh); group.add(rh);
-
+  // small spoiler
+  const spoiler = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.08,0.2), new THREE.MeshStandardMaterial({ color:0x1a6aa0 }));
+  spoiler.position.set(0,1.28,-2.05); spoiler.castShadow = true; group.add(spoiler);
   return group;
 }
 const playerCar = makePlayerCar();
 scene.add(playerCar);
-playerCar.position.set(0,0,4); // slight offset
 
-// -------------------- Player physics state (arcade style) --------------------
+/* -------------------- State and controls -------------------- */
 const state = {
-  velZ: 0,         // forward speed relative to world (positive moves forward)
-  maxSpeed: 180,   // km/h style (we'll scale)
-  accel: 40,       // acceleration units
-  braking: 120,
-  turnSpeed: 2.8,   // degrees per second base
-  lateral: 0,       // lateral position on road (meters)
-  heading: 0        // visual heading in radians for model tilt
+  speed: 18,        // base medium speed units
+  maxSpeed: 50,
+  accel: 10,
+  braking: 28,
+  lateral: 0,       // meters offset from centerline
+  heading: 0,
+  score: 0
 };
 
-// helper convertors (game units to meters)
-function kmhToUnits(kmh){ return kmh / 3.6 / 0.5; } // tuned divisor
-state.velZ = kmhToUnits(40);
-
-// -------------------- Traffic system --------------------
-const trafficGroup = new THREE.Group();
-scene.add(trafficGroup);
-let trafficPool = [];
-function spawnTrafficCar(zOffset = -200, type='car'){
-  const g = new THREE.Group();
-  const w = (type==='truck')? 3.2 : 2.0;
-  const h = (type==='truck')? 2.4 : 1.5;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, 0.9, h), new THREE.MeshStandardMaterial({ color: randomColor(), metalness:0.1, roughness:0.8 }));
-  body.position.y = 0.45;
-  body.castShadow = true;
-  g.add(body);
-  // wheels simplified
-  const wheelGeo = new THREE.CylinderGeometry(0.25,0.25,0.35,12);
-  const wheelMat = new THREE.MeshStandardMaterial({ color:0x111 });
-  for(let i=0;i<4;i++){
-    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
-    wheel.rotation.z = Math.PI/2;
-    const sx = (i%2===0)? -w*0.35 : w*0.35;
-    const sz = (i<2)? h*0.35 : -h*0.35;
-    wheel.position.set(sx,0.25,sz);
-    g.add(wheel);
-  }
-  const laneX = (Math.random()<0.5)? -3.5 : 3.5;
-  g.position.set(laneX + (Math.random()*2-1), 0, zOffset);
-  g.userData = { speed: state.velZ*0.85 + (Math.random()*8 - 4), type };
-  trafficGroup.add(g);
-  trafficPool.push(g);
-}
-
-function randomColor(){
-  const arr = [0xff4444,0x2db7ff,0xffb84d,0x7ef68e,0xd06cff];
-  return arr[Math.floor(Math.random()*arr.length)];
-}
-
-// seed initial traffic
-for(let i=0;i<12;i++){
-  spawnTrafficCar(-100 - i * 40, (Math.random()<0.2)?'truck':'car');
-}
-
-// -------------------- Input handling --------------------
 const keys = { ArrowUp:false, ArrowDown:false, ArrowLeft:false, ArrowRight:false };
-window.addEventListener('keydown', e=>{ if(e.key in keys) keys[e.key]=true; if(e.key==='m') toggleMouseSteer(); });
+window.addEventListener('keydown', e=>{ if(e.key in keys) keys[e.key]=true; if(e.key==='m') mouseSteer=!mouseSteer; });
 window.addEventListener('keyup', e=>{ if(e.key in keys) keys[e.key]=false; });
 
-let mouseSteerEnabled = true;
-let pointerLocked = false;
-document.body.addEventListener('click', ()=>{ if(!pointerLocked){ renderer.domElement.requestPointerLock?.(); }});
+let mouseSteer = true, pointerLocked = false;
+document.body.addEventListener('click', ()=>{ if(!pointerLocked) renderer.domElement.requestPointerLock?.(); });
 document.addEventListener('pointerlockchange', ()=>{ pointerLocked = (document.pointerLockElement === renderer.domElement); });
 
 let mouseDX = 0;
-window.addEventListener('mousemove', e=>{
-  if(pointerLocked && mouseSteerEnabled){
-    mouseDX = e.movementX;
-  }
-});
+window.addEventListener('mousemove', e=>{ if(pointerLocked && mouseSteer) mouseDX = e.movementX; });
 
-// toggle mouse steer
-function toggleMouseSteer(){ mouseSteerEnabled = !mouseSteerEnabled; }
+/* -------------------- Camera follow (third person back view) -------------------- */
+const camTarget = new THREE.Vector3();
+const camLag = 0.12;
 
-// -------------------- Camera follow parameters --------------------
-const camOffset = new THREE.Vector3(0, 6, -12);
-let camSmooth = { pos: new THREE.Vector3(), lerp: 0.12 };
-
-// -------------------- Utility: clamp --------------------
-function clamp(v, a, b){ return Math.min(b, Math.max(a, v)); }
-
-// -------------------- Main update loop --------------------
-let lastTime = performance.now();
-let score = 0;
-
+/* -------------------- main update loop -------------------- */
+let last = performance.now();
 function update(){
   const now = performance.now();
-  const dt = Math.min(60, now - lastTime) / 1000; // seconds
-  lastTime = now;
+  const dt = Math.min(0.05, (now - last)/1000);
+  last = now;
 
-  // handle throttle / brake (simple arcade)
-  if(keys.ArrowUp){ state.velZ += state.accel * dt; }
-  if(keys.ArrowDown){ state.velZ -= state.braking * dt; }
-  state.velZ = clamp(state.velZ, kmhToUnits(0), kmhToUnits(state.maxSpeed));
+  // throttle / brake
+  if(keys.ArrowUp) state.speed += state.accel * dt;
+  else state.speed -= state.speed * 0.4 * dt; // natural slowdown
+  if(keys.ArrowDown) state.speed -= state.braking * dt;
+  state.speed = Math.max(6, Math.min(state.maxSpeed, state.speed));
 
-  // steering: keyboard and mouse
+  // steering input
   let steerInput = 0;
   if(keys.ArrowLeft) steerInput -= 1;
   if(keys.ArrowRight) steerInput += 1;
-  if(pointerLocked && mouseSteerEnabled){ steerInput += clamp(mouseDX * 0.008, -1, 1); mouseDX = 0; }
+  if(pointerLocked && mouseSteer) steerInput += Math.max(-1, Math.min(1, mouseDX * 0.008));
+  mouseDX = 0;
 
-  // lateral movement (arcade) — move car sideways relative to world center
-  const steerStrength = 6.0; // meters per second lateral at max steer
-  const lateralMove = steerInput * steerStrength * dt * (state.velZ / kmhToUnits(40));
-  state.lateral += lateralMove;
-  state.lateral = clamp(state.lateral, -ROAD_HALF_WIDTH+1.0, ROAD_HALF_WIDTH-1.0);
+  // lateral movement limited (road half width)
+  const steerStrength = 6.0 * (state.speed/20);
+  state.lateral += steerInput * steerStrength * dt;
+  const roadHalf = 6.5;
+  state.lateral = Math.max(-roadHalf + 0.6, Math.min(roadHalf - 0.6, state.lateral));
 
-  // visual heading tilt
-  state.heading = (state.heading * 0.92) + (steerInput * 0.12);
+  // heading smoothing (visual tilt)
+  state.heading = state.heading * 0.9 + steerInput * 0.15;
 
-  // move player forward along global Z (we keep player mostly at fixed z and move world)
-  const forward = state.velZ * dt * 30; // tuned multiplier to get pleasant speed feel
-  // advance road segments by moving their z offsets
-  for(const seg of roadPool){
-    seg.position.z += forward;
-    seg.userData.dash.position.z += forward;
-    // recycle segments behind camera
-    if(seg.position.z > SEGMENT_LENGTH){
-      seg.position.z -= VISIBLE_SEGMENTS * SEGMENT_LENGTH;
-      seg.userData.dash.position.z = seg.position.z;
-    }
-  }
-  // move roadside objects
-  for(const obj of sideGroup.children){
-    obj.position.z += forward * 0.8;
-    if(obj.position.z > 2000) obj.position.z -= 4000;
+  // advance along the road: we simulate by moving the road & world backwards relative to player
+  const forward = state.speed * dt * 6.0; // tuned multiplier for pleasant feel
+
+  // advance road curve progression (move all road points forward in z)
+  for(let i=0;i<roadCurvePts.length;i++){ roadCurvePts[i].z += forward; }
+  // rebuild road mesh positions by updating geometry positions for performance we cheat by replacing whole mesh occasionally
+  if(Math.random() < 0.02){
+    scene.remove(roadMesh);
+    roadMesh.geometry.dispose();
+    const newRoad = buildRoadMesh();
+    scene.add(newRoad);
   }
 
-  // traffic update: they approach player (-z to +z) since world moves forward
-  for(const t of trafficPool){
-    t.position.z += t.userData.speed * dt * 30;
-    // small lane corrections
-    t.position.x += Math.sin((now/1000 + t.position.z)*0.001) * 0.02;
-    // recycle
-    if(t.position.z > 100) {
-      t.position.z = -2000 - Math.random()*800;
-      t.position.x = (Math.random()<0.5? -1:1) * (ROAD_HALF_WIDTH - 1) + (Math.random()*2 -1);
-      t.userData.speed = state.velZ*0.8 + 10 * Math.random();
-      score += 1;
-      document.getElementById('score').textContent = score;
-    }
-    // collision (approx)
-    const dx = t.position.x - state.lateral;
-    const dz = t.position.z - 4; // player's relative z
-    if(Math.abs(dx) < 1.6 && Math.abs(dz) < 10 && state.velZ > kmhToUnits(5)){
-      // collision: bounce back, slow speed slightly, and reduce score
-      state.velZ *= 0.6;
-      state.lateral = 0;
-      state.heading = 0;
-      score = Math.max(0, score - 10);
-      document.getElementById('score').textContent = score;
-      // nudge traffic away
-      t.position.z -= 150;
-    }
-  }
+  // move terrain slightly to create motion illusion (cheap)
+  terrain.position.z += forward * 0.6;
+  treeGroup.position.z += forward * 0.6;
+  // reposition far objects to loop
+  if(terrain.position.z > 1000) terrain.position.z -= 2000;
 
-  // camera follows
-  const targetCamPos = new THREE.Vector3(state.lateral, 6, -12);
-  camSmooth.pos.lerp(targetCamPos, camSmooth.lerp);
-  camera.position.copy(camSmooth.pos);
-  // rotate camera to match heading slightly
-  camera.rotation.y = -state.heading * 0.2;
-  camera.lookAt(new THREE.Vector3(state.lateral, 1.5, 6));
+  // Player position in world coords: lateral + find elevation from road curve near z ~ 0
+  const idx = Math.max(0, Math.min(roadCurvePts.length-1, Math.floor(Math.abs(0)/roadStep)));
+  const roadX = roadCurvePts[idx]?.x || 0;
+  const roadY = roadCurvePts[idx]?.y || 0;
+  playerCar.position.set(state.lateral, roadY + 0.8, 6);
 
-  // update player mesh to match lateral / heading
-  playerCar.position.set(state.lateral, 0, 6);
-  playerCar.rotation.y = -state.heading;
-  playerCar.rotation.z = -state.heading * 0.05;
+  // camera behind & above the player with smoothing
+  camTarget.set(state.lateral, playerCar.position.y + 2.5, playerCar.position.z - 8 - (state.speed/10));
+  camera.position.lerp(camTarget, camLag);
+  camera.lookAt(playerCar.position.x, playerCar.position.y + 1.2, playerCar.position.z + 6);
 
-  // update shadows / lights follow a bit
-  sun.position.x = state.lateral + 30;
+  // update HUD score slowly with distance
+  state.score += forward * 0.02;
+  document.getElementById('score').textContent = Math.floor(state.score);
 
   renderer.render(scene, camera);
   requestAnimationFrame(update);
 }
-
-// -------------------- spawn some more varied traffic (trucks + cars) --------------------
-function populateTraffic(){
-  for(let i=0;i<18;i++){
-    spawnTrafficCar(-200 - i * 140, (Math.random()<0.18)? 'truck' : 'car');
-  }
-}
-populateTraffic();
-
-// -------------------- helpers: roundRect polyfill on ctx (used earlier with plane meshes not needed) --------------------
-// Start main loop
-lastTime = performance.now();
 update();
 
+/* -------------------- Notes --------------------
+- This prototype uses a high-resolution terrain mesh (200x200 segments) displaced with Perlin noise.
+- The road is a spline generated and extruded as a simple strip; to keep it performant the road mesh is occasionally rebuilt rather than every frame.
+- Trees are clustered with cone geometry to provide leaf detail without textures; grass is a procedurally-generated canvas texture repeated on the terrain.
+- Speed is tuned down to medium (state.speed base ~ 18); acceleration/brake tuned for PC gameplay.
+- No external models — everything is generated procedurally so it runs without downloads.
+-------------------------------------------------*/
 </script>
 </body>
 </html>

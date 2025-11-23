@@ -1,161 +1,99 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Top-Down Car Driving Game (No Canvas)</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<title>Top Down Car Game</title>
 <style>
-  body{margin:0; overflow:hidden; background:#222; font-family:sans-serif;}
-  #game{position:relative; width:100vw; height:100vh; overflow:hidden; background:#555;}
+    body { margin:0; overflow:hidden; background:#111; font-family:system-ui; }
+    #game {
+        position:relative;
+        width:100vw;
+        height:100vh;
+        background:#444 url('https://i.imgur.com/qqwS8bL.png');
+        background-size:cover;
+        overflow:hidden;
+    }
+    .road {
+        position:absolute; left:50%; top:0; transform:translateX(-50%);
+        width:320px; height:100%;
+        background:#2f2f2f;
+        box-shadow:0 0 40px rgba(0,0,0,0.6) inset;
+    }
+    .lane-line { position:absolute; width:8px; height:60px; background:#fff; left:50%; transform:translateX(-50%); }
 
-  /* Road */
-  #road{
-    position:absolute; left:50%; top:0; transform:translateX(-50%);
-    width:280px; height:200%; background:#2d2d2d;
-    border-left:6px solid #fff; border-right:6px solid #fff;
-    overflow:hidden;
-  }
-  .lane{
-    position:absolute; left:50%; width:6px; height:40px;
-    background:#fff; opacity:0.8;
-    transform:translateX(-50%);
-  }
+    .car, .traffic {
+        position:absolute;
+        width:60px; height:120px;
+        background-size:cover;
+        transform-origin:center;
+        filter:drop-shadow(0 10px 12px rgba(0,0,0,0.45));
+    }
+    #player { background-image:url('https://i.imgur.com/1m0t2Tx.png'); }
 
-  /* Car controlled by player */
-  #player{
-    position:absolute; width:60px; height:110px;
-    bottom:30px; left:calc(50% - 30px);
-    background:url('https://pngimg.com/uploads/car_top_view/car_top_view_PNG20.png');
-    background-size:cover;
-  }
-
-  .traffic{
-    position:absolute; width:60px; height:110px;
-    background:url('https://pngimg.com/uploads/car_top_view/car_top_view_PNG39.png');
-    background-size:cover;
-  }
-
-  /* Steering Wheel */
-  #steerBox{
-    position:absolute; bottom:20px; left:20px;
-    width:120px; height:120px;
-    border:4px solid #fff; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    background:rgba(255,255,255,0.08);
-    backdrop-filter:blur(3px);
-    touch-action:none;
-  }
-  #wheel{
-    font-size:54px; color:white;
-    transform:rotate(0deg);
-  }
-
+    #wheel {
+        position:absolute; bottom:20px; right:20px;
+        width:140px; height:140px;
+        background:url('https://i.imgur.com/E8TAy4Z.png') no-repeat center/contain;
+        touch-action:none;
+    }
 </style>
 </head>
 <body>
 <div id="game">
-  <div id="road"></div>
-  <div id="player"></div>
-  <div id="steerBox"><i id="wheel" class="fa-solid fa-circle-notch"></i></div>
+    <div class="road" id="road"></div>
+    <div id="player" class="car"></div>
+    <img id="wheel" />
 </div>
-
 <script>
-const game = document.getElementById('game');
-const road = document.getElementById('road');
 const player = document.getElementById('player');
-const wheel = document.getElementById('wheel');
+let px = window.innerWidth/2 - 30;
+let py = window.innerHeight - 180;
+let speed = 7;
+let steer = 0;
+let steeringAngle = 0;
 
-let playerX = window.innerWidth/2 - 30;
-let speed = 6;
-let steering = 0;
-
-// Create Road Lane Markers
-let laneY = 0;
-for(let i=0;i<20;i++){
-  let d=document.createElement('div');
-  d.className='lane';
-  d.style.top=(i*80)+'px';
-  road.appendChild(d);
+function update(){
+    steeringAngle *= 0.9;
+    px += steeringAngle;
+    if(px < window.innerWidth/2 - 140) px = window.innerWidth/2 - 140;
+    if(px > window.innerWidth/2 + 80) px = window.innerWidth/2 + 80;
+    player.style.left = px + 'px';
+    player.style.top = py + 'px';
+    player.style.transform = `rotate(${steeringAngle*0.6}deg)`;
+    requestAnimationFrame(update);
 }
+update();
 
-// Traffic Cars
-let traffic = [];
-function spawnTraffic(){
-  let t=document.createElement('div');
-  t.className='traffic';
-  t.style.left=(road.offsetLeft + 40 + Math.random()*150)+'px';
-  t.style.top='-150px';
-  game.appendChild(t);
-  traffic.push(t);
-}
-setInterval(spawnTraffic, 1500);
+let wheel = document.getElementById('wheel');
+let dragging = false;
 
-// Steering Wheel Touch Control
-let steeringActive=false;
-let startX=0;
-
-document.getElementById('steerBox').addEventListener('touchstart', e=>{
-  steeringActive=true;
-  startX=e.touches[0].clientX;
+wheel.addEventListener('touchstart',()=>dragging=true);
+wheel.addEventListener('touchend',()=>{ dragging=false; steeringAngle=0; });
+wheel.addEventListener('touchmove',(e)=>{
+    if(!dragging) return;
+    let t = e.touches[0];
+    let rect = wheel.getBoundingClientRect();
+    let dx = t.clientX - (rect.left + rect.width/2);
+    steeringAngle = dx * 0.2;
 });
 
-document.addEventListener('touchmove', e=>{
-  if(!steeringActive) return;
-  let dx=e.touches[0].clientX - startX;
-  steering = dx/20;
-  wheel.style.transform = 'rotate('+ (dx) +'deg)';
-});
+// basic traffic
+const game = document.getElementById('game');
+setInterval(()=>{
+    let t = document.createElement('div');
+    t.className='traffic';
+    t.style.backgroundImage="url('https://i.imgur.com/LqQDPHb.png')";
+    t.style.left=(window.innerWidth/2 - 100 + Math.random()*200)+'px';
+    t.style.top='-150px';
+    game.appendChild(t);
+    let y=-150;
+    let fall = setInterval(()=>{
+        y+=6;
+        t.style.top=y+'px';
+        if(y>window.innerHeight+150){ t.remove(); clearInterval(fall);}    
+    },16);
+},1200);
 
-document.addEventListener('touchend',()=>{
-  steeringActive=false;
-  steering=0;
-  wheel.style.transform='rotate(0deg)';
-});
-
-// Keyboard A/D
-window.addEventListener('keydown', e=>{
-  if(e.key==='a') steering=-3;
-  if(e.key==='d') steering=3;
-});
-window.addEventListener('keyup',()=> steering=0);
-
-// Collision Check
-function collide(a,b){
-  const r1=a.getBoundingClientRect();
-  const r2=b.getBoundingClientRect();
-  return !(r1.right<r2.left || r1.left>r2.right || r1.bottom<r2.top || r1.top>r2.bottom);
-}
-
-// MAIN LOOP
-function loop(){
-  // Move player
-  playerX += steering;
-  player.style.left = playerX + 'px';
-
-  // Scroll road
-  laneY += speed;
-  let lanes=document.querySelectorAll('.lane');
-  lanes.forEach((l,i)=>{
-    let y=(i*80 + laneY) % (window.innerHeight*2);
-    l.style.top=y+'px';
-  });
-
-  // Move traffic
-  traffic.forEach(t=>{
-    t.style.top = (t.offsetTop + speed*0.9) + 'px';
-
-    if(collide(player,t)){
-      alert('CRASH! Game Over');
-      location.reload();
-    }
-
-    if(t.offsetTop > window.innerHeight+200){ t.remove(); }
-  });
-
-  requestAnimationFrame(loop);
-}
-loop();
 </script>
 </body>
 </html>

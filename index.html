@@ -1,311 +1,151 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Flappy — Single File (Images & SFX)</title>
-  <style>
-    :root{--bg:#87CEEB}
-    html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(#87CEEB 0%, #b3e6ff 60%);}    
-    .wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px}
-    canvas{background:transparent;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.15)}
-    .panel{display:flex;gap:8px;align-items:center}
-    button{background:#111;color:white;border:none;padding:8px 12px;border-radius:8px;font-weight:600;cursor:pointer}
-    .small{font-size:13px;color:#333}
-    .assets{display:flex;gap:8px;align-items:center}
-    img.thumbnail{height:48px;width:48px;border-radius:6px;border:1px solid rgba(0,0,0,0.06)}
-    .hint{font-size:13px;color:#222;opacity:0.9}
-    .footer{font-size:13px;color:#222;opacity:0.8}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DOM Runner Game (Mobile Friendly)</title>
+<style>
+  body { margin:0; font-family:system-ui; background:#e6f3ff; overflow:hidden; }
+  #game { position:relative; width:100%; height:100vh; overflow:hidden; }
+
+  .char, .enemy, .obstacle {
+    position:absolute;
+    background-size:contain;
+    background-repeat:no-repeat;
+    background-position:center;
+  }
+
+  /* Character (replace image with your own) */
+  #player {
+    width:70px; height:90px;
+    left:40px; bottom:20px;
+    background-image:url('https://upload.wikimedia.org/wikipedia/commons/5/5e/Amitabh_Bachchan_2013.jpg');
+    border-radius:10px;
+  }
+
+  #enemy {
+    width:70px; height:90px;
+    left:-90px; bottom:20px;
+    background-image:url('https://upload.wikimedia.org/wikipedia/commons/2/25/Generic_person_image.png');
+    border-radius:10px;
+    filter:hue-rotate(150deg);
+  }
+
+  .obstacle {
+    width:60px; height:60px;
+    background:#444; border-radius:8px;
+    bottom:20px;
+  }
+
+  #scoreBox {
+    position:absolute; top:10px; left:10px;
+    font-size:20px; font-weight:700;
+    background:rgba(255,255,255,0.7);
+    padding:6px 12px; border-radius:8px;
+  }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h2 style="margin:0">Flappy — single HTML file (custom images & SFX)</h2>
-    <div class="panel">
-      <button id="startBtn">Start / Restart</button>
-      <div class="small" id="scoreDisplay">Score: 0</div>
-      <div style="width:18px"></div>
-      <div class="hint">Space / Click / Tap to flap • Edit images at the top of the file</div>
-    </div>
-
-    <canvas id="game" width="480" height="640"></canvas>
-
-    <div class="panel">
-      <div class="assets">
-        <!-- sample image previews (these are the same images used by the game) -->
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-          <img class="thumbnail" id="previewBird" alt="bird">
-          <div class="small">Bird sprite</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:6px">
-          <img class="thumbnail" id="previewPipe" alt="pipe">
-          <div class="small">Pipe</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="footer">Tip: open this file locally (double-click) or host on a static server. Replace the <code>BIRD_DATA_URL</code> and <code>PIPE_DATA_URL</code> variables at the top of the script to use your own images.</div>
-  </div>
+<div id="game">
+  <div id="player" class="char"></div>
+  <div id="enemy" class="char"></div>
+  <div id="scoreBox">Score: 0</div>
+</div>
 
 <script>
-/*
-  Flappy single-file game.
-  - Uses inline SVG data URLs for sample images (BIRD_DATA_URL, PIPE_DATA_URL).
-  - Uses WebAudio to synthesize SFX (no external audio files required).
-  - To use your own images: replace the data URLs below with your file URLs or data URLs.
-*/
+const game = document.getElementById('game');
+const player = document.getElementById('player');
+const enemy = document.getElementById('enemy');
+const scoreBox = document.getElementById('scoreBox');
 
-// --------------------------
-// Sample images (SVG data URLs). Replace these with your own images if you like.
-// Keep them as data URLs ("data:image/svg+xml;utf8,<svg ...>") or normal URLs.
-// --------------------------
-
-const BIRD_DATA_URL = `data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns='http://www.w3.org/2000/svg' width='64' height='64' viewBox='0 0 64 64'>
-  <defs><filter id='f' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='2' stdDeviation='3' flood-color='rgba(0,0,0,0.2)'/></filter></defs>
-  <g filter='url(#f)'>
-    <ellipse cx='28' cy='36' rx='16' ry='12' fill='#ffd24d'/>
-    <circle cx='36' cy='28' r='10' fill='#ffb84d'/>
-    <circle cx='40' cy='26' r='3' fill='#111'/>
-    <path d='M44 28 q6 -2 8 -6 q-2 4 -6 6 z' fill='#ff9f4d'/>
-    <path d='M18 36 q-6 -2 -8 -6 q2 4 6 6 z' fill='#ffd24d' opacity='0.9'/>
-  </g>
-</svg>
-`)}`;
-
-const PIPE_DATA_URL = `data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns='http://www.w3.org/2000/svg' width='160' height='640' viewBox='0 0 160 640'>
-  <rect x='0' y='0' width='160' height='640' rx='12' fill='#2b8a3e'/>
-  <rect x='12' y='0' width='136' height='640' rx='10' fill='#2f6f33'/>
-  <rect x='0' y='0' width='160' height='48' fill='#1f5b27'/>
-</svg>
-`)}`;
-
-// Put preview images in the page (so user sees sample assets)
-document.getElementById('previewBird').src = BIRD_DATA_URL;
-document.getElementById('previewPipe').src = PIPE_DATA_URL;
-
-// --------------------------
-// Game code
-// --------------------------
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-let W = canvas.width, H = canvas.height;
-
-// Game state
-let bird = { x: 110, y: H/2, w: 34, h: 24, vy: 0, rotation:0 };
-let gravity = 0.55, flapPower = -9;
-let pipes = [];
-let pipeGap = 150; // gap between top and bottom
-let pipeWidth = 64;
-let pipeSpeed = 2.2;
-let spawnTimer = 0, spawnInterval = 1200; // ms
-let lastTime = 0;
-let running = false;
 let score = 0;
-let highScore = 0;
+let jumping = false;
+let yVelocity = 0;
+let gravity = -0.7;
+let ground = 20;
+let enemySpeed = 5;
+let obstacleSpeed = 5;
 
-// Images
-const birdImg = new Image();
-birdImg.src = BIRD_DATA_URL;
-const pipeImg = new Image();
-pipeImg.src = PIPE_DATA_URL;
-
-// Resize helper (keeps canvas size fixed but scale if needed)
-function fitCanvas(){
-  // keep CSS size responsive but internal resolution fixed
-  const maxW = Math.min(window.innerWidth-40, 480);
-  const scale = maxW / 480;
-  canvas.style.width = Math.round(480*scale)+'px';
-  canvas.style.height = Math.round(640*scale)+'px';
-}
-window.addEventListener('resize', fitCanvas);
-fitCanvas();
-
-// --------------------------
-// Audio - WebAudio synthesized SFX
-// --------------------------
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playBeep(freq=440, time=0.05, type='sine', gain=0.15){
-  const o = audioCtx.createOscillator();
-  const g = audioCtx.createGain();
-  o.type = type; o.frequency.value = freq;
-  g.gain.value = gain; g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + time);
-  o.connect(g); g.connect(audioCtx.destination);
-  o.start(); o.stop(audioCtx.currentTime + time);
-}
-function playFlap(){ playBeep(600, 0.06, 'triangle', 0.12); }
-function playHit(){ playBeep(120, 0.2, 'sawtooth', 0.3); }
-function playScore(){ playBeep(900, 0.08, 'sine', 0.12); setTimeout(()=>playBeep(1200,0.06,'sine',0.08),80); }
-
-// --------------------------
-// Input
-// --------------------------
-function flap(){
-  if(!running){ startGame(); return; }
-  bird.vy = flapPower;
-  bird.rotation = -0.6;
-  try{ audioCtx.resume(); }catch(e){}
-  playFlap();
-}
-window.addEventListener('keydown', (e)=>{ if(e.code==='Space') { e.preventDefault(); flap(); } });
-window.addEventListener('mousedown', (e)=>{ flap(); });
-window.addEventListener('touchstart', (e)=>{ e.preventDefault(); flap(); }, {passive:false});
-
-// Start / restart button
-document.getElementById('startBtn').addEventListener('click', ()=>{
-  startGame(true);
-});
-
-// --------------------------
-// Game functions
-// --------------------------
-function resetGame(){
-  bird.y = H/2; bird.vy = 0; bird.rotation = 0;
-  pipes = [];
-  spawnTimer = 0; score = 0; running = false;
+// PLAYER JUMP
+function jump(){
+  if(!jumping){ jumping = true; yVelocity = 14; }
 }
 
-function startGame(forceRestart=false){
-  if(forceRestart) resetGame();
-  running = true;
-  lastTime = performance.now();
-  spawnTimer = 0;
+// MOBILE TAP
+window.addEventListener('touchstart', jump);
+// DESKTOP CLICK
+window.addEventListener('mousedown', jump);
+// SPACE KEY
+window.addEventListener('keydown', e=>{ if(e.code==='Space') jump(); });
+
+// ENEMY MOVEMENT
+let enemyX = -120;
+function enemyMove(){
+  enemyX += enemySpeed;
+  enemy.style.left = enemyX + 'px';
+  if(enemyX > window.innerWidth){ enemyX = -120; score++; scoreBox.textContent = 'Score: '+score; }
 }
 
-function spawnPipe(){
-  const minTop = 80;
-  const maxTop = H - pipeGap - 80;
-  const top = Math.floor(Math.random() * (maxTop - minTop + 1)) + minTop;
-  pipes.push({ x: W + 20, top: top, passed: false });
+// OBSTACLES
+let obstacles = [];
+function spawnObstacle(){
+  const obs = document.createElement('div');
+  obs.className='obstacle';
+  obs.style.left = window.innerWidth + 'px';
+  obs.style.bottom = '20px';
+  game.appendChild(obs);
+  obstacles.push(obs);
+}
+setInterval(spawnObstacle, 2000);
+
+function moveObstacles(){
+  for(let o of obstacles){
+    let x = o.offsetLeft - obstacleSpeed;
+    o.style.left = x + 'px';
+    if(x < -100) o.remove();
+
+    // collision
+    if(checkCollision(player, o)) endGame();
+    if(checkCollision(enemy, o)) enemySpeed = 2; else enemySpeed = 5;
+  }
 }
 
-function update(dt){
-  if(!running) return;
-  // bird physics
-  bird.vy += gravity;
-  bird.y += bird.vy;
-  bird.rotation += (bird.vy/20 - bird.rotation)*0.08;
+// GRAVITY LOOP
+function updatePlayer(){
+  if(jumping){
+    const currentBottom = parseFloat(player.style.bottom);
+    const newBottom = currentBottom + yVelocity;
 
-  // pipes
-  for(const p of pipes){ p.x -= pipeSpeed * (dt/16.67); }
-  // remove pipes off-screen
-  if(pipes.length && pipes[0].x < -pipeWidth-20) pipes.shift();
+    yVelocity += gravity;
 
-  // spawn
-  spawnTimer += dt;
-  if(spawnTimer > spawnInterval){ spawnTimer = 0; spawnPipe(); }
-
-  // scoring & collisions
-  for(const p of pipes){
-    if(!p.passed && p.x + pipeWidth < bird.x){ p.passed = true; score++; document.getElementById('scoreDisplay').textContent = 'Score: '+score; playScore(); }
-    // collision boxes
-    const birdBox = {x: bird.x- bird.w/2, y: bird.y - bird.h/2, w: bird.w, h: bird.h };
-    const topBox = {x: p.x, y: -1000, w: pipeWidth, h: p.top};
-    const bottomBox = {x: p.x, y: p.top + pipeGap, w: pipeWidth, h: H};
-    if(boxIntersect(birdBox, topBox) || boxIntersect(birdBox, bottomBox)){
-      // hit
-      playHit();
-      running = false;
-      highScore = Math.max(highScore, score);
+    if(newBottom <= ground){
+      player.style.bottom = ground + 'px';
+      jumping = false;
+      yVelocity = 0;
+    } else {
+      player.style.bottom = newBottom + 'px';
     }
   }
+}
 
-  // ground / ceiling
-  if(bird.y + bird.h/2 > H || bird.y - bird.h/2 < 0){
-    playHit(); running = false; highScore = Math.max(highScore, score);
+function checkCollision(a,b){
+  const r1 = a.getBoundingClientRect();
+  const r2 = b.getBoundingClientRect();
+  return !(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom);
+}
+
+let running = true;
+function endGame(){ running = false; alert('Game Over! Score: '+score); location.reload(); }
+
+function loop(){
+  if(running){
+    updatePlayer();
+    enemyMove();
+    moveObstacles();
+    requestAnimationFrame(loop);
   }
 }
-
-function boxIntersect(a,b){
-  return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
-}
-
-function draw(){
-  // clear with sky gradient
-  ctx.clearRect(0,0,W,H);
-  // background simple
-  const g = ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'#87CEEB'); g.addColorStop(1,'#b3e6ff');
-  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-
-  // ground mat
-  ctx.fillStyle = '#7ec850'; ctx.fillRect(0,H-80,W,80);
-
-  // pipes
-  for(const p of pipes){
-    // top pipe (draw flipped image)
-    ctx.save();
-    ctx.translate(p.x + pipeWidth/2, p.top - pipeGap/2);
-    ctx.drawImage(pipeImg, -pipeWidth/2, -p.top - (H*0.02), pipeWidth, p.top + (H*0.02));
-    ctx.restore();
-
-    // bottom pipe
-    ctx.drawImage(pipeImg, p.x, p.top + pipeGap, pipeWidth, H - (p.top + pipeGap));
-  }
-
-  // bird
-  ctx.save();
-  ctx.translate(bird.x, bird.y);
-  ctx.rotate(bird.rotation);
-  ctx.drawImage(birdImg, -bird.w/2, -bird.h/2, bird.w, bird.h);
-  ctx.restore();
-
-  // HUD
-  ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.font = '20px system-ui'; ctx.fillText('Score: '+score, 14, 30);
-  ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.font = '14px system-ui'; ctx.fillText('Best: '+highScore, 14, 52);
-
-  if(!running){
-    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.textAlign='center'; ctx.font='30px system-ui';
-    ctx.fillText('Click / Space / Tap to flap', W/2, H/2 - 20);
-    ctx.font='18px system-ui'; ctx.fillText('Press Start to restart', W/2, H/2 + 10);
-    ctx.textAlign='left';
-  }
-}
-
-function loop(t){
-  const dt = Math.min(40, t - lastTime);
-  update(dt);
-  draw();
-  lastTime = t;
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-// --------------------------
-// Utility: allow user to replace images by dragging files onto previews
-// --------------------------
-function fileToDataURL(file, cb){
-  const r = new FileReader();
-  r.onload = e=>cb(e.target.result);
-  r.readAsDataURL(file);
-}
-
-['previewBird','previewPipe'].forEach(id=>{
-  const el = document.getElementById(id);
-  el.addEventListener('dragover', e=>{ e.preventDefault(); el.style.opacity='0.7'; });
-  el.addEventListener('dragleave', e=>{ el.style.opacity='1'; });
-  el.addEventListener('drop', e=>{
-    e.preventDefault(); el.style.opacity='1';
-    const f = e.dataTransfer.files[0]; if(!f) return;
-    fileToDataURL(f, (dataUrl)=>{
-      el.src = dataUrl; // preview
-      if(id==='previewBird'){ birdImg.src = dataUrl; }
-      if(id==='previewPipe'){ pipeImg.src = dataUrl; }
-    });
-  });
-});
-
-// small helper: load images fully before use (optional)
-function ensureLoaded(img, cb){ if(img.complete) cb(); else img.onload = cb; }
-
-// initialize
-ensureLoaded(birdImg, ()=>{});
-ensureLoaded(pipeImg, ()=>{});
-
-// expose some controls via console for quick tweaking
-window.__FLAPPY = { bird, pipes, resetGame, startGame };
-
+loop();
 </script>
 </body>
 </html>

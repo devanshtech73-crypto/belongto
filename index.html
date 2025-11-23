@@ -3,149 +3,157 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>DOM Runner Game (Mobile Friendly)</title>
+<title>Top-Down Car Driving Game (No Canvas)</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <style>
-  body { margin:0; font-family:system-ui; background:linear-gradient(#87CEEB, #d3f3ff); overflow:hidden; }
-  #game { position:relative; width:100%; height:100vh; overflow:hidden; }
+  body{margin:0; overflow:hidden; background:#222; font-family:sans-serif;}
+  #game{position:relative; width:100vw; height:100vh; overflow:hidden; background:#555;}
 
-  .char, .enemy, .obstacle {
-    position:absolute;
-    background-size:contain;
-    background-repeat:no-repeat;
-    background-position:center;
+  /* Road */
+  #road{
+    position:absolute; left:50%; top:0; transform:translateX(-50%);
+    width:280px; height:200%; background:#2d2d2d;
+    border-left:6px solid #fff; border-right:6px solid #fff;
+    overflow:hidden;
+  }
+  .lane{
+    position:absolute; left:50%; width:6px; height:40px;
+    background:#fff; opacity:0.8;
+    transform:translateX(-50%);
   }
 
-  /* Character (replace image with your own) */
-  #player {
-    width:70px; height:90px;
-    left:40px; bottom:20px;
-    background-image:url('https://upload.wikimedia.org/wikipedia/commons/5/5e/Amitabh_Bachchan_2013.jpg');
-    border-radius:10px;
+  /* Car controlled by player */
+  #player{
+    position:absolute; width:60px; height:110px;
+    bottom:30px; left:calc(50% - 30px);
+    background:url('https://pngimg.com/uploads/car_top_view/car_top_view_PNG20.png');
+    background-size:cover;
   }
 
-  #enemy {
-    width:70px; height:90px;
-    left:-90px; bottom:20px;
-    background-image:url('https://upload.wikimedia.org/wikipedia/commons/2/25/Generic_person_image.png');
-    border-radius:10px;
-    filter:hue-rotate(150deg);
+  .traffic{
+    position:absolute; width:60px; height:110px;
+    background:url('https://pngimg.com/uploads/car_top_view/car_top_view_PNG39.png');
+    background-size:cover;
   }
 
-  .obstacle {
-    width:60px; height:60px;
-    background:#444; border-radius:8px;
-    bottom:20px;
+  /* Steering Wheel */
+  #steerBox{
+    position:absolute; bottom:20px; left:20px;
+    width:120px; height:120px;
+    border:4px solid #fff; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(3px);
+    touch-action:none;
+  }
+  #wheel{
+    font-size:54px; color:white;
+    transform:rotate(0deg);
   }
 
-  #scoreBox {
-    position:absolute; top:10px; left:10px;
-    font-size:20px; font-weight:700;
-    background:rgba(255,255,255,0.7);
-    padding:6px 12px; border-radius:8px;
-  }
 </style>
 </head>
 <body>
 <div id="game">
-  <div id="player" class="char"></div>
-  <div id="enemy" class="char"></div>
-  <div id="scoreBox">Score: 0</div>
-  <button id="jumpBtn" style="position:absolute; right:20px; bottom:30px; padding:20px 28px; font-size:22px; border:none; background:#ffcc00; border-radius:50px; box-shadow:0 6px 14px rgba(0,0,0,0.25);">JUMP</button>
+  <div id="road"></div>
+  <div id="player"></div>
+  <div id="steerBox"><i id="wheel" class="fa-solid fa-circle-notch"></i></div>
 </div>
+
 <script>
 const game = document.getElementById('game');
+const road = document.getElementById('road');
 const player = document.getElementById('player');
-const enemy = document.getElementById('enemy');
-const scoreBox = document.getElementById('scoreBox');
+const wheel = document.getElementById('wheel');
 
-let score = 0;
-let jumping = false;
-let yVelocity = 0;
-let gravity = -0.7;
-let ground = 20;
-let enemySpeed = 6;
-let obstacleSpeed = 5;
+let playerX = window.innerWidth/2 - 30;
+let speed = 6;
+let steering = 0;
 
-// PLAYER JUMP
-function jump(){
-  if(!jumping){ jumping = true; yVelocity = 14; }
+// Create Road Lane Markers
+let laneY = 0;
+for(let i=0;i<20;i++){
+  let d=document.createElement('div');
+  d.className='lane';
+  d.style.top=(i*80)+'px';
+  road.appendChild(d);
 }
 
-// MOBILE TAP
-window.addEventListener('touchstart', jump);
-document.getElementById('jumpBtn').addEventListener('touchstart', jump);
-document.getElementById('jumpBtn').addEventListener('mousedown', jump);
-// DESKTOP CLICK
-window.addEventListener('mousedown', jump);
-// SPACE KEY
-window.addEventListener('keydown', e=>{ if(e.code==='Space') jump(); });
+// Traffic Cars
+let traffic = [];
+function spawnTraffic(){
+  let t=document.createElement('div');
+  t.className='traffic';
+  t.style.left=(road.offsetLeft + 40 + Math.random()*150)+'px';
+  t.style.top='-150px';
+  game.appendChild(t);
+  traffic.push(t);
+}
+setInterval(spawnTraffic, 1500);
 
-// ENEMY MOVEMENT
-let enemyX = -120;
-function enemyMove(){
-  enemyX += enemySpeed;
-  enemy.style.left = enemyX + 'px';
-  if(enemyX > window.innerWidth){ enemyX = -120; score++; scoreBox.textContent = 'Score: '+score; }
+// Steering Wheel Touch Control
+let steeringActive=false;
+let startX=0;
+
+document.getElementById('steerBox').addEventListener('touchstart', e=>{
+  steeringActive=true;
+  startX=e.touches[0].clientX;
+});
+
+document.addEventListener('touchmove', e=>{
+  if(!steeringActive) return;
+  let dx=e.touches[0].clientX - startX;
+  steering = dx/20;
+  wheel.style.transform = 'rotate('+ (dx) +'deg)';
+});
+
+document.addEventListener('touchend',()=>{
+  steeringActive=false;
+  steering=0;
+  wheel.style.transform='rotate(0deg)';
+});
+
+// Keyboard A/D
+window.addEventListener('keydown', e=>{
+  if(e.key==='a') steering=-3;
+  if(e.key==='d') steering=3;
+});
+window.addEventListener('keyup',()=> steering=0);
+
+// Collision Check
+function collide(a,b){
+  const r1=a.getBoundingClientRect();
+  const r2=b.getBoundingClientRect();
+  return !(r1.right<r2.left || r1.left>r2.right || r1.bottom<r2.top || r1.top>r2.bottom);
 }
 
-// OBSTACLES
-let obstacles = [];
-function spawnObstacle(){
-  const obs = document.createElement('div');
-  obs.className='obstacle';
-  obs.style.left = window.innerWidth + 'px';
-  obs.style.bottom = '20px';
-  game.appendChild(obs);
-  obstacles.push(obs);
-}
-setInterval(spawnObstacle, 2000);
-
-function moveObstacles(){
-  for(let o of obstacles){
-    let x = o.offsetLeft - obstacleSpeed;
-    o.style.left = x + 'px';
-    if(x < -100) o.remove();
-
-    // collision
-    if(checkCollision(player, o)) endGame();
-    if(checkCollision(enemy, o)) enemySpeed = 2; else enemySpeed = 5;
-  }
-}
-
-// GRAVITY LOOP
-function updatePlayer(){
-  if(jumping){
-    const currentBottom = parseFloat(player.style.bottom);
-    const newBottom = currentBottom + yVelocity;
-
-    yVelocity += gravity;
-
-    if(newBottom <= ground){
-      player.style.bottom = ground + 'px';
-      jumping = false;
-      yVelocity = 0;
-    } else {
-      player.style.bottom = newBottom + 'px';
-    }
-  }
-}
-
-function checkCollision(a,b){
-  const r1 = a.getBoundingClientRect();
-  const r2 = b.getBoundingClientRect();
-  return !(r1.right < r2.left || r1.left > r2.right || r1.bottom < r2.top || r1.top > r2.bottom);
-}
-
-let running = true;
-function endGame(){ running = false; alert('Game Over! Score: '+score); location.reload(); }
-
+// MAIN LOOP
 function loop(){
-  if(running){
-    updatePlayer();
-    enemyMove();
-    moveObstacles();
-    requestAnimationFrame(loop);
-  }
+  // Move player
+  playerX += steering;
+  player.style.left = playerX + 'px';
+
+  // Scroll road
+  laneY += speed;
+  let lanes=document.querySelectorAll('.lane');
+  lanes.forEach((l,i)=>{
+    let y=(i*80 + laneY) % (window.innerHeight*2);
+    l.style.top=y+'px';
+  });
+
+  // Move traffic
+  traffic.forEach(t=>{
+    t.style.top = (t.offsetTop + speed*0.9) + 'px';
+
+    if(collide(player,t)){
+      alert('CRASH! Game Over');
+      location.reload();
+    }
+
+    if(t.offsetTop > window.innerHeight+200){ t.remove(); }
+  });
+
+  requestAnimationFrame(loop);
 }
 loop();
 </script>

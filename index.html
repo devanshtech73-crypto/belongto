@@ -1,264 +1,213 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AmongLite — Single-file No-Backend Multiplayer Prototype</title>
-  <style>
-    :root{
-      --bg:#07121a; --panel: rgba(255,255,255,0.04);
-      --accent:#ffd166; --muted:#9fb0c8;
-      font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
-    }
-    html,body{height:100%;margin:0;background:linear-gradient(180deg,#041019,#081623);color:#e4f1f8}
-    #root{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
-    .game-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center}
-    canvas{background:linear-gradient(180deg,#07121a,#08202a);border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
-    .panel{width:360px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:10px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5)}
-    h2{margin:0 0 8px 0;font-size:16px}
-    .row{display:flex;gap:8px;align-items:center}
-    .btn{background:var(--accent);color:#042226;border:none;padding:8px 10px;border-radius:8px;font-weight:700;cursor:pointer}
-    .btn.secondary{background:#9ad3bc}
-    input,select,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
-    .small{font-size:13px;color:var(--muted)}
-    .muted{color:var(--muted);font-size:13px;margin-top:6px}
-    .player-list{max-height:220px;overflow:auto;margin-top:8px;border-radius:8px;padding:6px;background:rgba(0,0,0,0.06)}
-    .player-row{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid rgba(255,255,255,0.02)}
-    .chat{margin-top:8px;background:rgba(255,255,255,0.02);padding:6px;border-radius:8px}
-    .chat .messages{max-height:140px;overflow:auto;padding:6px}
-    .hud{position:fixed;left:50%;transform:translateX(-50%);top:18px;background:rgba(0,0,0,0.4);padding:8px;border-radius:8px;font-weight:700}
-    @media (max-width:1100px){ .panel{display:none} canvas{width:100%;height:64vh} #root{padding:6px} }
-    /* modal and small UI */
-    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:9999}
-    .card{background:#07121a;padding:16px;border-radius:10px;color:#e6eef6;min-width:320px}
-    .small-btn{padding:6px 8px;border-radius:6px}
-    textarea{resize:vertical;min-height:80px}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AmongLite — Full (No Backend)</title>
+<style>
+  :root{--bg:#07121a;--panel:#0e2733;--accent:#ffd166;--muted:#9fb0c8}
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,#041019,#08202a);color:#e6f7ff;font-family:Inter,Arial,Helvetica,sans-serif}
+  #wrap{display:flex;height:100vh;gap:12px;padding:12px;box-sizing:border-box}
+  .game{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+  canvas{border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.6);background:#091822}
+  .panel{width:360px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:10px;padding:12px;box-shadow:0 10px 40px rgba(0,0,0,0.5);overflow:auto}
+  h2{margin:0 0 8px 0;font-size:16px}
+  .row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  input,textarea,select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+  button{padding:8px 10px;border-radius:8px;border:none;background:var(--accent);color:#042226;cursor:pointer}
+  button.secondary{background:#9ad3bc}
+  .muted{color:var(--muted);font-size:13px}
+  .players{max-height:180px;overflow:auto;margin:8px 0;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px}
+  .player-row{display:flex;justify-content:space-between;padding:6px;border-bottom:1px solid rgba(255,255,255,0.02)}
+  .chat{background:rgba(255,255,255,0.02);padding:6px;border-radius:8px}
+  .chat .msgs{max-height:160px;overflow:auto;padding:6px}
+  .hud{position:fixed;left:50%;transform:translateX(-50%);top:12px;background:rgba(0,0,0,0.45);padding:8px;border-radius:8px;z-index:20}
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:9999}
+  .card{background:#07121a;padding:16px;border-radius:10px;color:#e6eef6;min-width:320px;max-width:96%}
+  .small{font-size:13px;color:var(--muted)}
+  .btn-sm{padding:6px 8px;border-radius:6px}
+  textarea{min-height:80px}
+  @media (max-width:1100px){ .panel{display:none} canvas{width:100%;height:64vh} }
+</style>
 </head>
 <body>
-  <div id="root">
-    <div class="game-area">
-      <div style="position:relative;width:100%;max-width:1180px;">
-        <div class="hud" id="hud">Lobby</div>
-        <canvas id="canvas" width="1180" height="720"></canvas>
-      </div>
-      <div class="small muted">WASD / Arrow keys to move • K kill (impostor) • R report • V meeting • H help</div>
-    </div>
-
-    <div class="panel" id="uiPanel">
-      <h2>AmongLite — Local Multiplayer (no backend)</h2>
-
-      <div class="row" style="gap:6px">
-        <input id="nameInput" placeholder="Your name (e.g. Devansh)" />
-        <button id="createLocalBtn" class="btn small-btn">Create</button>
-      </div>
-
-      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
-        <button id="hostBtn" class="btn">Host (LAN beacon)</button>
-        <button id="joinBtn" class="btn secondary">Join (LAN)</button>
-      </div>
-
-      <div style="margin-top:10px">
-        <div class="small muted">Manual WebRTC (copy/paste) — use this to connect across devices without a server.</div>
-        <div style="margin-top:6px">
-          <button id="offerBtn" class="btn small-btn">Create Offer (Host)</button>
-          <button id="answerBtn" class="btn small-btn secondary">Create Answer (Client)</button>
-        </div>
-        <textarea id="signalBox" placeholder="Offer/Answer JSON — copy/paste here"></textarea>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <button id="pasteOfferBtn" class="btn small-btn">Paste Offer</button>
-          <button id="pasteAnswerBtn" class="btn small-btn secondary">Paste Answer</button>
-        </div>
-      </div>
-
-      <div style="margin-top:12px"><strong>Players</strong></div>
-      <div class="player-list" id="playerList"></div>
-
-      <div style="margin-top:12px"><strong>Chat</strong></div>
-      <div class="chat">
-        <div class="messages" id="chatMessages"></div>
-        <input id="chatInput" placeholder="Say something and press Enter" />
-      </div>
-
-      <div style="margin-top:12px;display:flex;gap:8px">
-        <button id="addBotBtn" class="btn small-btn">Add Bot</button>
-        <button id="readyBtn" class="btn small-btn secondary">Ready</button>
-        <button id="startBtn" class="btn small-btn">Start</button>
-      </div>
-
-      <div style="margin-top:10px" class="muted">LAN beacon: peers on same origin can auto-discover each other. Manual SDP: for device-to-device p2p without servers.</div>
-
-      <div style="margin-top:12px;display:flex;gap:8px">
-        <button id="helpBtn" class="btn small-btn">Help (H)</button>
-        <button id="exportBtn" class="btn small-btn secondary">Export Snapshot</button>
-      </div>
-      <div style="margin-top:8px;font-size:12px;color:#aac">Tip: Run via a static server (e.g., python -m http.server) for best WebRTC results.</div>
-    </div>
+<div id="wrap">
+  <div class="game">
+    <div class="hud" id="hud">Lobby</div>
+    <canvas id="canvas" width="1180" height="720"></canvas>
+    <div class="small muted" style="margin-top:8px">W/A/S/D or Arrow keys — Move · K Kill (Impostor) · R Report · V Meeting · H Help</div>
   </div>
 
-  <!-- meeting modal -->
-  <div id="meetingModal" class="modal"><div class="card" id="meetingCard"><h3>Emergency Meeting</h3><div id="meetingOptions"></div><div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end"><button id="meetingSkip" class="btn">Skip</button><button id="meetingVote" class="btn secondary">Vote</button></div></div></div>
+  <div class="panel" id="ui">
+    <h2>AmongLite — No Backend Multiplayer</h2>
 
-  <!-- help overlay -->
-  <div id="helpOverlay" class="modal" style="display:none"><div class="card"><h2>Help & Controls</h2>
-    <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div style="flex:1 1 300px">
-        <h4>Movement</h4>
-        <ul><li>W/A/S/D or Arrow keys — move</li><li>Space/E — interact</li></ul>
-        <h4>Actions</h4>
-        <ul><li>K — Kill (impostor only)</li><li>R — Report body</li><li>V — Call meeting</li></ul>
+    <div class="row">
+      <input id="nameInput" placeholder="Your name (e.g. Devansh)"/>
+      <button id="createBtn" class="btn-sm">Create</button>
+    </div>
+
+    <div class="row">
+      <button id="hostBtn">Host (LAN beacon)</button>
+      <button id="joinBtn" class="secondary">Join (LAN)</button>
+    </div>
+
+    <div style="margin-top:8px">
+      <div class="small muted">Manual WebRTC (for different devices): Create Offer → copy → paste to remote → remote Create Answer → paste back.</div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button id="createOfferBtn" class="btn-sm">Create Offer</button>
+        <button id="createAnswerBtn" class="btn-sm secondary">Create Answer</button>
       </div>
-      <div style="flex:1 1 200px">
-        <h4>Networking</h4>
-        <ul><li>Host — advertise via localStorage beacon</li><li>Join — auto-discover host (same origin)</li><li>Manual Offer/Answer — copy/paste SDP</li></ul>
+      <textarea id="signalBox" placeholder="Offer/Answer JSON - copy/paste here"></textarea>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button id="pasteOfferBtn" class="btn-sm">Paste Offer (host)</button>
+        <button id="pasteAnswerBtn" class="btn-sm secondary">Paste Answer (offerer)</button>
       </div>
     </div>
-    <div style="margin-top:12px;display:flex;justify-content:flex-end"><button id="helpClose" class="btn secondary">Close</button></div>
-  </div></div>
 
-  <div style="position:fixed;left:12px;bottom:12px;background:rgba(0,0,0,0.45);padding:8px;border-radius:8px;color:#dff7ff;z-index:9999">Shortcuts: <strong>H</strong> Help • <strong>V</strong> Meeting • <strong>K</strong> Kill • <strong>R</strong> Report</div>
+    <div style="margin-top:10px"><strong>Players</strong></div>
+    <div class="players" id="playerList"></div>
+
+    <div style="margin-top:10px"><strong>Chat</strong></div>
+    <div class="chat">
+      <div class="msgs" id="chatMsgs"></div>
+      <input id="chatInput" placeholder="Type and press Enter"/>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button id="addBotBtn" class="btn-sm">Add Bot</button>
+      <button id="readyBtn" class="btn-sm secondary">Ready</button>
+      <button id="startBtn" class="btn-sm">Start</button>
+    </div>
+
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button id="helpBtn" class="btn-sm">Help (H)</button>
+      <button id="exportBtn" class="btn-sm secondary">Export Snapshot</button>
+    </div>
+
+    <div style="margin-top:8px" class="small muted">Tip: Serve via a local static server (e.g. python -m http.server) for the best WebRTC behavior across devices.</div>
+  </div>
+</div>
+
+<!-- Meeting Modal -->
+<div id="meetingModal" class="modal"><div class="card" id="meetingCard"><h3>Emergency Meeting</h3><div id="meetingOptions" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button id="meetingSkip" class="btn-sm">Skip</button><button id="meetingVote" class="btn-sm secondary">Vote</button></div></div></div>
+
+<!-- Help Modal -->
+<div id="helpModal" class="modal"><div class="card"><h2>Help & Controls</h2>
+  <div style="display:flex;gap:16px;flex-wrap:wrap">
+    <div style="flex:1">
+      <h4>Movement</h4><ul><li>W/A/S/D or Arrow keys — Move</li><li>Space/E — Interact</li></ul>
+      <h4>Actions</h4><ul><li>K — Kill (impostor)</li><li>R — Report nearest body</li><li>V — Call meeting</li></ul>
+    </div>
+    <div style="flex:1">
+      <h4>Networking</h4><ul><li>Host — advertise via LAN beacon (same origin)</li><li>Join — discover host (same origin)</li><li>Manual WebRTC — use offer/answer copy-paste across devices</li></ul>
+    </div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button id="helpClose" class="btn-sm secondary">Close</button></div>
+</div></div>
 
 <script>
-/* ==========================
-   AmongLite — single file (no backend)
-   - LAN beacon (localStorage) discovery for same-origin/tabs
-   - Manual WebRTC offer/answer copy/paste (no server)
-   - Host authoritative model for start/kill/eject
-   - Local bots, tasks, minigames, voting UI
-   NOTE: This is a functional prototype; for Internet-wide play you need a signaling server or PeerJS broker (not included).
-   ========================== */
+/* =========================
+   AmongLite — Full (No backend)
+   Single-file prototype.
+   ========================= */
 
-/* ----------------- Utilities ----------------- */
+/* ------------- Utilities ------------- */
+const $ = id => document.getElementById(id);
 function rand(min=0,max=1){ return min + Math.random()*(max-min); }
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-function nowS(){ return Date.now()/1000; }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-function el(id){ return document.getElementById(id); }
-function appendLog(msg){ const cm = el('chatMessages'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight; }
+function now(){ return performance.now(); }
+function ts(){ return Math.floor(Date.now()/1000); }
 
-/* ----------------- Game State ----------------- */
-const Map = {
-  width: 1600, height: 960,
-  rooms: [
-    {id:'caf',name:'Cafeteria',x:120,y:100,w:420,h:300},
-    {id:'eng',name:'Engine',x:820,y:100,w:420,h:300},
-    {id:'sec',name:'Security',x:120,y:460,w:420,h:300},
-    {id:'med',name:'MedBay',x:820,y:460,w:420,h:300}
+/* ------------- Map, State, Models ------------- */
+const MapData = {
+  width:1600, height:960,
+  rooms:[
+    {id:'caf', name:'Cafeteria', x:120,y:100,w:420,h:300},
+    {id:'eng', name:'Engine',   x:820,y:100,w:420,h:300},
+    {id:'sec', name:'Security', x:120,y:460,w:420,h:300},
+    {id:'med', name:'MedBay',   x:820,y:460,w:420,h:300}
   ],
-  anchors: []
+  anchors:[]
 };
-(function(){ // seed anchors
-  for(const r of Map.rooms){
+(function seedAnchors(){
+  for(const r of MapData.rooms){
     for(let i=0;i<6;i++){
-      Map.anchors.push({room:r.id, x: r.x + 30 + Math.random()*(r.w-60), y: r.y + 30 + Math.random()*(r.h-60)});
+      MapData.anchors.push({room:r.id, x: r.x + 30 + Math.random()*(r.w-60), y: r.y + 30 + Math.random()*(r.h-60)});
     }
   }
 })();
 
 const State = {
-  players: {},   // id -> player
-  tasks: {},     // id -> task (x,y,done,progress,room)
-  myId: null,
-  myName: null,
-  hostId: null,
-  inGame: false
+  players:{},   // id -> player
+  tasks:{},     // id -> task
+  myId:null,
+  hostId:null,
+  inGame:false
 };
 
-/* ----------------- Player & Task classes ----------------- */
 class Player {
-  constructor(id, name, color='red', isBot=false){
-    this.id = id; this.name = name; this.color = color;
-    this.x = 200 + Math.random()*200; this.y = 200 + Math.random()*200;
-    this.vx = 0; this.vy = 0; this.speed = 140;
-    this.alive = true; this.role = 'crewmate'; this.isBot = isBot;
-    this.ready = false;
-    this.taskProgress = 0; this.currentTask = null;
-    this.cooldownReadyAt = 0;
+  constructor(id,name,color='#6be7ff',isBot=false){
+    this.id=id; this.name=name; this.color=color;
+    this.x = 200 + Math.random()*400; this.y = 200 + Math.random()*300;
+    this.vx=0; this.vy=0; this.speed = 140;
+    this.alive=true; this.role='crewmate'; this.isBot=isBot; this.ready=false;
+    this.currentTask=null; this.taskProgress=0; this.cooldownReadyAt=0;
   }
 }
-
 class Task {
   constructor(id,x,y,room){ this.id=id; this.x=x; this.y=y; this.room=room; this.done=false; this.progress=0; }
 }
 
-/* ----------------- Canvas & rendering ----------------- */
-const canvas = el('canvas');
-const ctx = canvas.getContext('2d');
-let CW = canvas.width, CH = canvas.height;
+/* ------------- Canvas & rendering ------------- */
+const canvas = $('canvas'), ctx = canvas.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
+function adaptDPR(){ DPR = Math.min(window.devicePixelRatio || 1, 2); const cssW = canvas.clientWidth || canvas.width; const cssH = canvas.clientHeight || canvas.height; canvas.width = Math.floor(cssW * DPR); canvas.height = Math.floor(cssH * DPR); ctx.setTransform(DPR,0,0,DPR,0,0); }
+adaptDPR(); window.addEventListener('resize', adaptDPR);
+let CW = canvas.width / DPR, CH = canvas.height / DPR;
 let camera = {x:0,y:0};
 
-function adaptDPR(){
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cssW = canvas.clientWidth || CW;
-  const cssH = canvas.clientHeight || CH;
-  canvas.width = Math.floor(cssW * dpr);
-  canvas.height = Math.floor(cssH * dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-  CW = canvas.width / dpr; CH = canvas.height / dpr;
-}
-adaptDPR(); window.addEventListener('resize', adaptDPR);
-
 function drawMap(){
-  ctx.fillStyle = '#08181d'; ctx.fillRect(0,0,CW,CH);
-  for(const r of Map.rooms){
-    ctx.fillStyle = 'rgba(255,255,255,0.02)';
-    ctx.fillRect(r.x - camera.x, r.y - camera.y, r.w, r.h);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)';
-    ctx.font = '14px sans-serif'; ctx.fillText(r.name, r.x + 12 - camera.x, r.y + 22 - camera.y);
-  }
-  for(const tid in State.tasks){
-    const t = State.tasks[tid];
-    ctx.beginPath();
-    ctx.fillStyle = t.done ? 'rgba(120,255,140,0.8)' : 'rgba(255,210,90,0.95)';
-    ctx.arc(t.x - camera.x, t.y - camera.y, 10, 0, Math.PI*2); ctx.fill();
-  }
+  ctx.fillStyle = '#071f24'; ctx.fillRect(0,0,CW,CH);
+  for(const r of MapData.rooms){ ctx.fillStyle='rgba(255,255,255,0.03)'; ctx.fillRect(r.x-camera.x, r.y-camera.y, r.w, r.h); ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.font='14px sans-serif'; ctx.fillText(r.name, r.x+12-camera.x, r.y+22-camera.y); }
+  for(const tid in State.tasks){ const t = State.tasks[tid]; ctx.beginPath(); ctx.fillStyle = t.done ? 'rgba(120,255,140,0.8)' : 'rgba(255,210,90,0.95)'; ctx.arc(t.x-camera.x, t.y-camera.y, 10,0,Math.PI*2); ctx.fill(); }
 }
 
 function drawPlayers(){
   for(const id in State.players){
     const p = State.players[id];
-    ctx.beginPath();
-    ctx.fillStyle = p.alive ? p.color : '#6f7a84';
-    ctx.arc(p.x - camera.x, p.y - camera.y, 18, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = '#eaf6ff'; ctx.font='12px sans-serif'; ctx.textAlign='center';
-    ctx.fillText(p.name, p.x - camera.x, p.y - 26 - camera.y);
-    if(p.role==='impostor' && State.hostId === State.myId && p.isBot){ // host debug show
-      ctx.fillStyle = 'rgba(255,100,100,0.85)'; ctx.fillRect(p.x - camera.x - 6, p.y - camera.y - 6, 12,12);
-    }
+    ctx.beginPath(); ctx.fillStyle = p.alive ? p.color : '#6f7a84'; ctx.arc(p.x-camera.x, p.y-camera.y, 18,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#eaf6ff'; ctx.font='12px sans-serif'; ctx.textAlign='center'; ctx.fillText(p.name, p.x-camera.x, p.y-26-camera.y);
+    if(p.role === 'impostor' && State.hostId === State.myId && p.isBot){ ctx.fillStyle='rgba(255,100,100,0.9)'; ctx.fillRect(p.x-camera.x-6, p.y-camera.y-6, 12,12); }
   }
 }
 
-/* ----------------- Input ----------------- */
-const inputs = {left:false,right:false,up:false,down:false,interact:false};
-window.addEventListener('keydown', (e)=>{
-  const k = e.key.toLowerCase();
-  if(k==='a' || e.key==='arrowleft') inputs.left=true;
-  if(k==='d' || e.key==='arrowright') inputs.right=true;
-  if(k==='w' || e.key==='arrowup') inputs.up=true;
-  if(k==='s' || e.key==='arrowdown') inputs.down=true;
-  if(k==='e' || k===' ') inputs.interact=true;
-  if(k==='k') attemptKillNearby();
-  if(k==='r') attemptReportNearby();
-  if(k==='v') callMeetingByMe();
-  if(k==='h') toggleHelp();
-});
-window.addEventListener('keyup', (e)=>{
-  const k = e.key.toLowerCase();
-  if(k==='a' || e.key==='arrowleft') inputs.left=false;
-  if(k==='d' || e.key==='arrowright') inputs.right=false;
-  if(k==='w' || e.key==='arrowup') inputs.up=false;
-  if(k==='s' || e.key==='arrowdown') inputs.down=false;
-  if(k==='e' || k===' ') inputs.interact=false;
-});
+function render(){
+  CW = canvas.width / DPR; CH = canvas.height / DPR;
+  ctx.clearRect(0,0,CW,CH);
+  ctx.save(); ctx.translate(0,0);
+  drawMap(); drawPlayers();
+  ctx.restore();
+  // HUD small task list
+  ctx.save(); ctx.resetTransform();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(12,12,260,120);
+  ctx.fillStyle='#cfefff'; ctx.font='13px sans-serif'; ctx.fillText('Tasks:',22,32);
+  let y = 52;
+  for(const tid in State.tasks){ if(y>118) break; const t=State.tasks[tid]; ctx.fillStyle = t.done ? '#8df59a' : '#ffd66b'; ctx.fillText(`${tid} ${t.done ? '(Done)' : ''}`,22,y); y+=18; }
+  ctx.restore();
+}
 
-/* ----------------- Local player creation ----------------- */
+/* ------------- Input & controls ------------- */
+const inputs = {left:false,right:false,up:false,down:false,interact:false};
+window.addEventListener('keydown', e=>{ const k=e.key.toLowerCase(); if(k==='a' || k==='arrowleft') inputs.left=true; if(k==='d' || k==='arrowright') inputs.right=true; if(k==='w' || k==='arrowup') inputs.up=true; if(k==='s' || k==='arrowdown') inputs.down=true; if(k==='e' || k===' ') inputs.interact=true; if(k==='k') attemptKillNearby(); if(k==='r') attemptReportNearby(); if(k==='v') callMeetingByMe(); if(k==='h') $('helpModal').style.display = $('helpModal').style.display === 'flex' ? 'none' : 'flex';});
+window.addEventListener('keyup', e=>{ const k=e.key.toLowerCase(); if(k==='a' || k==='arrowleft') inputs.left=false; if(k==='d' || k==='arrowright') inputs.right=false; if(k==='w' || k==='arrowup') inputs.up=false; if(k==='s' || k==='arrowdown') inputs.down=false; if(k==='e' || k===' ') inputs.interact=false; });
+
+/* ------------- Local player creation & UI ------------- */
 function createLocalPlayer(name){
   const id = 'p_' + Math.floor(Math.random()*900000 + 10000);
-  const p = new Player(id, name || ('Player'+id.slice(-4)), pickColor());
-  State.players[id] = p; State.myId = id; State.myName = p.name;
-  updatePlayerList();
-  refreshTaskPanel();
+  const p = new Player(id, name || ('You'+Math.floor(Math.random()*999)), pickColor(), false);
+  State.players[id] = p; State.myId = id; updatePlayerList(); seedTasksIfEmpty(); refreshHUD();
+  appendChat(`[SYSTEM] Local player created: ${p.name} (${id})`);
   return p;
 }
 function pickColor(){
@@ -267,44 +216,22 @@ function pickColor(){
   for(const c of list) if(!used.includes(c)) return c;
   return list[Math.floor(Math.random()*list.length)];
 }
+$('createBtn').addEventListener('click', ()=> { createLocalPlayer($('nameInput').value.trim() || ('You'+Math.floor(Math.random()*999))); });
 
-/* ----------------- tasks seeding ----------------- */
-function seedTasks(n=6){
-  State.tasks = {};
-  const anchors = shuffle(Map.anchors.slice());
-  for(let i=0;i<n && i<anchors.length;i++){
-    const a = anchors[i];
-    State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room);
+/* ------------- Task seeding & panel ------------- */
+function seedTasksIfEmpty(){
+  if(Object.keys(State.tasks).length > 0) return;
+  const anchors = shuffle(MapData.anchors.slice());
+  const count = Math.max(6, Math.floor(Object.keys(State.players).length * 1.5) || 6);
+  for(let i=0;i<count && i<anchors.length;i++){
+    const a = anchors[i]; State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room);
   }
-  refreshTaskPanel();
+  refreshHUD();
 }
 
-/* ----------------- UI wiring ----------------- */
-el('createLocalBtn').addEventListener('click', ()=> {
-  const name = el('nameInput').value.trim() || ('You'+Math.floor(Math.random()*999));
-  createLocalPlayer(name);
-  appendLog(`[SYSTEM] Created local player ${name}`);
-});
-el('addBotBtn').addEventListener('click', ()=>{
-  const id = 'bot_' + Math.floor(Math.random()*90000+1000);
-  const bot = new Player(id, 'Bot'+Math.floor(Math.random()*999), pickColor(), true);
-  State.players[id] = bot;
-  updatePlayerList();
-  appendLog(`[SYSTEM] Added bot ${bot.name}`);
-});
-el('readyBtn').addEventListener('click', ()=>{
-  const p = State.players[State.myId]; if(!p) return;
-  p.ready = !p.ready; updatePlayerList(); appendLog(`[SYSTEM] ${p.name} ${p.ready ? 'is ready' : 'is not ready'}`);
-});
-el('startBtn').addEventListener('click', ()=> {
-  if(State.hostId !== State.myId){ appendLog('[SYSTEM] Only host can start'); return; }
-  hostStartGame();
-});
-el('chatInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ const t = el('chatInput').value.trim(); if(!t) return; sendChat(State.myId, t); el('chatInput').value=''; } });
-
-/* ----------------- Player list UI ----------------- */
+/* ------------- UI helpers ------------- */
 function updatePlayerList(){
-  const node = el('playerList'); node.innerHTML = '';
+  const node = $('playerList'); node.innerHTML = '';
   for(const id in State.players){
     const p = State.players[id];
     const div = document.createElement('div'); div.className='player-row';
@@ -312,318 +239,212 @@ function updatePlayerList(){
     node.appendChild(div);
   }
 }
+function appendChat(msg){
+  const cm = $('chatMsgs'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight;
+}
+$('chatInput').addEventListener('keydown', e=>{ if(e.key==='Enter'){ const msg = $('chatInput').value.trim(); if(!msg) return; sendChat(msg); $('chatInput').value=''; }});
+function sendChat(text){ if(!State.myId) return appendChat('[SYSTEM] Create a player first'); appendChat(`${State.players[State.myId].name}: ${text}`); Net.broadcast({type:'chat', from: State.myId, text}); }
 
-/* ----------------- Chat ----------------- */
-function sendChat(id, text){
-  const p = State.players[id]; if(!p) return;
-  appendLog(`${p.name}: ${text}`);
-  // broadcast chat to peers
-  Net.broadcast({type:'chat', from:id, text});
+/* ------------- Bots ------------- */
+$('addBotBtn').addEventListener('click', ()=>{
+  const id = 'bot_'+Math.floor(Math.random()*900000);
+  const bot = new Player(id, 'Bot'+Math.floor(Math.random()*900), pickColor(), true);
+  State.players[id] = bot; updatePlayerList(); appendChat(`[SYSTEM] Bot added: ${bot.name}`);
+});
+
+/* ------------- Ready & Start ------------- */
+$('readyBtn').addEventListener('click', ()=>{
+  if(!State.myId) return appendChat('[SYSTEM] Create a player first');
+  State.players[State.myId].ready = !State.players[State.myId].ready; updatePlayerList();
+  appendChat(`[SYSTEM] ${State.players[State.myId].name} ${State.players[State.myId].ready ? 'is ready' : 'is not ready'}`);
+});
+$('startBtn').addEventListener('click', ()=> { if(State.hostId !== State.myId) return appendChat('[SYSTEM] Only host can start'); hostStartGame(); });
+
+/* ------------- Export snapshot ------------- */
+$('exportBtn').addEventListener('click', ()=>{
+  const snap = {ts: Date.now(), players: {}, tasks: State.tasks};
+  for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,name:p.name,color:p.color,role:p.role,alive:p.alive}; }
+  const blob = new Blob([JSON.stringify(snap,null,2)], {type:'application/json'}); const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'amonglite_snapshot_'+Date.now()+'.json'; a.click(); URL.revokeObjectURL(url);
+  appendChat('[SYSTEM] Snapshot exported');
+});
+
+/* ------------- HUD refresh ------------- */
+function refreshHUD(){
+  const me = State.players[State.myId]; if(!me){ $('hud').innerText = 'Lobby'; return; }
+  $('hud').innerText = State.inGame ? `${me.name} • ${me.role.toUpperCase()} • ${me.alive ? 'Alive' : 'Dead'}` : `Lobby • ${me.name}`;
 }
 
-/* ----------------- Networking (LAN beacon + manual SDP) - No backend ----------------- */
-
-/*
-  Two no-backend methods:
-   1) LAN beacon using localStorage key "amonglite_beacon" - works across tabs/same origin;
-      can be used as a simple discovery or state broadcast on same machine/origin.
-   2) Manual WebRTC Offer/Answer copy-paste UI — produce offer JSON, copy to remote, remote creates answer JSON, paste back.
-      This is the reliable "no backend" cross-device option (manual but works without servers).
-*/
-
-/* Net abstraction */
+/* ------------- Networking (LAN beacon + manual WebRTC) ------------- */
 const Net = {
-  mode: 'lan',          // 'lan' or 'manual-webrtc'
-  clients: {},          // for manual webrtc: peerId -> {pc,dc}
-  connToHost: null,     // single connection for client -> host (manual)
-  init: function(){ appendLog('[NET] Initialized (no-backend mode)'); },
-  broadcast: function(msg){
-    // LAN: write beacon to localStorage (other tabs can read via storage event)
-    try{
-      const payload = {ts: Date.now(), from: State.myId, msg};
-      localStorage.setItem('amonglite_beacon', JSON.stringify(payload));
-    }catch(e){ console.warn('LS broadcast fail', e); }
-    // Also send via manual webs if open
-    for(const pid in this.clients){
-      const conn = this.clients[pid].dc;
-      try { if(conn && conn.readyState === 'open') conn.send(JSON.stringify(msg)); } catch(e){}
-    }
-    if(this.connToHost && this.connToHost.readyState === 'open'){
-      try{ this.connToHost.send(JSON.stringify(msg)); }catch(e){} }
+  mode:'lan', clients:{}, connToHost:null,
+  init(){ appendChat('[NET] Initialized (no-backend LAN + manual WebRTC)'); },
+  broadcast(msg){
+    try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), from: State.myId, msg})); }catch(e){ console.warn('LS fail',e); }
+    // send via manual DCs if present
+    for(const id in this.clients){ try{ const dc = this.clients[id].dc; if(dc && dc.readyState === 'open') dc.send(JSON.stringify(msg)); }catch(_){} }
+    if(this.connToHost && this.connToHost.readyState === 'open'){ try{ this.connToHost.send(JSON.stringify(msg)); }catch(_){} }
   },
-  sendToHost: function(msg){
-    // in manual WebRTC client send to host via connToHost
-    if(this.connToHost && this.connToHost.readyState === 'open'){ try{ this.connToHost.send(JSON.stringify(msg)); }catch(e){} } 
-    else { this.broadcast(msg); }
-  }
+  sendToHost(msg){ if(this.connToHost && this.connToHost.readyState === 'open') { try{ this.connToHost.send(JSON.stringify(msg)); }catch(_){} } else this.broadcast(msg); }
 };
 Net.init();
 
-/* LAN beacon listener */
-window.addEventListener('storage', (ev)=>{
+/* LAN beacon receiver */
+window.addEventListener('storage', ev => {
   if(ev.key !== 'amonglite_beacon' || !ev.newValue) return;
   try{
     const data = JSON.parse(ev.newValue);
     if(!data || !data.msg) return;
-    // Deliver to onRemote as from the 'from' id
     onRemote(data.from || 'unknown', data.msg);
   }catch(e){}
 });
 
-/* Manual WebRTC (create offer/answer via UI) */
-let manualPC = null;
-let manualDC = null;
-function createOfferManual(){
+/* Manual WebRTC helpers (offer/answer copy/paste) */
+let manualPC = null, manualDC = null;
+function createManualOffer(){
   manualPC = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
   manualDC = manualPC.createDataChannel('game');
-  manualDC.onopen = ()=> appendLog('[NET] DataChannel open (offer)');
-  manualDC.onmessage = (ev)=> { try{ const m = JSON.parse(ev.data); onRemote(manualPeerId || 'peer', m); }catch(e){} };
-  manualPC.onicecandidate = (ev)=> {
-    if(ev.candidate) return; // wait for full localDescription
-    const offer = manualPC.localDescription;
-    const box = el('signalBox'); box.value = JSON.stringify({type:'offer', sdp: offer});
-    appendLog('[NET] Offer created; copy the Offer JSON and send to remote');
-  };
-  manualPC.createOffer().then(offer => manualPC.setLocalDescription(offer));
+  manualDC.onopen = ()=> appendChat('[NET] Manual DC open (offer)');
+  manualDC.onmessage = ev => { try{ const m = JSON.parse(ev.data); onRemote('manualPeer', m); }catch(e){} };
+  manualPC.onicecandidate = ev => { if(!ev.candidate){ const offer = manualPC.localDescription; $('signalBox').value = JSON.stringify({type:'offer', sdp:offer}); appendChat('[NET] Offer ready - copy it to remote'); } };
+  manualPC.createOffer().then(o => manualPC.setLocalDescription(o));
 }
-
-let manualPeerId = null;
-function createAnswerManual(){
-  // expects that signalBox contains an offer JSON
+function acceptManualOfferAndCreateAnswer(){
   try{
-    const raw = el('signalBox').value.trim();
-    if(!raw) { alert('Paste offer JSON in the signal box first'); return; }
-    const obj = JSON.parse(raw);
-    if(obj.type !== 'offer') { alert('Provided JSON is not an offer'); return; }
-    manualPC = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
-    manualPC.ondatachannel = (ev)=> {
-      manualDC = ev.channel;
-      manualDC.onmessage = ev2 => { try{ const m = JSON.parse(ev2.data); onRemote(manualPeerId || 'peer', m); }catch(e){} };
-      manualDC.onopen = ()=> appendLog('[NET] DataChannel open (answer)');
-    };
-    manualPC.onicecandidate = (ev)=> {
-      if(ev.candidate) return;
-      const answer = manualPC.localDescription;
-      el('signalBox').value = JSON.stringify({type:'answer', sdp: answer});
-      appendLog('[NET] Answer created; copy the Answer JSON and send back to the Offerer');
-    };
-    manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=>{
-      manualPC.createAnswer().then(ans => manualPC.setLocalDescription(ans));
-    }).catch(e=>{ alert('Failed to set remote description: ' + e.message); });
-  }catch(e){ alert('Invalid JSON'); }
-}
-
-/* Paste offer (host gets answer) */
-el('pasteOfferBtn').addEventListener('click', ()=> {
-  try{
-    const raw = el('signalBox').value.trim();
-    if(!raw) return alert('Paste offer JSON first');
-    const obj = JSON.parse(raw);
-    if(obj.type !== 'offer') return alert('Not an offer JSON');
-    // Host side: create pc and set remote, create answer, then setLocal and show answer
+    const raw = $('signalBox').value.trim(); if(!raw) return alert('Paste offer JSON first');
+    const obj = JSON.parse(raw); if(obj.type !== 'offer') return alert('Not an offer');
     const pc = new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
     pc.ondatachannel = ev => {
       const ch = ev.channel;
-      ch.onmessage = ev2 => { try{ onRemote('manualPeer', JSON.parse(ev2.data)); }catch(_){} };
-      ch.onopen = ()=> { appendLog('[NET] Manual DataChannel open (host)'); Net.clients['manualPeer'] = {pc, dc: ch}; };
+      ch.onopen = ()=> appendChat('[NET] Manual DC open (answer)');
+      ch.onmessage = e => { try{ onRemote('manualPeer', JSON.parse(e.data)); }catch(_){} };
+      Net.clients['manualPeer'] = {pc, dc: ch};
     };
-    pc.onicecandidate = ev => {
-      if(ev.candidate) return;
-      const answer = pc.localDescription;
-      el('signalBox').value = JSON.stringify({type:'answer', sdp: answer});
-      appendLog('[NET] Answer ready — paste it back to the offerer');
-    };
-    pc.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=>{
-      pc.createAnswer().then(ans => pc.setLocalDescription(ans));
-    }).catch(e=> alert('Error setting remote desc: ' + e.message));
+    pc.onicecandidate = ev => { if(!ev.candidate){ $('signalBox').value = JSON.stringify({type:'answer', sdp:pc.localDescription}); appendChat('[NET] Answer ready - copy it back to offerer'); } };
+    pc.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> pc.createAnswer().then(a=>pc.setLocalDescription(a))).catch(e=>alert('Failed: '+e.message));
   }catch(e){ alert('Invalid JSON'); }
-});
-
-/* Paste answer (offerer receives answer) */
-el('pasteAnswerBtn') && el('pasteAnswerBtn').addEventListener('click', ()=> {
+}
+function pasteAnswerToOfferer(){
   try{
-    const raw = el('signalBox').value.trim(); if(!raw) return alert('Paste answer JSON first');
-    const obj = JSON.parse(raw);
-    if(obj.type !== 'answer') return alert('Not an answer JSON');
-    if(manualPC){
-      manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> appendLog('[NET] Manual connection established'));
-    } else alert('No local offer created yet');
+    const raw = $('signalBox').value.trim(); if(!raw) return alert('Paste answer JSON here');
+    const obj = JSON.parse(raw); if(obj.type !== 'answer') return alert('Not an answer');
+    if(!manualPC) return alert('No offer created locally');
+    manualPC.setRemoteDescription(new RTCSessionDescription(obj.sdp)).then(()=> appendChat('[NET] Manual connection established')).catch(e=>alert('Set remote failed: '+e.message));
   }catch(e){ alert('Invalid JSON'); }
-});
+}
+$('createOfferBtn').addEventListener('click', createManualOffer);
+$('createAnswerBtn').addEventListener('click', ()=> { try{ const raw = $('signalBox').value.trim(); if(!raw) { alert('To create an answer: paste the offer into the box then click Create Answer'); } else acceptManualOfferAndCreateAnswer(); }catch(e){}} );
+$('pasteOfferBtn').addEventListener('click', ()=> acceptManualOfferAndCreateAnswer());
+$('pasteAnswerBtn').addEventListener('click', ()=> pasteAnswerToOfferer());
 
-/* UI buttons for manual create */
-el('offerBtn').addEventListener('click', ()=> { createOfferManual(); });
-el('answerBtn').addEventListener('click', ()=> { createAnswerManual(); });
-
-/* ----------------- Application-level router ----------------- */
+/* ------------- Application-level router for messages ------------- */
 function onRemote(from, msg){
   if(!msg || !msg.type) return;
   switch(msg.type){
-    case 'chat':
-      appendLog(`${State.players[msg.from] ? State.players[msg.from].name : msg.from}: ${msg.text}`);
-      break;
+    case 'chat': appendChat(`${State.players[msg.from] ? State.players[msg.from].name : msg.from}: ${msg.text}`); break;
     case 'join':
       if(State.hostId === State.myId){
         if(!State.players[msg.id]) State.players[msg.id] = new Player(msg.id, msg.name, msg.color || pickColor());
-        updatePlayerList();
-        Net.broadcast({type:'welcome', hostId: State.myId});
+        updatePlayerList(); Net.broadcast({type:'welcome', host: State.myId});
       }
       break;
-    case 'welcome':
-      State.hostId = msg.hostId; appendLog(`[NET] Welcome from host ${msg.hostId}`);
-      break;
-    case 'state':
-      if(msg.p && msg.p.id && msg.p.id !== State.myId){
-        if(!State.players[msg.p.id]) State.players[msg.p.id] = new Player(msg.p.id, msg.p.name||('P'+msg.p.id.slice(-4)), msg.p.color || pickColor());
-        const p = State.players[msg.p.id]; p.x = msg.p.x; p.y = msg.p.y; p.alive = msg.p.alive; p.role = msg.p.role || p.role;
+    case 'welcome': State.hostId = msg.host; appendChat(`[NET] Connected to host ${msg.host}`); break;
+    case 'state': // small state broadcast
+      if(msg.p){
+        const pId = msg.p.id;
+        if(!State.players[pId]) State.players[pId] = new Player(pId, msg.p.name || ('P'+pId.slice(-4)), msg.p.color || pickColor());
+        const p = State.players[pId]; p.x = msg.p.x; p.y = msg.p.y; p.alive = !!msg.p.alive; p.role = msg.p.role || p.role;
+        updatePlayerList();
       }
       break;
     case 'start':
-      // host starting game
-      State.inGame = true; State.hostId = msg.by;
-      if(msg.tasks) State.tasks = msg.tasks; appendLog('[GAME] Game started');
-      break;
-    case 'kill':
-      if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendLog(`[GAME] ${State.players[msg.target].name} was killed`); }
-      break;
-    case 'report':
-      beginMeeting(msg.by, msg.bodyId, msg.x, msg.y); break;
+      State.inGame = true; appendChat('[GAME] Start received'); if(msg.tasks) State.tasks = msg.tasks; refreshHUD(); break;
+    case 'kill': if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendChat(`[GAME] ${State.players[msg.target].name} was killed`); } break;
+    case 'report': beginMeeting(msg.by, msg.bodyId, msg.x, msg.y); break;
     case 'vote':
-      // forward to host for tally
-      if(State.hostId === State.myId){ tallyVote(msg.by, msg.target); }
+      if(State.hostId === State.myId) tallyVote(msg.by, msg.target);
       break;
-    case 'eject':
-      if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendLog(`[GAME] ${State.players[msg.target].name} ejected`); }
-      break;
-    default:
-      console.log('unknown msg', msg);
+    case 'eject': if(msg.target && State.players[msg.target]){ State.players[msg.target].alive = false; appendChat(`[GAME] ${State.players[msg.target].name} ejected`); } break;
+    default: console.log('unknown msg', msg);
   }
 }
 
-/* ----------------- Host start & authority ----------------- */
+/* ------------- Host logic: assign roles and start ------------- */
 function hostStartGame(){
-  if(State.hostId !== State.myId){ appendLog('[GAME] Only host can start'); return; }
+  if(State.hostId !== State.myId) return appendChat('[SYSTEM] Only host can start');
   const pids = Object.keys(State.players);
-  if(pids.length < 2) appendLog('[GAME] Need at least 2 players (or add bots)');
+  if(pids.length < 2) return appendChat('[SYSTEM] Need at least 2 players (or add bots)');
   const impCount = Math.max(1, Math.floor(pids.length / 4));
-  const shuffled = shuffle(pids.slice());
-  const impostors = shuffled.slice(0, impCount);
-  for(const id of pids){
-    const p = State.players[id];
-    p.alive = true; p.currentTask = null; p.taskProgress = 0;
-    p.role = impostors.includes(id) ? 'impostor' : 'crewmate';
-    p.cooldownReadyAt = 0;
-  }
-  seedTasks(Math.max(5, Math.floor(pids.length * 1.4)));
-  State.inGame = true;
-  // broadcast start
-  Net.broadcast({type:'start', by: State.myId, tasks: State.tasks});
-  appendLog('[GAME] Host started the game');
+  const shuffled = shuffle(pids.slice()); const impostors = shuffled.slice(0, impCount);
+  for(const id of pids){ const p = State.players[id]; p.alive = true; p.currentTask = null; p.taskProgress = 0; p.role = impostors.includes(id) ? 'impostor' : 'crewmate'; p.cooldownReadyAt = 0; }
+  seedTasksIfEmpty();
+  State.inGame = true; Net.broadcast({type:'start', by: State.myId, tasks: State.tasks});
+  appendChat('[GAME] Host started the game'); refreshHUD();
 }
 
-/* ----------------- Kill & report flow ----------------- */
+/* ------------- Kill, report, meeting, voting ------------- */
 function attemptKillNearby(){
-  const me = State.players[State.myId]; if(!me || me.role !== 'impostor' || !me.alive) { appendLog('[GAME] Cannot kill'); return; }
-  const now = nowS(); if(me.cooldownReadyAt && now < me.cooldownReadyAt){ appendLog('[GAME] Kill on cooldown'); return; }
+  const me = State.players[State.myId]; if(!me || me.role !== 'impostor' || !me.alive) return appendChat('[GAME] Cannot kill');
+  const nowSec = ts(); if(me.cooldownReadyAt && nowSec < me.cooldownReadyAt) return appendChat('[GAME] Kill on cooldown');
   let nearest = null; let nd = Infinity;
-  for(const id in State.players){ if(id === State.myId) continue; const p = State.players[id]; if(!p.alive) continue; const d = Math.hypot(p.x - me.x, p.y - me.y); if(d < nd){ nd = d; nearest = p; } }
-  if(!nearest || nd > 48){ appendLog('[GAME] No target in range'); return; }
-  if(State.hostId === State.myId){ // local host
-    nearest.alive = false; me.cooldownReadyAt = now + 10; Net.broadcast({type:'kill', target: nearest.id}); appendLog(`[GAME] You killed ${nearest.name}`); 
-  } else {
-    Net.sendToHost({type:'killRequest', by: me.id, target: nearest.id});
-    appendLog('[GAME] Kill request sent to host');
-  }
+  for(const id in State.players){ if(id===State.myId) continue; const p = State.players[id]; if(!p.alive) continue; const d = Math.hypot(p.x-me.x,p.y-me.y); if(d<nd){ nd=d; nearest=p; } }
+  if(!nearest || nd>48) return appendChat('[GAME] No target in range');
+  if(State.hostId === State.myId){ nearest.alive=false; me.cooldownReadyAt = ts()+10; Net.broadcast({type:'kill', target: nearest.id}); appendChat(`[GAME] You killed ${nearest.name}`); }
+  else { Net.sendToHost({type:'killRequest', by: me.id, target: nearest.id}); appendChat('[GAME] Kill request sent to host'); }
 }
-
-function handleKillRequest(by, target){
-  // host authoritative checks
-  const killer = State.players[by]; const victim = State.players[target];
-  if(!killer || !victim) return;
-  if(killer.role !== 'impostor') return;
-  const now = nowS();
-  if(killer.cooldownReadyAt && now < killer.cooldownReadyAt) return;
-  const d = Math.hypot(killer.x - victim.x, killer.y - victim.y);
-  if(d > 48) return;
-  victim.alive = false; killer.cooldownReadyAt = now + 10;
-  Net.broadcast({type:'kill', target: victim.id});
-  appendLog(`[GAME] Host recorded kill: ${killer.name} -> ${victim.name}`);
-}
-
 function attemptReportNearby(){
-  let nearest = null; let nd = Infinity;
-  for(const id in State.players){ const p = State.players[id]; if(p.alive) continue; const d = Math.hypot(p.x - (State.players[State.myId]||{}).x, p.y - (State.players[State.myId]||{}).y); if(d < nd){ nd = d; nearest = p; } }
-  if(!nearest || nd > 48){ appendLog('[GAME] No dead body nearby to report'); return; }
-  Net.broadcast({type:'report', by: State.myId, bodyId: nearest.id, x: nearest.x, y: nearest.y, byName: State.players[State.myId].name});
-  appendLog('[GAME] Reported body: ' + (nearest.name || nearest.id));
+  let nearest=null; let nd=Infinity;
+  for(const id in State.players){ const p = State.players[id]; if(p.alive) continue; const me = State.players[State.myId]; if(!me) return; const d = Math.hypot(p.x-me.x,p.y-me.y); if(d<nd){ nd=d; nearest=p; } }
+  if(!nearest || nd>48) return appendChat('[GAME] No dead body nearby');
+  Net.broadcast({type:'report', by: State.myId, bodyId: nearest.id, x: nearest.x, y: nearest.y}); appendChat('[GAME] Body reported');
 }
+function callMeetingByMe(){ Net.broadcast({type:'report', by: State.myId, bodyId: null, x: State.players[State.myId].x, y: State.players[State.myId].y}); appendChat('[GAME] Meeting called'); }
 
-/* ----------------- Meeting & Voting ----------------- */
+let meetingBackup = null;
 function beginMeeting(callerId, bodyId, x, y){
-  gameStateBackup = State.inGame; State.inGame = false;
-  el('meetingModal').style.display = 'flex';
-  const opts = el('meetingOptions'); opts.innerHTML = '';
-  const alive = Object.values(State.players).filter(p => p.alive);
-  for(const p of alive){
-    const b = document.createElement('button'); b.className='btn small-btn'; b.textContent = p.name; b.dataset.pid = p.id;
-    b.onclick = ()=> { document.querySelectorAll('#meetingOptions button').forEach(x=>x.dataset.selected=0); b.dataset.selected=1; };
-    opts.appendChild(b);
-  }
-  el('meetingVote').onclick = ()=> {
-    const sel = opts.querySelector('button[data-selected="1"]');
-    const target = sel ? sel.dataset.pid : 'skip';
-    appendLog(`[VOTE] ${State.players[State.myId].name} voted ${target}`);
-    if(State.hostId === State.myId) tallyVote(State.myId, target);
-    else Net.sendToHost({type:'vote', by: State.myId, target});
-    el('meetingModal').style.display='none';
-    State.inGame = gameStateBackup;
-  };
-  el('meetingSkip').onclick = ()=> { el('meetingModal').style.display='none'; State.inGame = gameStateBackup; Net.broadcast({type:'vote', by: State.myId, target:'skip'}); };
+  meetingBackup = {inGame: State.inGame}; State.inGame = false;
+  $('meetingModal').style.display = 'flex';
+  const opts = $('meetingOptions'); opts.innerHTML = '';
+  const alive = Object.values(State.players).filter(p=>p.alive);
+  for(const p of alive){ const b = document.createElement('button'); b.className='btn-sm'; b.textContent = p.name; b.dataset.pid = p.id; b.onclick = ()=>{ opts.querySelectorAll('button').forEach(x=>x.dataset.selected=0); b.dataset.selected=1; }; opts.appendChild(b); }
+  $('meetingVote').onclick = ()=>{ const sel = opts.querySelector('button[data-selected="1"]'); const target = sel ? sel.dataset.pid : 'skip'; if(State.hostId === State.myId) tallyVote(State.myId, target); else Net.sendToHost({type:'vote', by: State.myId, target}); $('meetingModal').style.display='none'; State.inGame = meetingBackup.inGame; };
+  $('meetingSkip').onclick = ()=>{ $('meetingModal').style.display='none'; State.inGame = meetingBackup.inGame; Net.broadcast({type:'vote', by: State.myId, target: 'skip'}); };
 }
 
-/* tally votes on host */
+/* Vote tally (host authoritative) */
 const voteTally = {};
 function tallyVote(by, target){
   voteTally[by] = target;
-  // bots auto-vote; check if all alive have voted (host knows)
-  const voters = Object.keys(State.players).filter(id => State.players[id].alive);
-  // auto-fill bots
+  const voters = Object.keys(State.players).filter(id=>State.players[id].alive);
+  // auto-vote bots
   for(const id of voters){ if(State.players[id].isBot && !voteTally[id]) voteTally[id] = Math.random() < 0.6 ? 'skip' : (voters[Math.floor(Math.random()*voters.length)] || 'skip'); }
   const all = voters.every(v => voteTally[v]);
-  if(!all){ appendLog('[VOTE] Waiting for votes...'); return; }
-  // count
-  const counts = {}; for(const v in voteTally){ counts[voteTally[v]] = (counts[voteTally[v]]||0) + 1; }
-  // find highest (excluding skip perhaps)
-  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  const top = entries[0] ? entries[0][0] : 'skip';
-  if(top && top !== 'skip' && State.players[top]){ State.players[top].alive = false; Net.broadcast({type:'eject', target: top}); appendLog('[VOTE] ' + State.players[top].name + ' ejected.'); }
-  else appendLog('[VOTE] No one ejected (skip).');
-  // clear
+  if(!all) return appendChat('[VOTE] Waiting for votes...');
+  const counts = {}; for(const v in voteTally){ counts[voteTally[v]] = (counts[voteTally[v]]||0)+1; }
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]); const top = entries[0] ? entries[0][0] : 'skip';
+  if(top && top !== 'skip' && State.players[top]){ State.players[top].alive=false; Net.broadcast({type:'eject', target: top}); appendChat(`[VOTE] ${State.players[top].name} ejected`); }
+  else appendChat('[VOTE] No ejection (skip)');
   for(const k in voteTally) delete voteTally[k];
 }
 
-/* ----------------- Host and client connect UI (LAN beacon) ----------------- */
-let beaconInterval = null;
-el('hostBtn').addEventListener('click', ()=>{
-  // start advertising via localStorage beacon; also make this player host
-  if(!State.myId){ createLocalPlayer(el('nameInput').value || ('Host'+Math.floor(Math.random()*999))); }
-  State.hostId = State.myId;
-  appendLog('[NET] Hosting via LAN beacon; other tabs on same origin may discover you.');
-  if(beaconInterval) clearInterval(beaconInterval);
-  beaconInterval = setInterval(()=> {
-    try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), host: State.hostId, players: Object.keys(State.players)})); }catch(e){}
-  }, 800);
-});
+/* ------------- Host processing of killRequests (if any) ------------- */
+(function patchHostRequestHandling(){
+  const origOnRemote = onRemote;
+  onRemote = function(from, msg){
+    origOnRemote(from,msg);
+    if(State.hostId === State.myId && msg && msg.type === 'killRequest'){ handleKillRequest(msg.by, msg.target); }
+  };
+})();
+function handleKillRequest(by,target){
+  const killer = State.players[by], victim = State.players[target];
+  if(!killer || !victim) return;
+  if(killer.role !== 'impostor') return;
+  const nowSec = ts(); if(killer.cooldownReadyAt && nowSec < killer.cooldownReadyAt) return;
+  const d = Math.hypot(killer.x-victim.x,killer.y-victim.y); if(d > 48) return;
+  victim.alive=false; killer.cooldownReadyAt = nowSec + 10; Net.broadcast({type:'kill', target: victim.id}); appendChat(`[HOST] ${killer.name} killed ${victim.name}`);
+}
 
-el('joinBtn').addEventListener('click', ()=>{
-  // announce presence and attempt discovery; other tabs will see beacon event via storage
-  appendLog('[NET] Announcing presence via beacon (check other tabs on same origin)');
-  try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), join: State.myId, name: State.myName || el('nameInput').value || 'Guest'})); }catch(e){}
-});
-
-/* Respond to beacon reads in storage event already wired above (onRemote) */
-
-/* ----------------- Host authoritative state broadcast (simple) ----------------- */
+/* ------------- Host periodic authoritative broadcast ------------- */
 let hostTick = null;
 function startHostTick(){
   if(hostTick) clearInterval(hostTick);
@@ -632,141 +453,145 @@ function startHostTick(){
     const snap = {players:{}, tasks:{}};
     for(const id in State.players){ const p = State.players[id]; snap.players[id] = {x:p.x,y:p.y,alive:p.alive,role:p.role,name:p.name,color:p.color}; }
     for(const tid in State.tasks){ const t = State.tasks[tid]; snap.tasks[tid] = {x:t.x,y:t.y,done:t.done,progress:t.progress}; }
-    Net.broadcast({type:'state', p: {id: State.myId, playersSnap: snap}});
-  }, 300);
+    Net.broadcast({type:'hostSnapshot', payload: snap});
+  }, 250);
 }
-
-/* When clients receive a 'state' with playersSnap do merging in onRemote
-   (above we treat type:'state' for individual p updates; host state uses playersSnap) */
-
-/* ----------------- Game loop ----------------- */
-let last = performance.now();
-function step(now){
-  const dt = Math.min(0.05,(now-last)/1000); last = now;
-  // local movement
-  const me = State.players[State.myId];
-  if(me && State.inGame && me.alive){
-    let dx=0,dy=0;
-    if(inputs.left) dx-=1; if(inputs.right) dx+=1; if(inputs.up) dy-=1; if(inputs.down) dy+=1;
-    if(dx||dy){ const len=Math.hypot(dx,dy)||1; me.x += (dx/len) * me.speed * dt; me.y += (dy/len) * me.speed * dt; }
-    // clamp to map view
-    me.x = clamp(me.x, 20, Map.width-20); me.y = clamp(me.y, 20, Map.height-20);
-    // broadcast state update to peers (simple)
-    Net.broadcast({type:'state', p: {id: me.id, x: me.x, y: me.y, alive: me.alive, name: me.name, color: me.color, role: me.role}});
-  }
-
-  // bots movement
-  for(const id in State.players){
-    const p = State.players[id];
-    if(p.isBot && p.alive && State.inGame){
-      // bot wander toward nearest incomplete task
-      const tasks = Object.values(State.tasks).filter(t=>!t.done);
-      if(tasks.length){
-        let nearest = tasks[0]; let nd = Math.hypot(nearest.x-p.x, nearest.y-p.y);
-        for(const t of tasks){ const d = Math.hypot(t.x-p.x,t.y-p.y); if(d<nd){ nd=d; nearest=t; } }
-        const dx = nearest.x - p.x, dy = nearest.y - p.y; const len = Math.hypot(dx,dy)||1;
-        p.x += (dx/len) * p.speed * 0.4 * dt; p.y += (dy/len) * p.speed * 0.4 * dt;
-        if(Math.hypot(nearest.x-p.x, nearest.y-p.y) < 14){ nearest.progress = Math.min(100, nearest.progress + 25*dt); if(nearest.progress>=100){ nearest.done=true; appendLog(`[BOT] ${p.name} completed ${nearest.id}`); } }
-      }
+(function patchSnapshotHandler(){
+  const orig = onRemote;
+  onRemote = function(from,msg){
+    if(msg && msg.type === 'hostSnapshot' && State.hostId && from === State.hostId){
+      const snap = msg.payload;
+      if(snap.players) for(const id in snap.players){ if(id === State.myId) continue; const s = snap.players[id]; if(!State.players[id]) State.players[id] = new Player(id, s.name || ('P'+id.slice(-4)), s.color || pickColor()); const p = State.players[id]; p.x = s.x; p.y = s.y; p.alive = s.alive; p.role = s.role; }
+      if(snap.tasks) State.tasks = (function(){ const out={}; for(const tid in snap.tasks){ const t=snap.tasks[tid]; out[tid] = new Task(tid, t.x, t.y, t.room || ''); out[tid].done = t.done; out[tid].progress = t.progress; } return out; })();
+      return;
     }
-  }
-
-  // camera center on me
-  if(State.players[State.myId]) { camera.x = clamp(State.players[State.myId].x - CW/2, 0, Map.width - CW); camera.y = clamp(State.players[State.myId].y - CH/2, 0, Map.height - CH); }
-  // render
-  render();
-  requestAnimationFrame(step);
-}
-requestAnimationFrame(step);
-
-function render(){
-  // clear
-  ctx.fillStyle = '#08181d'; ctx.fillRect(0,0,CW,CH);
-  ctx.save(); ctx.translate(-camera.x, -camera.y);
-  drawMap(); drawPlayers();
-  ctx.restore();
-  // UI overlays: tasks list
-  ctx.save(); ctx.resetTransform();
-  ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(12,12,260,120);
-  ctx.fillStyle = '#cfefff'; ctx.font='13px sans-serif'; ctx.fillText('Tasks:', 22,32);
-  let y=52;
-  for(const tid in State.tasks){ if(y>118) break; const t=State.tasks[tid]; ctx.fillStyle = t.done ? '#8df59a' : '#ffd66b'; ctx.fillText(`${tid} ${t.done?'(Done)':''}`,22,y); y+=18; }
-  ctx.restore();
-}
-
-/* ----------------- Task Panel refresh ----------------- */
-function refreshTaskPanel(){
-  // physical task list in UI: quick implementation using player list area
-  // simply update chat with task counts for now
-  // (UI task panel was earlier in multi-part version; here we keep it compact)
-  const total = Object.keys(State.tasks).length;
-  const done = Object.values(State.tasks).filter(t=>t.done).length;
-  el('hud').innerText = State.inGame ? `${State.players[State.myId] ? State.players[State.myId].name : 'You'} • ${State.players[State.myId] ? State.players[State.myId].role.toUpperCase() : ''}` : `Lobby • Tasks ${done}/${total}`;
-}
-
-/* ----------------- Helpers & initial seeds ----------------- */
-function initDemo(){
-  if(!State.players[State.myId]) createLocalPlayer(el('nameInput').value || ('You'+Math.floor(Math.random()*999)));
-  updatePlayerList();
-  seedTasks(8);
-  refreshTaskPanel();
-}
-initDemo();
-
-/* ----------------- Help & UI handlers ----------------- */
-function toggleHelp(){ const h = el('helpOverlay'); h.style.display = (h.style.display === 'flex') ? 'none' : 'flex'; }
-el('helpBtn').addEventListener('click', toggleHelp);
-el('helpClose').addEventListener('click', ()=> el('helpOverlay').style.display='none');
-el('exportBtn').addEventListener('click', ()=> {
-  const snap = {map: Map, tasks: State.tasks, players: (()=>{ const o={}; for(const id in State.players){ const p=State.players[id]; o[id]={name:p.name,color:p.color,role:p.role,alive:p.alive}; } return o; })()};
-  const url = URL.createObjectURL(new Blob([JSON.stringify(snap,null,2)], {type:'application/json'}));
-  const a = document.createElement('a'); a.href=url; a.download='amonglite_snapshot.json'; a.click(); URL.revokeObjectURL(url); appendLog('[SYS] exported snapshot');
-});
-
-/* ----------------- OnRemote hook: extend to handle host killRequest etc. ------------------- */
-(function extendOnRemote(){
-  const original = onRemote;
-  onRemote = function(from, msg){
-    original(from, msg);
-    // host special: handle killRequest messages
-    if(State.hostId === State.myId && msg && msg.type === 'killRequest'){ handleKillRequest(msg.by, msg.target); }
+    return orig(from,msg);
   };
 })();
 
-/* ----------------- handleKillRequest for host ----------------- */
-function handleKillRequest(by, target){
-  const killer = State.players[by]; const victim = State.players[target];
-  if(!killer || !victim) return;
-  if(killer.role !== 'impostor') return;
-  const now = nowS(); if(killer.cooldownReadyAt && now < killer.cooldownReadyAt) return;
-  const d = Math.hypot(killer.x - victim.x, killer.y - victim.y);
-  if(d > 48) return;
-  victim.alive = false; killer.cooldownReadyAt = now + 10;
-  Net.broadcast({type:'kill', target: victim.id});
-  appendLog(`[HOST] ${killer.name} killed ${victim.name}`);
+/* ------------- Bot behavior ------------- */
+function updateBots(dt){
+  for(const id in State.players){
+    const p = State.players[id];
+    if(!p.isBot || !p.alive || !State.inGame) continue;
+    const tasks = Object.values(State.tasks).filter(t=>!t.done);
+    if(tasks.length===0) continue;
+    let nearest = tasks[0], nd = Math.hypot(tasks[0].x-p.x, tasks[0].y-p.y);
+    for(const t of tasks){ const d = Math.hypot(t.x-p.x,t.y-p.y); if(d<nd){ nd=d; nearest=t; } }
+    const dx = nearest.x - p.x, dy = nearest.y - p.y; const len = Math.hypot(dx,dy)||1;
+    p.x += (dx/len) * p.speed * 0.45 * dt; p.y += (dy/len) * p.speed * 0.45 * dt;
+    if(Math.hypot(nearest.x - p.x, nearest.y - p.y) < 12){ nearest.progress = Math.min(100, nearest.progress + 30*dt); if(nearest.progress >= 100){ nearest.done = true; appendChat(`[BOT] ${p.name} completed ${nearest.id}`); } }
+  }
 }
 
-/* ----------------- finalize host tick when hosting ----------------- */
-setInterval(()=>{ if(State.hostId === State.myId) startHostTick(); }, 1000);
+/* ------------- Task interactions (open task minigame placeholders) ------------- */
+function openTaskMinigameNearby(){
+  const me = State.players[State.myId]; if(!me || !State.inGame || !me.alive) return;
+  for(const tid in State.tasks){ const t = State.tasks[tid]; if(!t.done && Math.hypot(t.x-me.x,t.y-me.y) < 28){ openSimpleTask(tid); return; } }
+  appendChat('[TASK] No nearby incomplete task');
+}
+function openSimpleTask(tid){
+  const t = State.tasks[tid]; if(!t) return;
+  // simple progress modal
+  const modal = document.createElement('div'); modal.className='modal'; modal.style.display='flex';
+  const card = document.createElement('div'); card.className='card'; card.innerHTML = `<h3>Task ${tid}</h3><div style="background:#012a30;height:18px;border-radius:8px;overflow:hidden"><div id="bar" style="width:${t.progress}%;height:100%;background:#ffd166"></div></div><div style="display:flex;justify-content:flex-end;margin-top:8px"><button id="taskClose" class="btn-sm secondary">Close</button><button id="taskWork" class="btn-sm">Work</button></div>`;
+  modal.appendChild(card); document.body.appendChild(modal);
+  let workInterval = null;
+  card.querySelector('#taskWork').addEventListener('mousedown', ()=> {
+    workInterval = setInterval(()=> { t.progress = Math.min(100, t.progress + 3); card.querySelector('#bar').style.width = t.progress + '%'; if(t.progress >= 100){ t.done=true; appendChat(`[TASK] ${tid} completed`); clearInterval(workInterval); modal.remove(); } }, 120);
+  });
+  window.addEventListener('mouseup', ()=> { if(workInterval) clearInterval(workInterval); });
+  card.querySelector('#taskClose').addEventListener('click', ()=> { if(workInterval) clearInterval(workInterval); modal.remove(); });
+}
 
-/* ----------------- simple persist on unload ----------------- */
-window.addEventListener('beforeunload', ()=> {
-  try{ localStorage.setItem('amonglite_local', JSON.stringify({myId: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : el('nameInput').value})); }catch(e){}
+/* ------------- Game loop ------------- */
+let last = now();
+function loop(nowTime){
+  const dt = Math.min(0.05,(nowTime-last)/1000); last = nowTime;
+  // update local player velocity from inputs
+  const me = State.players[State.myId];
+  if(me && State.inGame && me.alive){
+    let dx=0,dy=0; if(inputs.left) dx-=1; if(inputs.right) dx+=1; if(inputs.up) dy-=1; if(inputs.down) dy+=1;
+    if(dx || dy){ const len = Math.hypot(dx,dy)||1; me.x += (dx/len) * me.speed * dt; me.y += (dy/len) * me.speed * dt; }
+    // clamp
+    me.x = clamp(me.x, 20, MapData.width - 20); me.y = clamp(me.y, 20, MapData.height - 20);
+    // broadcast small state
+    Net.broadcast({type:'state', p:{id: me.id, x: me.x, y: me.y, alive: me.alive, role: me.role, name: me.name, color: me.color}});
+  }
+  // bots
+  updateBots(dt);
+  // center camera
+  if(State.players[State.myId]){ camera.x = clamp(State.players[State.myId].x - CW/2, 0, MapData.width - CW); camera.y = clamp(State.players[State.myId].y - CH/2, 0, MapData.height - CH); }
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ------------- Helpers & setup ------------- */
+function refreshAll(){
+  updatePlayerList(); refreshHUD(); seedTasksIfEmpty();
+}
+function refreshHUD(){ const me = State.players[State.myId]; $('hud').innerText = State.inGame ? (me ? `${me.name} • ${me.role.toUpperCase()} • ${me.alive ? 'Alive' : 'Dead'}` : 'In Game') : (me ? `Lobby • ${me.name}` : 'Lobby'); }
+function appendChat(msg){ appendChat; } // avoid lint issue: function above
+
+/* ------------- LAN Host / Join buttons ------------- */
+$('hostBtn').addEventListener('click', ()=> {
+  if(!State.myId) createLocalPlayer($('nameInput').value.trim() || ('Host'+Math.floor(Math.random()*999)));
+  State.hostId = State.myId; appendChat(`[NET] Hosting as ${State.players[State.myId].name}`);
+  if(window._beaconInterval) clearInterval(window._beaconInterval);
+  window._beaconInterval = setInterval(()=> { try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), host: State.hostId, players: Object.keys(State.players)})); }catch(e){} }, 800);
+  startHostTick();
+});
+$('joinBtn').addEventListener('click', ()=> {
+  if(!State.myId) createLocalPlayer($('nameInput').value.trim() || ('Guest'+Math.floor(Math.random()*999)));
+  appendChat('[NET] Announcing join presence via beacon'); try{ localStorage.setItem('amonglite_beacon', JSON.stringify({ts:Date.now(), join: State.myId, name: State.players[State.myId].name})); }catch(e){}
 });
 
-/* restore local id if exists */
+/* ------------- Beacon reaction: when a host advertises, auto-connect on same origin ------------- */
+window.addEventListener('storage', ev => {
+  if(ev.key !== 'amonglite_beacon' || !ev.newValue) return;
+  try{
+    const data = JSON.parse(ev.newValue);
+    if(data.host && data.host !== State.hostId && data.host !== State.myId){
+      // discovered host
+      appendChat(`[NET] Discovered host: ${data.host}`);
+      State.hostId = data.host;
+      // request join by broadcasting join message
+      Net.broadcast({type:'join', id: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : $('nameInput').value, color: State.players[State.myId] ? State.players[State.myId].color : '#6be7ff'});
+    }
+  }catch(e){}
+});
+
+/* ------------- Restore cached local player ------------- */
 try{
-  const saved = JSON.parse(localStorage.getItem('amonglite_local') || '{}');
-  if(saved && saved.myId && !State.players[saved.myId]){ State.players[saved.myId] = new Player(saved.myId, saved.name || ('P'+saved.myId.slice(-4)), pickColor()); State.myId = saved.myId; updatePlayerList(); }
+  const saved = JSON.parse(localStorage.getItem('amonglite_local')||'{}');
+  if(saved && saved.myId && !State.players[saved.myId]){ State.players[saved.myId] = new Player(saved.myId, saved.name || ('P'+saved.myId.slice(-4)), pickColor()); State.myId = saved.myId; updatePlayerList(); appendChat('[SYSTEM] Restored local session'); }
 }catch(e){}
 
-/* ===========================
-   End of single-file prototype
-   - This file runs entirely in the browser and requires NO backend.
-   - For cross-device manual P2P: use Offer/Answer copy-paste (create offer on host, paste into remote, create answer, paste back).
-   - For same-origin quick tests: Host and Join via LAN beacon will communicate via localStorage events (tabs on same origin).
-   - Improvements you can request: full automatic signaling (needs a tiny signaling server), voice, art/sprites, more robust reconnection.
-   =========================== */
+/* ------------- Save local session ------------- */
+window.addEventListener('beforeunload', ()=> { try{ localStorage.setItem('amonglite_local', JSON.stringify({myId: State.myId, name: State.players[State.myId] ? State.players[State.myId].name : $('nameInput').value || '' })); }catch(e){} });
+
+/* ------------- Help modal handlers ------------- */
+$('helpBtn').addEventListener('click', ()=> $('helpModal').style.display = 'flex');
+$('helpClose').addEventListener('click', ()=> $('helpModal').style.display = 'none');
+
+/* ------------- Connect basic actions: click task open, doubleclick to move ------------- */
+canvas.addEventListener('dblclick', e=> {
+  if(!State.myId) return;
+  const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) + camera.x; const my = (e.clientY - rect.top) + camera.y;
+  State.players[State.myId].x = mx; State.players[State.myId].y = my;
+});
+canvas.addEventListener('contextmenu', e=> { e.preventDefault(); openTaskMinigameNearby(); });
+
+/* ------------- Utility: simple implementation of functions used earlier (avoid duplication) ------------- */
+function appendChat(msg){ const cm = $('chatMsgs'); const d = document.createElement('div'); d.textContent = msg; cm.appendChild(d); cm.scrollTop = cm.scrollHeight; }
+function updatePlayerList(){ const node=$('playerList'); node.innerHTML=''; for(const id in State.players){ const p=State.players[id]; const div=document.createElement('div'); div.className='player-row'; div.innerHTML=`<div><strong>${p.name}</strong> <span class="small">${p.isBot?'<em>BOT</em>':''}</span></div><div>${p.ready?'<span class="small">Ready</span>':''}</div>`; node.appendChild(div);} }
+function seedTasksIfEmpty(){ if(Object.keys(State.tasks).length===0){ const anchors = shuffle(MapData.anchors.slice()); for(let i=0;i<8 && i<anchors.length;i++){ const a=anchors[i]; State.tasks['t_'+i] = new Task('t_'+i, Math.round(a.x), Math.round(a.y), a.room); } refreshHUD(); } }
+function refreshHUD(){ const me = State.players[State.myId]; $('hud').innerText = State.inGame ? (me? `${me.name} • ${me.role.toUpperCase()} • ${me.alive?'Alive':'Dead'}` : 'In Game') : (me?`Lobby • ${me.name}`:'Lobby'); }
+
+/* ------------- Final note printed to console ------------- */
+console.log('AmongLite (no-backend) loaded. Use Host (LAN) for same-origin or Manual WebRTC offer/answer to connect devices.');
+
 </script>
 </body>
 </html>

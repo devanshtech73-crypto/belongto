@@ -1,221 +1,694 @@
-/* Custom Properties for Dark Mode (Default) */
-:root {
-    --bg-color: #1e1e1e;
-    --fg-color: #f0f0f0;
-    --sidebar-bg: #2d2d2d;
-    --primary-color: #007acc; /* VS Code Blue */
-    --hover-color: #005f99;
-    --border-color: #3f3f3f;
-    --transition-speed: 0.2s;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapMini Photo Editor (Single File)</title>
+    
+    <style>
+        /* Custom Properties for Dark Mode (Default) */
+        :root {
+            --bg-color: #1e1e1e;
+            --fg-color: #f0f0f0;
+            --sidebar-bg: #2d2d2d;
+            --primary-color: #007acc; /* VS Code Blue */
+            --hover-color: #005f99;
+            --border-color: #3f3f3f;
+            --transition-speed: 0.2s;
+        }
 
-/* Light Mode Override */
-body[data-theme="light"] {
-    --bg-color: #ffffff;
-    --fg-color: #1e1e1e;
-    --sidebar-bg: #f5f5f5;
-    --primary-color: #007acc;
-    --hover-color: #e0e0e0;
-    --border-color: #cccccc;
-}
+        /* Light Mode Override */
+        body[data-theme="light"] {
+            --bg-color: #ffffff;
+            --fg-color: #1e1e1e;
+            --sidebar-bg: #f5f5f5;
+            --primary-color: #007acc;
+            --hover-color: #e0e0e0;
+            --border-color: #cccccc;
+        }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: var(--bg-color);
-    color: var(--fg-color);
-    transition: background-color var--transition-speed;
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-}
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--fg-color);
+            transition: background-color var(--transition-speed);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Prevent scroll on main body */
+        }
 
-#app {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-}
+        #app {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
 
-/* --- Top Bar --- */
-#top-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 20px;
-    background-color: var(--sidebar-bg);
-    border-bottom: 1px solid var(--border-color);
-}
+        /* --- Top Bar --- */
+        #top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: var(--sidebar-bg);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
 
-#top-bar h1 {
-    font-size: 1.2em;
-    font-weight: 300;
-}
+        #top-bar h1 {
+            font-size: 1.2em;
+            font-weight: 300;
+        }
 
-button {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    margin-left: 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background-color var(--transition-speed);
-}
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            margin-left: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color var(--transition-speed);
+            white-space: nowrap;
+        }
 
-button:hover:not([disabled]) {
-    background-color: var(--hover-color);
-}
+        button:hover:not([disabled]) {
+            background-color: var(--hover-color);
+        }
 
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
-/* --- Editor Container & Sidebars --- */
-#editor-container {
-    flex-grow: 1;
-    display: flex;
-    overflow: hidden;
-}
+        /* --- Editor Container & Sidebars --- */
+        #editor-container {
+            flex-grow: 1;
+            display: flex;
+            overflow: hidden;
+        }
 
-.sidebar {
-    width: 250px;
-    background-color: var(--sidebar-bg);
-    padding: 20px;
-    border-right: 1px solid var(--border-color); /* Separator */
-    overflow-y: auto;
-    flex-shrink: 0;
-    transition: transform var(--transition-speed), opacity var(--transition-speed);
-}
+        .sidebar {
+            width: 250px;
+            background-color: var(--sidebar-bg);
+            padding: 20px;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            flex-shrink: 0;
+            transition: width var(--transition-speed), transform var(--transition-speed);
+        }
 
-#right-sidebar {
-    border-right: none;
-    border-left: 1px solid var(--border-color);
-}
+        #right-sidebar {
+            border-right: none;
+            border-left: 1px solid var(--border-color);
+        }
 
-/* --- Tools List --- */
-#tools-list {
-    list-style: none;
-    padding: 0;
-}
+        /* --- Tools List --- */
+        #tools-list {
+            list-style: none;
+            padding: 0;
+        }
 
-#tools-list li button {
-    width: 100%;
-    text-align: left;
-    background: none;
-    color: var(--fg-color);
-    padding: 10px;
-    margin: 5px 0;
-    border: 1px solid transparent;
-    transition: background-color var(--transition-speed), border-color var(--transition-speed);
-}
+        #tools-list li button {
+            width: 100%;
+            text-align: left;
+            background: none;
+            color: var(--fg-color);
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid transparent;
+            transition: background-color var(--transition-speed), border-color var(--transition-speed);
+        }
 
-#tools-list li button:hover {
-    background-color: var(--border-color);
-}
+        #tools-list li button:hover {
+            background-color: var(--border-color);
+        }
 
-#tools-list li button.active {
-    background-color: var(--primary-color);
-    color: white;
-}
+        #tools-list li button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
 
-/* --- Canvas Area --- */
-#canvas-area {
-    flex-grow: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-color: var(--bg-color); /* Center background */
-    position: relative;
-    overflow: hidden;
-}
+        /* --- Canvas Area --- */
+        #canvas-area {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--bg-color);
+            position: relative;
+            overflow: hidden;
+        }
 
-#editor-canvas {
-    max-width: 100%;
-    max-height: 100%;
-    display: none; /* Hide until image is loaded */
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    /* For responsiveness, the JS handles scaling to fit */
-}
+        #editor-canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: none;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            /* Important: max-width/height handle responsiveness */
+        }
 
-#placeholder {
-    font-size: 1.5em;
-    color: var(--border-color);
-}
+        #placeholder {
+            font-size: 1.5em;
+            color: var(--border-color);
+        }
 
-/* --- Settings Panel --- */
-.setting-group {
-    margin-bottom: 20px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-color);
-}
+        /* --- Settings Panel --- */
+        .setting-group {
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
 
-.setting-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-size: 0.9em;
-    font-weight: bold;
-}
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
 
-.slider-value {
-    font-weight: normal;
-    float: right;
-    color: var(--primary-color);
-}
+        .slider-value {
+            font-weight: normal;
+            float: right;
+            color: var(--primary-color);
+        }
 
-input[type="range"] {
-    width: 100%;
-    margin-top: 5px;
-}
+        input[type="range"] {
+            width: 100%;
+            margin-top: 5px;
+        }
 
-/* --- Responsive (Mobile View) --- */
-@media (max-width: 768px) {
-    #editor-container {
-        flex-direction: column;
-    }
+        /* --- Responsive (Mobile View) --- */
+        @media (max-width: 768px) {
+            #top-bar { padding: 10px; }
+            #top-bar h1 { display: none; } /* Hide title on small screens */
+            .actions button { margin-left: 5px; padding: 6px 10px; }
+            
+            #editor-container {
+                flex-direction: column;
+            }
 
-    .sidebar {
-        width: 100%;
-        height: 50vh; /* Takes half screen on mobile by default */
-        border-right: none;
-        border-left: none;
-    }
+            .sidebar {
+                width: 100%;
+                padding: 10px;
+                border: none;
+                flex-shrink: 1;
+            }
 
-    #left-sidebar {
-        order: 1; /* Move tools below canvas */
-        height: auto;
-        max-height: 200px;
-        overflow-x: auto;
-        white-space: nowrap;
-    }
+            #left-sidebar {
+                order: 1; 
+                max-height: 80px;
+                border-top: 1px solid var(--border-color);
+            }
 
-    #tools-list {
-        display: flex;
-    }
+            #tools-list {
+                display: flex;
+                overflow-x: auto;
+            }
 
-    #tools-list li {
-        flex-shrink: 0;
-        margin-right: 10px;
-    }
+            #tools-list li {
+                flex-shrink: 0;
+                margin-right: 10px;
+            }
 
-    #canvas-area {
-        order: 0; /* Canvas first */
-    }
+            #tools-list li button {
+                padding: 8px 12px;
+            }
 
-    #right-sidebar {
-        order: 2; /* Settings last */
-        position: fixed; /* Overlay on canvas */
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 50vh;
-        z-index: 100;
-        transform: translateY(100%); /* Hidden by default */
-        /* Smooth Slide Animation for Mobile Panel */
-    }
-}
+            #canvas-area {
+                order: 0; 
+                height: 100%; /* Take up remaining height */
+            }
+
+            #right-sidebar {
+                order: 2; 
+                position: fixed; 
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 40vh; /* Slide up 40% of screen */
+                z-index: 100;
+                transform: translateY(100%); /* Hidden by default */
+                transition: transform 0.3s ease-in-out; 
+            }
+            
+            #right-sidebar.active {
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body data-theme="dark">
+    <div id="app">
+        <header id="top-bar">
+            <h1>SnapMini Editor</h1>
+            <div class="actions">
+                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                <button id="load-image-btn">📂 Load</button>
+                <button id="undo-btn" disabled title="Undo (Ctrl+Z)">↩️</button>
+                <button id="redo-btn" disabled title="Redo (Ctrl+Y)">↪️</button>
+                <button id="save-image-btn" disabled>💾 Save</button>
+            </div>
+        </header>
+
+        <main id="editor-container">
+            <aside id="left-sidebar" class="sidebar">
+                <h2>🛠 Tools</h2>
+                <ul id="tools-list">
+                    </ul>
+            </aside>
+
+            <section id="canvas-area">
+                <canvas id="editor-canvas"></canvas>
+                <div id="placeholder">Load an image to start editing.</div>
+            </section>
+
+            <aside id="right-sidebar" class="sidebar">
+                <h2 id="tool-name">Select a Tool</h2>
+                <div id="settings-panel">
+                    </div>
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        const $ = selector => document.querySelector(selector);
+        const $$ = selector => document.querySelectorAll(selector);
+
+        const canvas = $('#editor-canvas');
+        const ctx = canvas.getContext('2d');
+        const imgUpload = $('#image-upload');
+
+        let originalImage = new Image(); 
+        let currentImage = null; // Off-screen canvas buffer
+        let historyStack = []; 
+        let historyPointer = -1;
+        
+        // Non-destructive adjustment layers
+        let adjustmentLayers = {
+            brightness: 0,
+            contrast: 0,
+            saturation: 0,
+            sharpness: 0,
+            exposure: 0,
+            r: 0, g: 0, b: 0, // Color Balance
+            ai_enhance: false, // AI Toggle
+        };
+
+        let activeTool = null;
+        const MAX_HISTORY = 10;
+        let updateTimeout = null; // Debounce for live updates
+
+        // --- Core Utility Functions ---
+
+        /**
+         * Creates an off-screen canvas from an image for pixel manipulation.
+         */
+        function createOffscreenCanvas(img) {
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = img.naturalWidth;
+            offCanvas.height = img.naturalHeight;
+            const offCtx = offCanvas.getContext('2d');
+            offCtx.drawImage(img, 0, 0);
+            return offCanvas;
+        }
+
+        // --- State Management (Undo/Redo) ---
+
+        /**
+         * Saves the current adjustmentLayers state to the history stack.
+         */
+        function saveState() {
+            if (historyPointer < historyStack.length - 1) {
+                historyStack = historyStack.slice(0, historyPointer + 1);
+            }
+            
+            historyStack.push({...adjustmentLayers});
+            
+            if (historyStack.length > MAX_HISTORY) {
+                historyStack.shift();
+            }
+            
+            historyPointer = historyStack.length - 1;
+            updateUndoRedoButtons();
+        }
+
+        /**
+         * Applies a previous state from the history stack.
+         */
+        function navigateHistory(delta) {
+            const newPointer = historyPointer + delta;
+            if (newPointer >= 0 && newPointer < historyStack.length) {
+                historyPointer = newPointer;
+                // Deep copy to current state
+                Object.assign(adjustmentLayers, historyStack[historyPointer]);
+                applyAllFilters();
+                updateSettingsPanel(); // Update UI sliders to reflect history
+            }
+            updateUndoRedoButtons();
+        }
+
+        function updateUndoRedoButtons() {
+            $('#undo-btn').disabled = historyPointer <= 0;
+            $('#redo-btn').disabled = historyPointer >= historyStack.length - 1;
+        }
+        
+        // --- Image Loading & Rendering ---
+
+        function loadImage(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                originalImage.onload = () => {
+                    currentImage = createOffscreenCanvas(originalImage);
+                    
+                    // Reset and save initial state
+                    historyStack = [];
+                    historyPointer = -1;
+                    adjustmentLayers = Object.fromEntries(
+                        Object.keys(adjustmentLayers).map(key => [key, key === 'ai_enhance' ? false : 0])
+                    );
+                    saveState(); 
+                    
+                    applyAllFilters();
+                    
+                    $('#placeholder').style.display = 'none';
+                    canvas.style.display = 'block';
+                    $('#save-image-btn').disabled = false;
+                    
+                    // Activate a tool by default
+                    activateTool('adjust');
+                };
+                originalImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Renders the processed off-screen canvas to the display canvas, handling scaling.
+         */
+        function renderCanvas() {
+            if (!currentImage) return;
+
+            const imgWidth = currentImage.width;
+            const imgHeight = currentImage.height;
+            const container = $('#canvas-area');
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+
+            // Calculate scaling to fit image within container
+            const scale = Math.min(containerWidth / imgWidth, containerHeight / imgHeight);
+
+            const targetWidth = imgWidth * scale;
+            const targetHeight = imgHeight * scale;
+
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            
+            ctx.clearRect(0, 0, targetWidth, targetHeight);
+            // Draw the processed image onto the display canvas
+            ctx.drawImage(currentImage, 0, 0, imgWidth, imgHeight, 0, 0, targetWidth, targetHeight);
+        }
+
+        // --- Core Pixel Filters ---
+
+        /**
+         * Core image processing loop.
+         */
+        function processPixelData(data, adjustments) {
+            const len = data.length;
+            
+            // Pre-calculate factors
+            const contrastFactor = (259 * (adjustments.contrast + 255)) / (255 * (259 - adjustments.contrast));
+            const satValue = adjustments.saturation / 100;
+
+            for (let i = 0; i < len; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+
+                // 1. Exposure/Brightness
+                r += adjustments.exposure + adjustments.brightness;
+                g += adjustments.exposure + adjustments.brightness;
+                b += adjustments.exposure + adjustments.brightness;
+
+                // 2. Contrast
+                r = (r - 128) * contrastFactor + 128;
+                g = (g - 128) * contrastFactor + 128;
+                b = (b - 128) * contrastFactor + 128;
+                
+                // 3. Color Balance
+                r += adjustments.r;
+                g += adjustments.g;
+                b += adjustments.b;
+
+                // 4. Saturation
+                const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                r = gray * (1 - satValue) + r * satValue;
+                g = gray * (1 - satValue) + g * satValue;
+                b = gray * (1 - satValue) + b * satValue;
+
+                // 5. AI Skin Smoothing/Detail Recovery (Remini-like Simulation)
+                if (adjustments.ai_enhance) {
+                     // Simulate skin smoothing (slight color blending)
+                     r = (r * 0.9 + gray * 0.1);
+                     g = (g * 0.9 + gray * 0.1);
+                     b = (b * 0.9 + gray * 0.1);
+
+                     // Simulate detail/clarity boost (slight overall contrast/sharpening)
+                     r = Math.min(255, Math.max(0, r * 1.03));
+                     g = Math.min(255, Math.max(0, g * 1.03));
+                     b = Math.min(255, Math.max(0, b * 1.03));
+                }
+
+                // Clamp values and write back
+                data[i] = Math.min(255, Math.max(0, r));
+                data[i + 1] = Math.min(255, Math.max(0, g));
+                data[i + 2] = Math.min(255, Math.max(0, b));
+            }
+        }
+
+        /**
+         * Main function to apply all stored adjustment layers and re-render.
+         */
+        function applyAllFilters() {
+            if (!originalImage.complete) return;
+
+            // 1. Reset the currentImage canvas to the original state
+            const offCtx = currentImage.getContext('2d');
+            offCtx.drawImage(originalImage, 0, 0);
+
+            const imageData = offCtx.getImageData(0, 0, currentImage.width, currentImage.height);
+            const data = imageData.data;
+            
+            // 2. Asynchronously process the pixel data
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                processPixelData(data, adjustmentLayers);
+
+                // Put the processed data back
+                offCtx.putImageData(imageData, 0, 0);
+
+                // 3. Render to the display canvas
+                renderCanvas();
+            }, 16); // Throttle/Debounce to ~60 FPS
+        }
+
+        // --- UI and Tool Management ---
+
+        const tools = {
+            'adjust': {
+                name: 'Basic Adjustments',
+                icon: '⚙️',
+                settings: [
+                    { id: 'brightness', label: 'Brightness', min: -100, max: 100, step: 1 },
+                    { id: 'contrast', label: 'Contrast', min: -100, max: 100, step: 1 },
+                    { id: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1 },
+                    { id: 'exposure', label: 'Exposure', min: -50, max: 50, step: 1 },
+                ]
+            },
+            'color_balance': {
+                name: 'Color Balance (RGB)',
+                icon: '🌈',
+                settings: [
+                    { id: 'r', label: 'Red Tone', min: -50, max: 50, step: 1 },
+                    { id: 'g', label: 'Green Tone', min: -50, max: 50, step: 1 },
+                    { id: 'b', label: 'Blue Tone', min: -50, max: 50, step: 1 },
+                ]
+            },
+            'ai_enhance': {
+                name: 'AI Enhance (Remini Sim)',
+                icon: '🤖',
+                settings: [
+                    { id: 'ai_enhance', label: 'Enable HD Enhance', type: 'checkbox' }
+                ]
+            },
+            'crop': {
+                name: 'Crop & Rotate',
+                icon: '✂️',
+                settings: [
+                    // Placeholder for complex geometry controls
+                    { id: 'rotate', label: 'Rotate (Not implemented)', min: -180, max: 180, step: 1 },
+                ]
+            },
+        };
+
+        function initToolsList() {
+            const list = $('#tools-list');
+            for (const toolId in tools) {
+                const tool = tools[toolId];
+                const listItem = document.createElement('li');
+                const button = document.createElement('button');
+                button.innerHTML = `${tool.icon} ${tool.name}`;
+                button.setAttribute('data-tool', toolId);
+                button.onclick = () => activateTool(toolId);
+                listItem.appendChild(button);
+                list.appendChild(listItem);
+            }
+        }
+
+        function activateTool(toolId) {
+            if (!currentImage) return;
+
+            activeTool = tools[toolId];
+            
+            $$('#tools-list button').forEach(btn => btn.classList.remove('active'));
+            $(`button[data-tool="${toolId}"]`).classList.add('active');
+
+            $('#tool-name').textContent = `${activeTool.icon} ${activeTool.name}`;
+            renderSettingsPanel(activeTool);
+            
+            // For mobile: show settings panel
+            $('#right-sidebar').classList.add('active');
+        }
+
+        function renderSettingsPanel(tool) {
+            const panel = $('#settings-panel');
+            panel.innerHTML = '';
+
+            tool.settings.forEach(setting => {
+                const value = adjustmentLayers[setting.id];
+                const group = document.createElement('div');
+                group.classList.add('setting-group');
+                
+                if (setting.type === 'checkbox') {
+                    group.innerHTML = `
+                        <label for="${setting.id}">${setting.label}</label>
+                        <input type="checkbox" id="${setting.id}" ${value ? 'checked' : ''} onchange="handleSettingChange(this)">
+                    `;
+                } else {
+                    group.innerHTML = `
+                        <label for="${setting.id}">${setting.label} <span id="${setting.id}-value" class="slider-value">${value}</span></label>
+                        <input type="range" id="${setting.id}" min="${setting.min}" max="${setting.max}" step="${setting.step}" value="${value}"
+                            oninput="updateSliderValue(this)"
+                            onmouseup="handleSettingChange(this)"> 
+                            `;
+                }
+                panel.appendChild(group);
+            });
+            // Update initial UI state
+            updateSettingsPanel();
+        }
+        
+        // This function ensures sliders/checkboxes reflect the current adjustmentLayers state (used after history navigation)
+        function updateSettingsPanel() {
+            if (activeTool) {
+                activeTool.settings.forEach(setting => {
+                    const value = adjustmentLayers[setting.id];
+                    const input = $(`#${setting.id}`);
+                    if (input) {
+                        if (input.type === 'checkbox') {
+                            input.checked = value;
+                        } else {
+                            input.value = value;
+                            $(`#${setting.id}-value`).textContent = value;
+                        }
+                    }
+                });
+            }
+        }
+
+        function updateSliderValue(input) {
+            $(`#${input.id}-value`).textContent = input.value;
+            
+            // Live preview update
+            adjustmentLayers[input.id] = parseFloat(input.value);
+            applyAllFilters();
+        }
+
+        function handleSettingChange(input) {
+            if (input.type === 'checkbox') {
+                adjustmentLayers[input.id] = input.checked;
+            } else {
+                adjustmentLayers[input.id] = parseFloat(input.value);
+            }
+            
+            applyAllFilters(); 
+            saveState(); // Only save state once the interaction is complete
+        }
+
+        // --- Exporting / Saving ---
+
+        function saveImage() {
+            if (!currentImage) return;
+
+            // Use the display canvas for export
+            const dataURL = canvas.toDataURL('image/jpeg', 0.9); // High-quality JPG
+
+            const a = document.createElement('a');
+            a.href = dataURL;
+            a.download = 'snapmini_edited.jpg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        // --- Initialization and Event Listeners ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initToolsList();
+
+            $('#load-image-btn').onclick = () => imgUpload.click();
+            imgUpload.onchange = (e) => {
+                if (e.target.files.length > 0) {
+                    loadImage(e.target.files[0]);
+                }
+            };
+            
+            $('#save-image-btn').onclick = saveImage;
+            
+            $('#undo-btn').onclick = () => navigateHistory(-1);
+            $('#redo-btn').onclick = () => navigateHistory(1);
+            
+            window.addEventListener('resize', renderCanvas);
+            
+            // Close mobile panel when tapping outside (simple approximation)
+            $('#canvas-area').onclick = () => {
+                $('#right-sidebar').classList.remove('active');
+            };
+            
+            // Keyboard Shortcuts
+            document.addEventListener('keydown', (e) => {
+                if (e.ctrlKey || e.metaKey) { // Ctrl for Windows/Linux, Cmd for Mac
+                    if (e.key === 'z') {
+                        e.preventDefault();
+                        navigateHistory(-1);
+                    } else if (e.key === 'y') {
+                        e.preventDefault();
+                        navigateHistory(1);
+                    } else if (e.key === 's') {
+                        e.preventDefault();
+                        if (!saveImage.disabled) saveImage();
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

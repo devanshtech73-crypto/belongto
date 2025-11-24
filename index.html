@@ -79,6 +79,11 @@
             transition: background-color 0.2s, box-shadow 0.2s;
         }
 
+        #restart-button:hover {
+            background-color: #00e0e0;
+            box-shadow: 0 0 20px #00ffff, 0 0 5px #00e0e0;
+        }
+
         #score-board {
             margin-top: 10px;
             font-size: 1.2em;
@@ -103,7 +108,7 @@
             width: 150px;
             height: 150px;
             z-index: 20;
-            display: none; /* Hidden by default, shown based on screen size/device type if needed */
+            display: block; /* NEW: Always visible for testing */
         }
 
         .joystick-base {
@@ -166,8 +171,9 @@
         const SEGMENT_GAP = 4;
         const TIP_SIZE = 15; 
         const FIXED_SPIKE_WARNING_TIME_MS = 2000;
-        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.2;
-        const MAX_OBSTACLES = 2; // NEW: Enforced maximum of 2 obstacles at all times
+        // NEW: Increased base spike speed from 0.2 to 0.4
+        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.4; 
+        const MAX_OBSTACLES = 2; 
         const OBSTACLE_COLOR = '#3b434b';
         
         const SPIKE_COLOR_WOOD = '#8B4513'; 
@@ -183,7 +189,7 @@
             player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: '#00ffff' },
             bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: '#ff00ff', targetX: 0, targetY: 0, stuckTimer: 0 },
             keys: {},
-            joystick: { dx: 0, dy: 0 }, // NEW: Joystick direction vector
+            joystick: { dx: 0, dy: 0 }, 
             spike: {
                 activeSide: null, 
                 warningTimer: 0,
@@ -209,7 +215,6 @@
         const PLAYER_STATUS = document.getElementById('player-status-display');
         const BOT_STATUS = document.getElementById('bot-status-display');
         
-        // NEW Joystick elements
         const JOYSTICK_CONTAINER = document.getElementById('joystick-container');
         const JOYSTICK_HANDLE = document.getElementById('joystick-handle');
         const JOYSTICK_SIZE = 150;
@@ -218,11 +223,9 @@
 
         HIGH_SCORE_DISPLAY.textContent = gameState.highScore.toFixed(2);
         
-        // === Mobile Detection and Setup ===
+        // === Mobile Detection and Setup (Keep the logic for input handling only) ===
         const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-        if (isMobile) {
-            JOYSTICK_CONTAINER.style.display = 'block';
-        }
+        // Joystick is visible by default now
 
         // === Utility Functions ===
 
@@ -318,7 +321,6 @@
             gameState.joystick.dy = 0;
             resetJoystickHandle();
 
-            // Enforce max 2 obstacles initially
             spawnObstacles(MAX_OBSTACLES);
 
             PLAYER_STATUS.textContent = 'ALIVE';
@@ -344,24 +346,25 @@
             gameState.player.dx = 0;
             gameState.player.dy = 0;
             
-            if (!isMobile) {
+            let useKeyboard = !(activeTouchId !== null); // Use keyboard only if joystick isn't actively being used
+            
+            if (useKeyboard) {
                 if (gameState.keys['w']) gameState.player.dy -= MAX_SPEED;
                 if (gameState.keys['s']) gameState.player.dy += MAX_SPEED;
                 if (gameState.keys['a']) gameState.player.dx -= MAX_SPEED;
                 if (gameState.keys['d']) gameState.player.dx += MAX_SPEED;
-            } 
-            
-            // Handle joystick input (Mobile overrides keyboard/is primary on mobile)
-            if (isMobile) {
+            } else {
+                 // Handle joystick input 
                 gameState.player.dx = gameState.joystick.dx * MAX_SPEED;
                 gameState.player.dy = gameState.joystick.dy * MAX_SPEED;
-            } else {
-                 // Normalize PC diagonal movement
-                if (gameState.player.dx !== 0 && gameState.player.dy !== 0) {
-                    const factor = 1 / Math.sqrt(2);
-                    gameState.player.dx *= factor;
-                    gameState.player.dy *= factor;
-                }
+            }
+
+
+            // Normalize PC diagonal movement
+            if (useKeyboard && gameState.player.dx !== 0 && gameState.player.dy !== 0) {
+                const factor = 1 / Math.sqrt(2);
+                gameState.player.dx *= factor;
+                gameState.player.dy *= factor;
             }
 
 
@@ -514,6 +517,7 @@
                     if (isHorizontal) {
                         if (obs.x < endCoord && obs.x + OBSTACLE_SIZE > startCoord) {
                             isAligned = true;
+                            // Distance is from the canvas edge to the near edge of the obstacle
                             dist = (side === 'top') ? obs.y : HEIGHT - (obs.y + OBSTACLE_SIZE);
                         }
                     } else {
@@ -527,7 +531,7 @@
                         minDistance = dist;
                     }
                 }
-                // Add TIP_SIZE as a buffer, since the calculated distance is to the rectangular part of the obstacle.
+                // Store the maximum clear distance (to the obstacle edge)
                 blockLengths[i] = minDistance;
             }
             return blockLengths;
@@ -538,10 +542,11 @@
             const spike = gameState.spike;
             const timeSeconds = gameState.elapsedTime;
 
-            spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 90) * 0.4;
-            spike.growthSpeed = Math.min(0.6, spike.growthSpeed);
+            // Increase speed based on time
+            spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 60) * 0.4;
+            spike.growthSpeed = Math.min(0.8, spike.growthSpeed); // Cap max speed
 
-            // Maintain max 2 obstacles: If we somehow have more than 2, remove the oldest one.
+            // Maintain max 2 obstacles
             while (gameState.obstacles.length > MAX_OBSTACLES) {
                 gameState.obstacles.shift(); 
             }
@@ -567,14 +572,10 @@
             } else {
                 spike.durationTimer += deltaTimeMs;
 
-                // FIX: Spike growth must be capped by the segment that is CLOSEST, even if it's not the overall shortest.
-                // We use the overall growth, but the draw/collision functions check the individual segment block lengths.
-                // To prevent the growth value itself from overshooting the nearest block, we find the shortest block length.
-                const shortestBlockLength = Math.min(...spike.segmentBlockLengths); 
-
-                if (spike.growth < shortestBlockLength + TIP_SIZE) { // Include tip size here to allow the tip to reach the block
+                // FIX: Allow growth to reach MAX_SPIKE_LENGTH. Individual segments handle the obstacle stop.
+                if (spike.growth < MAX_SPIKE_LENGTH) { 
                     spike.growth += spike.growthSpeed * deltaTimeMs;
-                    spike.growth = Math.min(spike.growth, shortestBlockLength + TIP_SIZE);
+                    spike.growth = Math.min(spike.growth, MAX_SPIKE_LENGTH);
                 }
 
                 if (spike.durationTimer >= spike.maxDuration) {
@@ -592,6 +593,7 @@
                 const newObsRect = { x: newObs.x, y: newObs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
                 let collisionFound = false;
 
+                // Check collision with existing obstacles
                 for (const obs of gameState.obstacles) {
                     const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
                     if (checkCollision(newObsRect, obsRect)) {
@@ -600,6 +602,7 @@
                     }
                 }
 
+                // Check collision with center area (initial spawn protection)
                 const centerArea = { x: WIDTH/2 - 100, y: HEIGHT/2 - 100, w: 200, h: 200 };
                  if (checkCollision(newObsRect, centerArea)) {
                     collisionFound = true;
@@ -633,17 +636,16 @@
                 }
                 segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
                 
-                const segmentMaxGrowth = spike.segmentBlockLengths[segmentIndex];
+                const segmentMaxGrowth = gameState.spike.segmentBlockLengths[segmentIndex];
                 
-                // The actual length reached by this specific segment is capped by its block length AND the overall growth
-                const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth + TIP_SIZE); // Spike length includes the tip
+                // Segment length is capped by its block length (to the obstacle edge) + TIP_SIZE
+                const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth + TIP_SIZE); 
 
                 let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
                 
-                // Define the hitbox for the active spike segments
+                // Define the hitbox for the active spike segment
                 switch (spike.activeSide) {
                     case 'top':
-                        // The segment only exists within the segment boundary
                         const xStartTop = segmentIndex * segmentBaseSize;
                         const xEndTop = (segmentIndex + 1) * segmentBaseSize;
                         spikeRect = { x: xStartTop, y: 0, w: xEndTop - xStartTop, h: segmentCurrentLength };
@@ -868,20 +870,6 @@
         // === Joystick Logic ===
         let activeTouchId = null;
 
-        function getTouchCoords(e) {
-            if (activeTouchId !== null) {
-                for (let i = 0; i < e.changedTouches.length; i++) {
-                    if (e.changedTouches[i].identifier === activeTouchId) {
-                        return { 
-                            x: e.changedTouches[i].clientX, 
-                            y: e.changedTouches[i].clientY 
-                        };
-                    }
-                }
-            }
-            return null;
-        }
-
         function startJoystick(e) {
             e.preventDefault();
             if (activeTouchId !== null || !gameState.running) return;
@@ -952,24 +940,24 @@
             JOYSTICK_HANDLE.style.top = `${JOYSTICK_CENTER}px`;
         }
 
-        if (isMobile) {
-            document.addEventListener('touchstart', startJoystick, { passive: false });
-            document.addEventListener('touchmove', handleMoveJoystick, { passive: false });
-            document.addEventListener('touchend', endJoystick);
-            document.addEventListener('touchcancel', endJoystick);
-        }
-
 
         // === Event Listeners ===
         document.addEventListener('keydown', (e) => {
-            if (!isMobile) gameState.keys[e.key.toLowerCase()] = true;
+            gameState.keys[e.key.toLowerCase()] = true;
         });
 
         document.addEventListener('keyup', (e) => {
-            if (!isMobile) gameState.keys[e.key.toLowerCase()] = false;
+            gameState.keys[e.key.toLowerCase()] = false;
         });
 
         RESTART_BUTTON.addEventListener('click', resetGame);
+
+        // Joystick Event listeners (always active now)
+        document.addEventListener('touchstart', startJoystick, { passive: false });
+        document.addEventListener('touchmove', handleMoveJoystick, { passive: false });
+        document.addEventListener('touchend', endJoystick);
+        document.addEventListener('touchcancel', endJoystick);
+
 
         // Initial setup to display the start screen
         UI_OVERLAY.classList.add('active');

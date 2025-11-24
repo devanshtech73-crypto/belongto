@@ -119,8 +119,8 @@
         const BOT_SIZE = 20;
         const OBSTACLE_SIZE = 40;
         const INITIAL_SPEED = 3;
+        const BOT_WANDER_SPEED = 2.5; // Slightly slower speed for bot
         const MAX_SPIKE_LENGTH = 150;
-        // The user requested a fixed 2-second (2000ms) blink/warning time.
         const FIXED_SPIKE_WARNING_TIME_MS = 2000;
         const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.2;
         const MAX_OBSTACLES = 5;
@@ -134,12 +134,12 @@
             elapsedTime: 0,
             highScore: parseFloat(localStorage.getItem('spikeArenaHighScore') || 0),
             player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: '#00ffff' },
-            bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 50, y: HEIGHT / 2 - BOT_SIZE / 2, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: '#ff00ff', targetX: 0, targetY: 0 },
+            bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: '#ff00ff', targetX: 0, targetY: 0, stuckTimer: 0 },
             keys: {},
             spike: {
-                activeSide: null, // 'top', 'right', 'bottom', 'left'
+                activeSide: null, 
                 warningTimer: 0,
-                growth: 0, // current length
+                growth: 0, 
                 maxWarning: FIXED_SPIKE_WARNING_TIME_MS,
                 growthSpeed: INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS,
                 isWarning: false
@@ -162,21 +162,10 @@
 
         // === Utility Functions ===
 
-        /**
-         * Generates a random number within the canvas bounds, respecting size.
-         * @param {number} size - The width/height of the object.
-         * @returns {number} The coordinate.
-         */
         function getRandomCoord(size) {
             return Math.random() * (WIDTH - size);
         }
 
-        /**
-         * Checks for AABB collision between two rectangles.
-         * @param {object} r1 - Rectangle 1 {x, y, w, h}
-         * @param {object} r2 - Rectangle 2 {x, y, w, h}
-         * @returns {boolean} True if they overlap.
-         */
         function checkCollision(r1, r2) {
             return r1.x < r2.x + r2.w &&
                    r1.x + r1.w > r2.x &&
@@ -184,13 +173,6 @@
                    r1.y + r1.h > r2.y;
         }
 
-        /**
-         * Checks for collision between an object (player/bot) and the obstacles.
-         * @param {object} object - The moving object {x, y, size}
-         * @param {number} newX - The potential new X position.
-         * @param {number} newY - The potential new Y position.
-         * @returns {boolean} True if the move results in a collision.
-         */
         function checkObstacleCollision(object, newX, newY) {
             const tempRect = { x: newX, y: newY, w: object.size, h: object.size };
             for (const obs of gameState.obstacles) {
@@ -204,10 +186,8 @@
 
         // === Game Logic Functions ===
 
-        /**
-         * Initializes or resets the game state.
-         */
         function resetGame() {
+            // ... (Reset game state - unchanged from previous versions) ...
             gameState.running = false;
             gameState.gameOver = false;
             gameState.startTime = Date.now();
@@ -228,17 +208,14 @@
             gameState.spike.growth = 0;
             gameState.spike.isWarning = false;
 
-            // Spawn initial obstacles
             spawnObstacles(3);
 
-            // Update UI status
             PLAYER_STATUS.textContent = 'ALIVE';
             PLAYER_STATUS.style.color = 'lime';
             BOT_STATUS.textContent = 'ALIVE';
             BOT_STATUS.style.color = 'lime';
             TIME_DISPLAY.textContent = '0.00';
 
-            // Hide the UI overlay
             UI_OVERLAY.classList.remove('active');
             
             if (gameState.frameId) {
@@ -249,10 +226,6 @@
             gameState.frameId = requestAnimationFrame(gameLoop);
         }
 
-        /**
-         * Handles player movement based on keyboard input.
-         * @param {number} deltaTime - Time elapsed since last frame (in seconds).
-         */
         function handleInput(deltaTime) {
             if (!gameState.player.alive) return;
 
@@ -265,22 +238,18 @@
             if (gameState.keys['a']) gameState.player.dx -= speed;
             if (gameState.keys['d']) gameState.player.dx += speed;
 
-            // Normalize diagonal movement speed
             if (gameState.player.dx !== 0 && gameState.player.dy !== 0) {
                 const factor = 1 / Math.sqrt(2);
                 gameState.player.dx *= factor;
                 gameState.player.dy *= factor;
             }
 
-            // Calculate potential new position
             let newX = gameState.player.x + gameState.player.dx;
             let newY = gameState.player.y + gameState.player.dy;
 
-            // Clamp position to stay within arena bounds
             newX = Math.max(0, Math.min(newX, WIDTH - PLAYER_SIZE));
             newY = Math.max(0, Math.min(newY, HEIGHT - PLAYER_SIZE));
 
-            // Check collision and update position
             if (!checkObstacleCollision(gameState.player, newX, gameState.player.y)) {
                 gameState.player.x = newX;
             }
@@ -290,61 +259,72 @@
         }
 
         /**
-         * Bot AI logic for movement and evasion.
+         * Enhanced Bot AI logic: 
+         * 1. High Priority: Evasion
+         * 2. Low Priority: Pathfinding/Wandering
          * @param {number} deltaTime - Time elapsed since last frame (in seconds).
          */
         function botAI(deltaTime) {
             const bot = gameState.bot;
             if (!bot.alive) return;
 
-            const speed = INITIAL_SPEED * 0.9; 
+            const speed = BOT_WANDER_SPEED;
+            let targetSpeedX = 0;
+            let targetSpeedY = 0;
 
-            // 1. Evasion Logic (High Priority)
+            // 1. Evasion Logic (Highest Priority)
             if (gameState.spike.isWarning || gameState.spike.growth > 0) {
                 const side = gameState.spike.activeSide;
-                const buffer = 10; // Extra clearance from the wall
-
-                let evadeDx = 0;
-                let evadeDy = 0;
 
                 // Move directly away from the danger zone (wall)
                 switch (side) {
                     case 'top':
-                        evadeDy = speed; // Move down
+                        targetSpeedY = speed; // Move down
                         break;
                     case 'bottom':
-                        evadeDy = -speed; // Move up
+                        targetSpeedY = -speed; // Move up
                         break;
                     case 'left':
-                        evadeDx = speed; // Move right
+                        targetSpeedX = speed; // Move right
                         break;
                     case 'right':
-                        evadeDx = -speed; // Move left
+                        targetSpeedX = -speed; // Move left
                         break;
                 }
-
-                bot.dx = evadeDx;
-                bot.dy = evadeDy;
-
             } else {
                 // 2. Wandering Logic (Low Priority)
-                if (Math.random() < 0.01 || (bot.dx === 0 && bot.dy === 0)) { 
-                    wander(bot, speed);
-                }
-
-                // Move towards target
                 const dx = bot.targetX - (bot.x + bot.size / 2);
                 const dy = bot.targetY - (bot.y + bot.size / 2);
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (dist > 5) {
-                    bot.dx = (dx / dist) * speed;
-                    bot.dy = (dy / dist) * speed;
-                } else {
-                    bot.dx = 0;
-                    bot.dy = 0;
+                if (dist < 10 || bot.stuckTimer > 30) { // If close to target or stuck
+                    wander(bot, speed);
+                    bot.stuckTimer = 0;
+                }
+
+                // Move towards target
+                targetSpeedX = (dx / dist) * speed;
+                targetSpeedY = (dy / dist) * speed;
+
+                // Simple obstacle avoidance: check if moving towards the target causes collision.
+                let nextX = bot.x + targetSpeedX;
+                let nextY = bot.y + targetSpeedY;
+
+                if (checkObstacleCollision(bot, nextX, bot.y)) {
+                    // Blocked horizontally, try to go around vertically
+                    targetSpeedX = 0;
+                    targetSpeedY = Math.sign(dy) * speed; 
+                } 
+                
+                if (checkObstacleCollision(bot, bot.x, nextY)) {
+                    // Blocked vertically, try to go around horizontally
+                    targetSpeedY = 0;
+                    targetSpeedX = Math.sign(dx) * speed;
                 }
             }
+
+            bot.dx = targetSpeedX;
+            bot.dy = targetSpeedY;
 
             // Normalize diagonal movement speed
             if (bot.dx !== 0 && bot.dy !== 0) {
@@ -357,28 +337,32 @@
             let newX = bot.x + bot.dx;
             let newY = bot.y + bot.dy;
 
-            // Clamp position to stay within arena bounds
+            // Check if the bot is stuck (no movement despite trying)
+            if (Math.abs(bot.x - newX) < 0.1 && Math.abs(bot.y - newY) < 0.1 && (bot.dx !== 0 || bot.dy !== 0)) {
+                bot.stuckTimer++;
+            } else {
+                bot.stuckTimer = 0;
+            }
+
+
+            // Final position update after boundary check
             newX = Math.max(0, Math.min(newX, WIDTH - BOT_SIZE));
             newY = Math.max(0, Math.min(newY, HEIGHT - BOT_SIZE));
-
-            // Obstacle Collision Check (simplified movement blocking)
-            if (checkObstacleCollision(bot, newX, bot.y)) {
-                newX = bot.x; // Block horizontal movement
+            
+            // Only update position if it's not a direct hit with an obstacle
+            if (!checkObstacleCollision(bot, newX, newY)) {
+                bot.x = newX;
+                bot.y = newY;
+            } else {
+                // Try moving only horizontally, then only vertically if full move fails
+                if (!checkObstacleCollision(bot, newX, bot.y)) {
+                    bot.x = newX;
+                } else if (!checkObstacleCollision(bot, bot.x, newY)) {
+                    bot.y = newY;
+                }
             }
-            if (checkObstacleCollision(bot, bot.x, newY)) {
-                newY = bot.y; // Block vertical movement
-            }
-
-            // Final position update
-            bot.x = newX;
-            bot.y = newY;
         }
 
-        /**
-         * Sets a new random target for the bot to move to.
-         * @param {object} bot - The bot object.
-         * @param {number} speed - The speed of the bot.
-         */
         function wander(bot, speed) {
             // Target coordinates should be center of the square
             bot.targetX = getRandomCoord(bot.size) + bot.size / 2;
@@ -386,16 +370,11 @@
         }
 
 
-        /**
-         * Manages the spike activation, growth, and difficulty scaling.
-         * @param {number} deltaTimeMs - Time elapsed since last frame (in milliseconds).
-         */
         function updateSpikes(deltaTimeMs) {
             const spike = gameState.spike;
             const timeSeconds = gameState.elapsedTime;
 
             // Difficulty Scaling (Only spike growth speed scales, warning time is fixed at 2s)
-            // Growth speed increases from 0.2 up to 0.6 over 90 seconds
             spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 90) * 0.4;
             spike.growthSpeed = Math.min(0.6, spike.growthSpeed);
 
@@ -428,10 +407,6 @@
             }
         }
 
-        /**
-         * Spawns a given number of obstacles in non-colliding locations.
-         * @param {number} count - The number of obstacles to spawn.
-         */
         function spawnObstacles(count) {
             let attempts = 0;
             let currentCount = gameState.obstacles.length;
@@ -442,7 +417,6 @@
                 const newObsRect = { x: newObs.x, y: newObs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
                 let collisionFound = false;
 
-                // Check collision against existing obstacles
                 for (const obs of gameState.obstacles) {
                     const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
                     if (checkCollision(newObsRect, obsRect)) {
@@ -451,7 +425,6 @@
                     }
                 }
 
-                // Check collision against the center area (where player and bot start)
                 const centerArea = { x: WIDTH/2 - 100, y: HEIGHT/2 - 100, w: 200, h: 200 };
                  if (checkCollision(newObsRect, centerArea)) {
                     collisionFound = true;
@@ -468,14 +441,11 @@
         }
 
 
-        /**
-         * Checks if the player or bot has been hit by the active spike.
-         */
         function checkSpikeCollision() {
             const spike = gameState.spike;
             if (spike.growth <= 0) return;
 
-            // Define the spike hitbox based on the active side and current growth
+            // Define the spike hitbox
             let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
             const length = spike.growth;
 
@@ -501,6 +471,7 @@
                     gameState.player.alive = false;
                     PLAYER_STATUS.textContent = 'DEAD';
                     PLAYER_STATUS.style.color = 'red';
+                    endGame(); // Player died first or simultaneously, show defeat
                 }
             }
 
@@ -511,28 +482,21 @@
                     gameState.bot.alive = false;
                     BOT_STATUS.textContent = 'DEAD';
                     BOT_STATUS.style.color = 'red';
-                }
-            }
-
-            // Check for game over condition
-            if (!gameState.player.alive || !gameState.bot.alive) {
-                if (!gameState.player.alive && !gameState.bot.alive) {
-                    endGame(); // Both died
-                } else if (!gameState.player.alive && gameState.bot.alive) {
-                    // Player died, but bot is still alive. Game continues until bot dies.
-                    // The bot will win if it survives the current spike.
-                    // We check this in endGame.
-                } else if (gameState.player.alive && !gameState.bot.alive) {
-                    // Bot died first, player wins immediately.
-                    endGame();
+                    // If player is still alive, end the game with victory for the player
+                    if (gameState.player.alive) {
+                        endGame(); // Bot died first, show victory
+                    }
                 }
             }
         }
 
         /**
          * Ends the game and displays the results.
+         * IMPORTANT: This function is now only called when a death occurs.
          */
         function endGame() {
+            if (gameState.gameOver) return; // Prevent multiple calls
+
             gameState.running = false;
             gameState.gameOver = true;
 
@@ -547,9 +511,11 @@
                 // Bot survived the player
                 message = 'YOU LOSE!'; 
                 BOT_STATUS.style.color = 'gold';
-            } else {
+            } else if (!gameState.player.alive && !gameState.bot.alive) {
                 // Both died (simultaneously or very close)
                 message = 'GAME OVER!';
+            } else {
+                 message = 'Game Over (Unknown State)';
             }
 
 
@@ -566,60 +532,35 @@
             UI_OVERLAY.classList.add('active');
         }
 
-        /**
-         * Main game update loop.
-         * @param {number} currentTime - High resolution timestamp.
-         */
         function update(currentTime) {
             if (!gameState.running) return;
 
             const deltaTimeMs = currentTime - gameState.lastFrameTime;
             gameState.lastFrameTime = currentTime;
-            const deltaTime = deltaTimeMs / 1000; // Delta time in seconds
+            const deltaTime = deltaTimeMs / 1000;
 
             // Only count time if at least one entity is alive
             if (gameState.player.alive || gameState.bot.alive) {
                 gameState.elapsedTime += deltaTime;
             } else {
-                 // Both are dead, end the game immediately if not already ended
-                 if (!gameState.gameOver) {
-                     endGame();
-                 }
+                 // Both are dead, but endGame should have been called in checkSpikeCollision
                  return;
             }
 
-            // Update Time Display
             TIME_DISPLAY.textContent = gameState.elapsedTime.toFixed(2);
 
-            // Update entities if alive
-            handleInput(deltaTime);
-            botAI(deltaTime);
+            // Update entities
+            if (gameState.player.alive) handleInput(deltaTime);
+            if (gameState.bot.alive) botAI(deltaTime);
 
-            // Update Spikes and Difficulty
             updateSpikes(deltaTimeMs);
-
-            // Check for death
+            
+            // Death check must happen after spike update
             checkSpikeCollision();
-
-            // End game if only one is alive and the one that died was the player.
-            // If the bot dies first, endGame() is called in checkSpikeCollision.
-            if (!gameState.player.alive && gameState.bot.alive) {
-                // Player is dead, but bot is alive. Game continues until the bot dies
-                // or the current spike cycle ends (which is when the game should end).
-                // However, the rule is 'if bot survives longer than player -> bot wins'.
-                // Since the player died, the bot is the winner of this moment, so we end the game now.
-                endGame();
-            }
         }
 
         // === Rendering Functions ===
 
-        /**
-         * Draws a single spike rectangle.
-         * @param {string} side - 'top', 'right', 'bottom', 'left'
-         * @param {number} length - Current growth length.
-         * @param {string} color - The color to draw the spike.
-         */
         function drawSpike(side, length, color) {
             CTX.fillStyle = color;
             switch (side) {
@@ -638,9 +579,6 @@
             }
         }
 
-        /**
-         * Main drawing function.
-         */
         function draw() {
             // Clear the canvas
             CTX.clearRect(0, 0, WIDTH, HEIGHT);
@@ -671,9 +609,9 @@
                 CTX.shadowBlur = 10;
                 CTX.shadowColor = gameState.player.color;
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
-                CTX.shadowBlur = 0; // Reset shadow for other objects
-            } else if (gameState.gameOver) {
-                // Draw a small tombstone or faded square when game is over
+                CTX.shadowBlur = 0; 
+            } else if (!gameState.player.alive && !gameState.running) {
+                // Draw faded square after death and game over
                 CTX.fillStyle = 'rgba(0, 255, 255, 0.2)';
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
             }
@@ -684,9 +622,9 @@
                 CTX.shadowBlur = 10;
                 CTX.shadowColor = gameState.bot.color;
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
-                CTX.shadowBlur = 0; // Reset shadow for other objects
-            } else if (gameState.gameOver) {
-                // Draw a small tombstone or faded square when game is over
+                CTX.shadowBlur = 0; 
+            } else if (!gameState.bot.alive && !gameState.running) {
+                // Draw faded square after death and game over
                 CTX.fillStyle = 'rgba(255, 0, 255, 0.2)';
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
             }
@@ -715,7 +653,7 @@
 
         // Initial setup to display the start screen
         UI_OVERLAY.classList.add('active');
-        draw(); // Draw the initial arena/canvas
+        draw(); 
 
     </script>
 </body>

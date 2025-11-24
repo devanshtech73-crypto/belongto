@@ -115,18 +115,23 @@
         const CTX = CANVAS.getContext('2d');
         const WIDTH = CANVAS.width;
         const HEIGHT = CANVAS.height;
-        const PLAYER_SIZE = 20;
-        const BOT_SIZE = 20;
+        const PLAYER_SIZE = 25; // Increased size
+        const BOT_SIZE = 25;    // Increased size
         const OBSTACLE_SIZE = 40;
         const INITIAL_SPEED = 3;
         const BOT_WANDER_SPEED = 2.5; 
         const MAX_SPIKE_LENGTH = 500; 
         const SEGMENTS = 5; 
-        const TIP_SIZE = 15; // Size of the pointed tip extension
+        const SEGMENT_GAP = 2; // Gap between segments
+        const TIP_SIZE = 15; 
         const FIXED_SPIKE_WARNING_TIME_MS = 2000;
         const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.2;
         const MAX_OBSTACLES = 5;
         const OBSTACLE_COLOR = '#3b434b';
+        
+        // NEW Colors
+        const SPIKE_COLOR_BROWN = '#964B00'; 
+        const WARNING_COLOR_RED = '#ff0000';
 
         // === Game State Variables ===
         let gameState = {
@@ -145,9 +150,9 @@
                 maxWarning: FIXED_SPIKE_WARNING_TIME_MS,
                 growthSpeed: INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS,
                 isWarning: false,
-                currentBlockLength: MAX_SPIKE_LENGTH,
-                durationTimer: 0, // NEW: Timer for how long the spike remains
-                maxDuration: 0,   // NEW: Randomly set max duration
+                segmentBlockLengths: new Array(SEGMENTS).fill(MAX_SPIKE_LENGTH), // Stores max length for each segment
+                durationTimer: 0,
+                maxDuration: 0,   
             },
             obstacles: [],
             lastFrameTime: 0,
@@ -189,7 +194,6 @@
             return false;
         }
         
-        // === New: Player-Bot Collision Handler ===
         function handlePlayerBotCollision() {
             if (!gameState.player.alive || !gameState.bot.alive) return;
 
@@ -200,7 +204,6 @@
             const botRect = { x: bot.x, y: bot.y, w: BOT_SIZE, h: BOT_SIZE };
 
             if (checkCollision(playerRect, botRect)) {
-                // Calculate overlap vector
                 const centerPlayerX = player.x + player.size / 2;
                 const centerPlayerY = player.y + player.size / 2;
                 const centerBotX = bot.x + bot.size / 2;
@@ -214,23 +217,23 @@
 
                 if (overlap > 0) {
                     const angle = Math.atan2(dy, dx);
+                    // Distribute the pushing force by moving the bot more than the player,
+                    // but since the player is the one driving the movement, we push the bot.
                     const moveX = overlap * Math.cos(angle);
                     const moveY = overlap * Math.sin(angle);
 
-                    // Push the bot away from the player (Player is the pusher)
+                    // Push the bot away from the player
                     let newBotX = bot.x + moveX;
                     let newBotY = bot.y + moveY;
                     
-                    // Boundary check for bot
                     newBotX = Math.max(0, Math.min(newBotX, WIDTH - BOT_SIZE));
                     newBotY = Math.max(0, Math.min(newBotY, HEIGHT - BOT_SIZE));
                     
-                    // Obstacle check for bot (Bot is being forced to move)
+                    // Check if the pushed position is blocked by a static obstacle
                     if (!checkObstacleCollision(bot, newBotX, newBotY)) {
                         bot.x = newBotX;
                         bot.y = newBotY;
                     } 
-                    // Note: If the bot is pushed against an obstacle, it stops, which is desired.
                 }
             }
         }
@@ -258,9 +261,9 @@
             gameState.spike.warningTimer = 0;
             gameState.spike.growth = 0;
             gameState.spike.isWarning = false;
-            gameState.spike.currentBlockLength = MAX_SPIKE_LENGTH;
-            gameState.spike.durationTimer = 0; // Reset duration timer
-            gameState.spike.maxDuration = 0;   // Reset max duration
+            gameState.spike.segmentBlockLengths.fill(MAX_SPIKE_LENGTH);
+            gameState.spike.durationTimer = 0;
+            gameState.spike.maxDuration = 0; 
 
             spawnObstacles(3);
 
@@ -324,23 +327,40 @@
             if (gameState.spike.isWarning || gameState.spike.growth > 0) {
                 const side = gameState.spike.activeSide;
                 const buffer = 30; 
+                const spike = gameState.spike;
 
+                // The bot only needs to worry about the segment it is currently in/near.
+                let segmentIndex;
+                let segmentSize;
+
+                if (side === 'top' || side === 'bottom') {
+                    segmentSize = WIDTH / SEGMENTS;
+                    segmentIndex = Math.floor(bot.x / segmentSize);
+                } else {
+                    segmentSize = HEIGHT / SEGMENTS;
+                    segmentIndex = Math.floor(bot.y / segmentSize);
+                }
+                segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
+                
+                const segmentMaxGrowth = spike.segmentBlockLengths[segmentIndex];
+
+                // Check against the actual max growth of the nearest segment
                 let safeDist;
                 switch (side) {
                     case 'top':
-                        safeDist = gameState.spike.currentBlockLength + buffer;
+                        safeDist = segmentMaxGrowth + buffer;
                         if (bot.y < safeDist) targetSpeedY = speed; 
                         break;
                     case 'bottom':
-                        safeDist = HEIGHT - gameState.spike.currentBlockLength - buffer;
+                        safeDist = HEIGHT - segmentMaxGrowth - buffer;
                         if (bot.y + bot.size > safeDist) targetSpeedY = -speed; 
                         break;
                     case 'left':
-                        safeDist = gameState.spike.currentBlockLength + buffer;
+                        safeDist = segmentMaxGrowth + buffer;
                         if (bot.x < safeDist) targetSpeedX = speed; 
                         break;
                     case 'right':
-                        safeDist = WIDTH - gameState.spike.currentBlockLength - buffer;
+                        safeDist = WIDTH - segmentMaxGrowth - buffer;
                         if (bot.x + bot.size > safeDist) targetSpeedX = -speed; 
                         break;
                 }
@@ -419,37 +439,51 @@
             bot.targetY = getRandomCoord(bot.size) + bot.size / 2;
         }
 
-        function checkSpikeObstacleBlock() {
+        /**
+         * Calculates the maximum distance each spike segment can travel before hitting an obstacle.
+         */
+        function calculateSegmentBlockLengths() {
             const side = gameState.spike.activeSide;
-            let minDistance = MAX_SPIKE_LENGTH;
+            const isHorizontal = (side === 'top' || side === 'bottom');
+            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
+            const segmentBaseSize = segmentDimension / SEGMENTS;
+            
+            // Temporary array to store block lengths
+            const blockLengths = new Array(SEGMENTS).fill(MAX_SPIKE_LENGTH);
 
-            for (const obs of gameState.obstacles) {
-                let dist = MAX_SPIKE_LENGTH;
-                
-                switch (side) {
-                    case 'top':
-                        dist = obs.y;
-                        break;
-                    case 'bottom':
-                        dist = HEIGHT - (obs.y + OBSTACLE_SIZE);
-                        break;
-                    case 'left':
-                        dist = obs.x;
-                        break;
-                    case 'right':
-                        dist = WIDTH - (obs.x + OBSTACLE_SIZE);
-                        break;
+            for (let i = 0; i < SEGMENTS; i++) {
+                // Define the area of this segment's path
+                const startCoord = i * segmentBaseSize;
+                const endCoord = (i + 1) * segmentBaseSize;
+                let minDistance = MAX_SPIKE_LENGTH;
+
+                // Iterate through all obstacles
+                for (const obs of gameState.obstacles) {
+                    let dist = MAX_SPIKE_LENGTH;
+                    let isAligned = false;
+
+                    if (isHorizontal) {
+                        // Horizontal spike (Top/Bottom) - check vertical alignment
+                        if (obs.x < endCoord && obs.x + OBSTACLE_SIZE > startCoord) {
+                            isAligned = true;
+                            dist = (side === 'top') ? obs.y : HEIGHT - (obs.y + OBSTACLE_SIZE);
+                        }
+                    } else {
+                        // Vertical spike (Left/Right) - check horizontal alignment
+                        if (obs.y < endCoord && obs.y + OBSTACLE_SIZE > startCoord) {
+                            isAligned = true;
+                            dist = (side === 'left') ? obs.x : WIDTH - (obs.x + OBSTACLE_SIZE);
+                        }
+                    }
+
+                    if (isAligned && dist < minDistance) {
+                        // Obstacle found, this segment is blocked
+                        minDistance = dist;
+                    }
                 }
-                
-                // Only consider obstacles that are aligned with the spike's width/height
-                if ((side === 'top' || side === 'bottom') && (obs.x + OBSTACLE_SIZE > 0 && obs.x < WIDTH)) {
-                    if (dist < minDistance) minDistance = dist;
-                } else if ((side === 'left' || side === 'right') && (obs.y + OBSTACLE_SIZE > 0 && obs.y < HEIGHT)) {
-                    if (dist < minDistance) minDistance = dist;
-                }
+                blockLengths[i] = minDistance;
             }
-            // Add TIP_SIZE as a buffer, since the calculated distance is to the rectangular part of the obstacle.
-            return minDistance;
+            return blockLengths;
         }
 
 
@@ -471,9 +505,9 @@
                 spike.warningTimer = spike.maxWarning;
                 spike.growth = 0;
                 spike.durationTimer = 0;
-                // NEW: Set random duration between 7000ms and 10000ms
                 spike.maxDuration = (Math.random() * 3000) + 7000; 
-                spike.currentBlockLength = checkSpikeObstacleBlock(); 
+                // Calculate the max safe travel distance for each segment
+                spike.segmentBlockLengths = calculateSegmentBlockLengths(); 
             } else if (spike.isWarning) {
                 // Warning phase
                 spike.warningTimer -= deltaTimeMs;
@@ -484,12 +518,12 @@
                 // Growth and Active phase
                 spike.durationTimer += deltaTimeMs;
 
-                // Spike grows up to the block length
-                const maxGrowth = Math.min(spike.currentBlockLength, MAX_SPIKE_LENGTH);
-                
-                if (spike.growth < maxGrowth) {
+                // Spike grows up to the shortest block length (only for the overall spike growth)
+                const maxGrowthForAnySegment = Math.max(...spike.segmentBlockLengths);
+
+                if (spike.growth < maxGrowthForAnySegment) {
                     spike.growth += spike.growthSpeed * deltaTimeMs;
-                    spike.growth = Math.min(spike.growth, maxGrowth);
+                    spike.growth = Math.min(spike.growth, maxGrowthForAnySegment);
                 }
 
                 // Check if the duration is over
@@ -533,34 +567,53 @@
             }
         }
 
+        /**
+         * Checks player/bot collision against the current growth of their respective spike segment.
+         */
         function checkSpikeCollision() {
             const spike = gameState.spike;
             if (spike.growth <= 0 || gameState.gameOver) return;
 
-            // Spike length is the rectangular body + the tip size
-            const totalSpikeLength = spike.growth; 
-
-            // Define the spike hitbox (using the full length including the tip)
-            let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
-            
-            switch (spike.activeSide) {
-                case 'top':
-                    spikeRect = { x: 0, y: 0, w: WIDTH, h: totalSpikeLength };
-                    break;
-                case 'bottom':
-                    spikeRect = { x: 0, y: HEIGHT - totalSpikeLength, w: WIDTH, h: totalSpikeLength };
-                    break;
-                case 'left':
-                    spikeRect = { x: 0, y: 0, w: totalSpikeLength, h: HEIGHT };
-                    break;
-                case 'right':
-                    spikeRect = { x: WIDTH - totalSpikeLength, y: 0, w: totalSpikeLength, h: HEIGHT };
-                    break;
-            }
+            const isHorizontal = (spike.activeSide === 'top' || spike.activeSide === 'bottom');
+            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
+            const segmentBaseSize = segmentDimension / SEGMENTS;
 
             // Check Player Collision
             if (gameState.player.alive) {
-                const playerRect = { x: gameState.player.x, y: gameState.player.y, w: PLAYER_SIZE, h: PLAYER_SIZE };
+                const player = gameState.player;
+                
+                // Determine which segment the player is in
+                let segmentIndex;
+                if (isHorizontal) {
+                    segmentIndex = Math.floor((player.x + player.size / 2) / segmentBaseSize);
+                } else {
+                    segmentIndex = Math.floor((player.y + player.size / 2) / segmentBaseSize);
+                }
+                segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
+                
+                // The max length this specific segment has reached (clamped by obstacle/time)
+                const segmentMaxGrowth = spike.segmentBlockLengths[segmentIndex];
+                const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth);
+
+                // Define the segment spike hitbox
+                let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
+                
+                switch (spike.activeSide) {
+                    case 'top':
+                        spikeRect = { x: 0, y: 0, w: WIDTH, h: segmentCurrentLength };
+                        break;
+                    case 'bottom':
+                        spikeRect = { x: 0, y: HEIGHT - segmentCurrentLength, w: WIDTH, h: segmentCurrentLength };
+                        break;
+                    case 'left':
+                        spikeRect = { x: 0, y: 0, w: segmentCurrentLength, h: HEIGHT };
+                        break;
+                    case 'right':
+                        spikeRect = { x: WIDTH - segmentCurrentLength, y: 0, w: segmentCurrentLength, h: HEIGHT };
+                        break;
+                }
+
+                const playerRect = { x: player.x, y: player.y, w: PLAYER_SIZE, h: PLAYER_SIZE };
                 if (checkCollision(playerRect, spikeRect)) {
                     gameState.player.alive = false;
                     PLAYER_STATUS.textContent = 'DEAD';
@@ -570,9 +623,39 @@
                 }
             }
 
-            // Check Bot Collision
+            // Check Bot Collision (Same logic as player)
             if (gameState.bot.alive) {
-                const botRect = { x: gameState.bot.x, y: gameState.bot.y, w: BOT_SIZE, h: BOT_SIZE };
+                const bot = gameState.bot;
+
+                let segmentIndex;
+                if (isHorizontal) {
+                    segmentIndex = Math.floor((bot.x + bot.size / 2) / segmentBaseSize);
+                } else {
+                    segmentIndex = Math.floor((bot.y + bot.size / 2) / segmentBaseSize);
+                }
+                segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
+                
+                const segmentMaxGrowth = spike.segmentBlockLengths[segmentIndex];
+                const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth);
+
+                let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
+                
+                switch (spike.activeSide) {
+                    case 'top':
+                        spikeRect = { x: 0, y: 0, w: WIDTH, h: segmentCurrentLength };
+                        break;
+                    case 'bottom':
+                        spikeRect = { x: 0, y: HEIGHT - segmentCurrentLength, w: WIDTH, h: segmentCurrentLength };
+                        break;
+                    case 'left':
+                        spikeRect = { x: 0, y: 0, w: segmentCurrentLength, h: HEIGHT };
+                        break;
+                    case 'right':
+                        spikeRect = { x: WIDTH - segmentCurrentLength, y: 0, w: segmentCurrentLength, h: HEIGHT };
+                        break;
+                }
+
+                const botRect = { x: bot.x, y: bot.y, w: BOT_SIZE, h: BOT_SIZE };
                 if (checkCollision(botRect, spikeRect)) {
                     gameState.bot.alive = false;
                     BOT_STATUS.textContent = 'DEAD';
@@ -634,7 +717,6 @@
             if (gameState.player.alive) handleInput(deltaTime);
             if (gameState.bot.alive) botAI(deltaTime);
 
-            // NEW: Handle player pushing bot
             handlePlayerBotCollision();
 
             updateSpikes(deltaTimeMs);
@@ -649,50 +731,56 @@
          */
         function drawSpike(side, currentLength, color) {
             CTX.fillStyle = color;
-            const segmentSize = (side === 'top' || side === 'bottom') ? WIDTH / SEGMENTS : HEIGHT / SEGMENTS;
+            const isHorizontal = (side === 'top' || side === 'bottom');
+            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
+            const segmentBaseSize = segmentDimension / SEGMENTS;
             
-            // The length of the rectangular body (tip is drawn beyond this)
-            const bodyLength = currentLength - TIP_SIZE; 
-            
-            // If the spike hasn't grown far enough to show the full tip, adjust the growth to 0.
-            const drawLength = Math.max(0, currentLength); 
-            const drawBodyLength = Math.max(0, bodyLength); 
-
-
+            // Iterate over all segments
             for (let i = 0; i < SEGMENTS; i++) {
-                // Coordinates for the start and end of the segment along the wall
-                let startCoord = i * segmentSize;
-                let endCoord = (i + 1) * segmentSize;
-                let midCoord = startCoord + segmentSize / 2;
+                
+                // Calculate segment coordinates with gap
+                const startCoord = i * segmentBaseSize + SEGMENT_GAP / 2;
+                const endCoord = (i + 1) * segmentBaseSize - SEGMENT_GAP / 2;
+                const midCoord = (startCoord + endCoord) / 2;
 
-                if (drawLength <= 0) break; // Don't draw if length is 0
+                // Get the maximum length this specific segment can reach
+                const maxSegmentLength = gameState.spike.segmentBlockLengths[i];
+                
+                // The length to draw this segment is the minimum of overall growth and its block length
+                const drawLength = Math.min(currentLength, maxSegmentLength); 
+                
+                // Only draw if there is growth
+                if (drawLength <= 0) continue; 
+                
+                // Calculate the length of the rectangular body (tip is drawn beyond this)
+                const drawBodyLength = Math.max(0, drawLength - TIP_SIZE); 
 
                 CTX.beginPath();
                 if (side === 'top') {
                     // Top spike points down
-                    CTX.moveTo(startCoord, 0);                 // Start on wall
-                    CTX.lineTo(endCoord, 0);                   // End on wall
-                    CTX.lineTo(endCoord, drawBodyLength);      // End of rectangle
-                    CTX.lineTo(midCoord, drawLength);          // Tip
-                    CTX.lineTo(startCoord, drawBodyLength);    // Start of rectangle
+                    CTX.moveTo(startCoord, 0);                 
+                    CTX.lineTo(endCoord, 0);                   
+                    CTX.lineTo(endCoord, drawBodyLength);      
+                    CTX.lineTo(midCoord, drawLength);          
+                    CTX.lineTo(startCoord, drawBodyLength);    
                 } else if (side === 'bottom') {
                     // Bottom spike points up
-                    CTX.moveTo(startCoord, HEIGHT);            // Start on wall
-                    CTX.lineTo(endCoord, HEIGHT);              // End on wall
+                    CTX.moveTo(startCoord, HEIGHT);            
+                    CTX.lineTo(endCoord, HEIGHT);              
                     CTX.lineTo(endCoord, HEIGHT - drawBodyLength);
                     CTX.lineTo(midCoord, HEIGHT - drawLength);
                     CTX.lineTo(startCoord, HEIGHT - drawBodyLength);
                 } else if (side === 'left') {
                     // Left spike points right
-                    CTX.moveTo(0, startCoord);                 // Start on wall
-                    CTX.lineTo(0, endCoord);                   // End on wall
+                    CTX.moveTo(0, startCoord);                 
+                    CTX.lineTo(0, endCoord);                   
                     CTX.lineTo(drawBodyLength, endCoord);
                     CTX.lineTo(drawLength, midCoord);
                     CTX.lineTo(drawBodyLength, startCoord);
                 } else if (side === 'right') {
                     // Right spike points left
-                    CTX.moveTo(WIDTH, startCoord);             // Start on wall
-                    CTX.lineTo(WIDTH, endCoord);               // End on wall
+                    CTX.moveTo(WIDTH, startCoord);             
+                    CTX.lineTo(WIDTH, endCoord);               
                     CTX.lineTo(WIDTH - drawBodyLength, endCoord);
                     CTX.lineTo(WIDTH - drawLength, midCoord);
                     CTX.lineTo(WIDTH - drawBodyLength, startCoord);
@@ -714,7 +802,7 @@
             // Draw Spike
             const spike = gameState.spike;
             if (spike.activeSide) {
-                let color = spike.isWarning ? '#ffcc00' : '#ff3333'; 
+                let color = spike.isWarning ? WARNING_COLOR_RED : SPIKE_COLOR_BROWN; 
 
                 if (spike.isWarning && Math.floor(gameState.elapsedTime * 5) % 2) {
                     drawSpike(spike.activeSide, 10, color); 

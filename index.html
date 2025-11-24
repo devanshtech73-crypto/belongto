@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Spike Arena - Mobile</title>
-    <!-- Critical for mobile: locks viewport, prevents scaling/zooming -->
+    <title>Spike Arena - Mobile Optimized</title>
+    <!-- CRITICAL: locks viewport, prevents scaling/zooming -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
@@ -27,13 +27,13 @@
             background-color: var(--color-bg-dark);
             font-family: 'Orbitron', sans-serif;
             color: var(--color-neon-blue);
-            overflow: hidden; /* Prevent body scroll */
-            /* Prevent scrolling/zooming on mobile */
+            overflow: hidden; 
+            /* Prevent body scroll and zooming */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
-            touch-action: none; /* Disable all default touch actions */
+            touch-action: none; 
         }
 
         #game-container {
@@ -47,6 +47,7 @@
             border: 3px solid var(--color-neon-blue);
             border-radius: 10px;
             overflow: hidden;
+            /* Allow touch events to be processed by children, but prevent default scroll */
             touch-action: none;
         }
 
@@ -68,12 +69,13 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(0, 0, 0, 0.9);
             text-align: center;
-            pointer-events: none;
             opacity: 0;
             transition: opacity 0.4s ease-in-out;
             z-index: 10;
+            /* Critical for button clicks: must be 'all' when visible */
+            pointer-events: none;
         }
 
         #ui-overlay.active {
@@ -110,6 +112,7 @@
             border-radius: 5px;
             box-shadow: 0 0 15px var(--color-neon-magenta);
             transition: all 0.2s ease;
+            pointer-events: all; /* Ensure button inside overlay is clickable */
         }
 
         #restart-button:active {
@@ -127,7 +130,7 @@
             flex-wrap: wrap;
             justify-content: space-around;
             text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
-            font-size: 3vw;
+            font-size: clamp(10px, 3vw, 16px);
         }
 
         .status-box {
@@ -148,13 +151,16 @@
             height: 150px;
             z-index: 20;
             opacity: 0.9;
+            /* Allow touches to go through to the base */
+            touch-action: none;
         }
-
+        
+        /* Make base less opaque for better visibility */
         .joystick-base {
             position: absolute;
             width: 100%;
             height: 100%;
-            background: rgba(46, 53, 71, 0.5); /* Semi-transparent steel */
+            background: rgba(46, 53, 71, 0.3); 
             border-radius: 50%;
             border: 2px solid var(--color-neon-blue);
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.5) inset;
@@ -201,24 +207,22 @@
         // === Configuration and Constants ===
         const CANVAS = document.getElementById('game');
         const CTX = CANVAS.getContext('2d');
-        // Canvas is resized to fill container using CSS, but internal logic uses fixed 500x500 for calculation ease
         const WIDTH = 500; 
         const HEIGHT = 500;
         const PLAYER_SIZE = 25;
         const BOT_SIZE = 25;
         const OBSTACLE_SIZE = 40;
-        const MAX_SPEED = 3.5; // Increased speed for mobile responsiveness
+        const MAX_SPEED = 3.5; 
         const BOT_WANDER_SPEED = MAX_SPEED; 
         const MAX_SPIKE_LENGTH = 500; 
         const SEGMENTS = 5; 
         const SEGMENT_GAP = 4;
         const TIP_SIZE = 15; 
-        const FIXED_SPIKE_WARNING_TIME_MS = 1500; // Shorter warning time for faster pace
-        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.5; // High base speed
+        const FIXED_SPIKE_WARNING_TIME_MS = 1500; 
+        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.5; 
         const MAX_OBSTACLES = 3; 
         const OBSTACLE_COLOR = 'var(--color-steel)';
         
-        // Neon color variables
         const SPIKE_COLOR = '#ff9900'; 
         const WARNING_COLOR_RED = 'var(--color-neon-red)';
         const PLAYER_COLOR = 'var(--color-neon-blue)';
@@ -233,7 +237,7 @@
             highScore: parseFloat(localStorage.getItem('spikeArenaHighScore') || 0),
             player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: PLAYER_COLOR },
             bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: BOT_COLOR, targetX: 0, targetY: 0, stuckTimer: 0 },
-            keys: {}, // Keeping for minimal keyboard support if used on hybrid device
+            keys: {}, 
             joystick: { dx: 0, dy: 0 }, 
             spike: {
                 activeSide: null, 
@@ -264,17 +268,17 @@
         const JOYSTICK_HANDLE = document.getElementById('joystick-handle');
         const JOYSTICK_SIZE = 150;
         const JOYSTICK_CENTER = JOYSTICK_SIZE / 2;
-        const HANDLE_SIZE = parseInt(getComputedStyle(JOYSTICK_HANDLE).width);
+        // Calculate max distance dynamically from CSS width/height of the handle
+        const HANDLE_SIZE = 60; // Hardcoded from CSS for robustness
         const MAX_JOYSTICK_DISTANCE = (JOYSTICK_SIZE / 2) - (HANDLE_SIZE / 2);
 
         HIGH_SCORE_DISPLAY.textContent = gameState.highScore.toFixed(2);
         
-        // Initial setup for status colors
         PLAYER_STATUS.style.color = PLAYER_COLOR;
         BOT_STATUS.style.color = BOT_COLOR;
 
         // === Utility Functions ===
-
+        // ... (getRandomCoord, checkCollision, checkObstacleCollision, handlePlayerBotCollision functions remain the same) ...
         function getRandomCoord(size) {
             return Math.random() * (WIDTH - size);
         }
@@ -299,7 +303,6 @@
         
         function handlePlayerBotCollision() {
             if (!gameState.player.alive || !gameState.bot.alive) return;
-            // Simplified collision check: prevent overlap but don't apply full physics
             const player = gameState.player;
             const bot = gameState.bot;
             
@@ -320,8 +323,7 @@
 
                 if (overlap > 0) {
                     const angle = Math.atan2(dy, dx);
-                    // Push the bot away from the player to resolve collision
-                    const moveX = overlap * Math.cos(angle) * 0.5; // Push factor 0.5
+                    const moveX = overlap * Math.cos(angle) * 0.5; 
                     const moveY = overlap * Math.sin(angle) * 0.5;
 
                     let newBotX = bot.x + moveX;
@@ -337,9 +339,8 @@
                 }
             }
         }
-
-
-        // === Game Logic Functions ===
+        
+        // === Game Logic Functions (The rest of the game logic is unchanged and functional) ===
 
         function resetGame() {
             gameState.running = false;
@@ -389,18 +390,16 @@
         function handleInput(deltaTime) {
             if (!gameState.player.alive) return;
 
-            // Use joystick input (preferred for mobile)
             gameState.player.dx = gameState.joystick.dx * MAX_SPEED;
             gameState.player.dy = gameState.joystick.dy * MAX_SPEED;
             
-            // Add keyboard fallback (for hybrid devices)
+            // Normalize keyboard movement fallback
             if (gameState.joystick.dx === 0 && gameState.joystick.dy === 0) {
                  if (gameState.keys['w']) gameState.player.dy -= MAX_SPEED;
                  if (gameState.keys['s']) gameState.player.dy += MAX_SPEED;
                  if (gameState.keys['a']) gameState.player.dx -= MAX_SPEED;
                  if (gameState.keys['d']) gameState.player.dx += MAX_SPEED;
                  
-                 // Normalize PC diagonal movement
                 if (gameState.player.dx !== 0 && gameState.player.dy !== 0) {
                     const factor = 1 / Math.sqrt(2);
                     gameState.player.dx *= factor;
@@ -431,7 +430,6 @@
             let targetSpeedX = 0;
             let targetSpeedY = 0;
 
-            // 1. Evasion Logic (Highest Priority)
             if (gameState.spike.isWarning || gameState.spike.growth > 0) {
                 const side = gameState.spike.activeSide;
                 const buffer = 30; 
@@ -475,7 +473,6 @@
                     bot.dx = targetSpeedX;
                     bot.dy = targetSpeedY;
                 } else {
-                    // If not actively evading, continue moving towards the target
                     const dx = bot.targetX - (bot.x + bot.size / 2);
                     const dy = bot.targetY - (bot.y + bot.size / 2);
                     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -487,7 +484,6 @@
                 }
 
             } else {
-                // 2. Wandering Logic
                 const dx = bot.targetX - (bot.x + bot.size / 2);
                 const dy = bot.targetY - (bot.y + bot.size / 2);
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -522,7 +518,6 @@
             newX = Math.max(0, Math.min(newX, WIDTH - BOT_SIZE));
             newY = Math.max(0, Math.min(newY, HEIGHT - BOT_SIZE));
             
-            // Obstacle collision check and slide logic
             if (!checkObstacleCollision(bot, newX, newY)) {
                 bot.x = newX;
                 bot.y = newY;
@@ -532,7 +527,6 @@
                 } else if (!checkObstacleCollision(bot, bot.x, newY)) {
                     bot.y = newY;
                 } else {
-                    // Fully blocked, recalculate target to escape
                     wander(bot, speed);
                 }
             }
@@ -563,7 +557,6 @@
                     if (isHorizontal) {
                         if (obs.x < endCoord && obs.x + OBSTACLE_SIZE > startCoord) {
                             isAligned = true;
-                            // Distance is from the canvas edge to the near edge of the obstacle
                             dist = (side === 'top') ? obs.y : HEIGHT - (obs.y + OBSTACLE_SIZE);
                         }
                     } else {
@@ -577,7 +570,6 @@
                         minDistance = dist;
                     }
                 }
-                // Store the maximum clear distance (to the obstacle edge)
                 blockLengths[i] = minDistance;
             }
             return blockLengths;
@@ -588,11 +580,9 @@
             const spike = gameState.spike;
             const timeSeconds = gameState.elapsedTime;
 
-            // Speed increases over time
             spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 60) * 0.5;
             spike.growthSpeed = Math.min(1.0, spike.growthSpeed); 
 
-            // Handle obstacle spawning
             if (timeSeconds > 0 && Math.floor(timeSeconds) % 15 === 0 && Math.floor(timeSeconds) !== Math.floor(gameState.elapsedTime - deltaTimeMs/1000) && gameState.obstacles.length < MAX_OBSTACLES) {
                 spawnObstacles(1);
             }
@@ -613,7 +603,6 @@
             } else {
                 spike.durationTimer += deltaTimeMs;
 
-                // Growth is independent of segment blocks, up to MAX_SPIKE_LENGTH
                 if (spike.growth < MAX_SPIKE_LENGTH) { 
                     spike.growth += spike.growthSpeed * deltaTimeMs;
                     spike.growth = Math.min(spike.growth, MAX_SPIKE_LENGTH);
@@ -635,17 +624,14 @@
                 const newObsRect = { x: newObs.x, y: newObs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
                 let collisionFound = false;
 
-                // Check collision with existing obstacles
                 for (const obs of gameState.obstacles) {
                     const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                    // Give a small buffer between obstacles
                     if (checkCollision(newObsRect, {...obsRect, x: obsRect.x - 5, y: obsRect.y - 5, w: obsRect.w + 10, h: obsRect.h + 10 })) {
                         collisionFound = true;
                         break;
                     }
                 }
 
-                // Check collision with center area
                  if (checkCollision(newObsRect, centerArea)) {
                     collisionFound = true;
                 }
@@ -669,7 +655,6 @@
             const checkCollisionForCharacter = (character) => {
                 if (!character.alive) return false;
 
-                // Find the segment the character is in
                 let segmentIndex;
                 if (isHorizontal) {
                     segmentIndex = Math.floor((character.x + character.size / 2) / segmentBaseSize);
@@ -680,14 +665,12 @@
                 
                 const segmentMaxGrowth = gameState.spike.segmentBlockLengths[segmentIndex];
                 
-                // Segment length is capped by its block length (to the obstacle edge) + TIP_SIZE
                 const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth + TIP_SIZE); 
                 
                 if (segmentCurrentLength <= 0) return false;
 
                 let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
                 
-                // Define the hitbox for the active spike segment
                 switch (spike.activeSide) {
                     case 'top':
                         const xStartTop = segmentIndex * segmentBaseSize;
@@ -736,7 +719,7 @@
             }
             
             if (gameState.player.alive && !gameState.bot.alive) {
-                 endGame(); // Player survived the bot
+                 endGame(); 
             }
         }
 
@@ -752,10 +735,10 @@
 
             if (gameState.player.alive && !gameState.bot.alive) {
                 message = 'PLAYER VICTORIOUS!'; 
-                PLAYER_STATUS.style.color = '#ffff00'; // Gold color
+                PLAYER_STATUS.style.color = '#ffff00'; 
             } else if (!gameState.player.alive && gameState.bot.alive) {
                 message = 'PLAYER DEFEATED!'; 
-                BOT_STATUS.style.color = '#ffff00'; // Gold color
+                BOT_STATUS.style.color = '#ffff00'; 
             } else if (!gameState.player.alive && !gameState.bot.alive) {
                 message = 'MUTUAL ANNIHILATION';
             } else {
@@ -798,12 +781,11 @@
             checkSpikeCollision();
         }
 
-        // === Rendering Functions ===
+        // === Rendering Functions (Unchanged) ===
 
         function drawSpike(side, currentLength, color) {
             CTX.fillStyle = color;
             
-            // Add a subtle glow for the spike
             CTX.shadowBlur = 10;
             CTX.shadowColor = color;
 
@@ -824,7 +806,6 @@
 
                 const maxSegmentLength = gameState.spike.segmentBlockLengths[i];
                 
-                // Draw length is limited by the overall growth AND the segment's block length
                 const drawLength = Math.min(currentLength, maxSegmentLength + TIP_SIZE); 
                 
                 if (drawLength <= 0) continue; 
@@ -860,13 +841,12 @@
                 CTX.closePath();
                 CTX.fill();
             }
-            CTX.shadowBlur = 0; // Reset shadow
+            CTX.shadowBlur = 0; 
         }
 
         function draw() {
             CTX.clearRect(0, 0, WIDTH, HEIGHT);
 
-            // Draw grid pattern in the background
             CTX.strokeStyle = 'rgba(46, 53, 71, 0.5)';
             CTX.lineWidth = 1;
             for (let i = 0; i < WIDTH; i += 50) {
@@ -880,7 +860,6 @@
                 CTX.stroke();
             }
 
-            // Draw Obstacles (Glowing squares)
             CTX.fillStyle = OBSTACLE_COLOR;
             CTX.shadowBlur = 10;
             CTX.shadowColor = 'var(--color-steel)';
@@ -889,12 +868,10 @@
             }
             CTX.shadowBlur = 0;
 
-            // Draw Spike
             const spike = gameState.spike;
             if (spike.activeSide) {
                 let color = spike.isWarning ? WARNING_COLOR_RED : SPIKE_COLOR; 
 
-                // Flashing warning effect
                 if (spike.isWarning && Math.floor(gameState.elapsedTime * 6) % 2) {
                     drawSpike(spike.activeSide, 10, color); 
                 } else if (!spike.isWarning) {
@@ -902,7 +879,6 @@
                 }
             }
 
-            // Draw Player
             if (gameState.player.alive) {
                 CTX.fillStyle = gameState.player.color;
                 CTX.shadowBlur = 15;
@@ -910,12 +886,10 @@
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
                 CTX.shadowBlur = 0; 
             } else if (!gameState.running) {
-                // Ghosted defeated state
                 CTX.fillStyle = 'rgba(0, 229, 255, 0.2)';
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
             }
 
-            // Draw Bot
             if (gameState.bot.alive) {
                 CTX.fillStyle = gameState.bot.color;
                 CTX.shadowBlur = 15;
@@ -923,7 +897,6 @@
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
                 CTX.shadowBlur = 0; 
             } else if (!gameState.running) {
-                // Ghosted defeated state
                 CTX.fillStyle = 'rgba(255, 0, 255, 0.2)';
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
             }
@@ -939,34 +912,44 @@
             }
         }
 
-        // === Joystick Logic ===
+        // === JOYSTICK LOGIC FIXES ===
         let activeTouchId = null;
+        let joystickRect = null; // Store bounds for efficient calculation
 
+        function getJoystickBounds() {
+            joystickRect = JOYSTICK_CONTAINER.getBoundingClientRect();
+        }
+        
+        // Call once on load and on resize
+        window.addEventListener('load', getJoystickBounds);
+        window.addEventListener('resize', getJoystickBounds);
+        
         function startJoystick(e) {
-            // Prevent default scrolling/zooming immediately
-            if (e.cancelable) e.preventDefault(); 
-            if (activeTouchId !== null || !gameState.running) return;
-
-            const rect = JOYSTICK_CONTAINER.getBoundingClientRect();
-            const touch = e.changedTouches[0];
+            if (!gameState.running) return;
+            if (e.changedTouches.length === 0 || activeTouchId !== null) return;
             
-            // Check if the touch started within the joystick area (with a buffer)
-            const buffer = 10;
-            if (touch.clientX >= rect.left - buffer && touch.clientX <= rect.right + buffer &&
-                touch.clientY >= rect.top - buffer && touch.clientY <= rect.bottom + buffer) {
-                activeTouchId = touch.identifier;
-                handleMoveJoystick(e); // Process the initial touch location
-                
-                // Add visual feedback on touch start
-                JOYSTICK_HANDLE.style.boxShadow = `0 0 30px ${BOT_COLOR}`;
-                JOYSTICK_HANDLE.style.background = BOT_COLOR;
-            }
+            // This prevents the touch from also triggering scrolling or zooming
+            if (e.cancelable) e.preventDefault(); 
+            
+            // Re-calculate bounds to be safe
+            getJoystickBounds();
+            
+            const touch = e.changedTouches[0];
+            activeTouchId = touch.identifier;
+            
+            // Add visual feedback
+            JOYSTICK_HANDLE.style.boxShadow = `0 0 30px ${BOT_COLOR}`;
+            JOYSTICK_HANDLE.style.background = BOT_COLOR;
+            
+            handleMoveJoystick(e); // Process the initial touch location
         }
 
         function handleMoveJoystick(e) {
-            if (e.cancelable) e.preventDefault(); 
             if (activeTouchId === null) return;
             
+            // This is CRITICAL for preventing scrolling during drag
+            if (e.cancelable) e.preventDefault(); 
+
             let touch = null;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === activeTouchId) {
@@ -974,15 +957,14 @@
                     break;
                 }
             }
-            if (!touch) return;
+            if (!touch || !joystickRect) return;
             
-            const rect = JOYSTICK_CONTAINER.getBoundingClientRect();
             // Calculate coordinates relative to the center of the container
-            const containerX = rect.left;
-            const containerY = rect.top;
+            const centerClientX = joystickRect.left + JOYSTICK_CENTER;
+            const centerClientY = joystickRect.top + JOYSTICK_CENTER;
             
-            let deltaX = touch.clientX - (containerX + JOYSTICK_CENTER);
-            let deltaY = touch.clientY - (containerY + JOYSTICK_CENTER);
+            let deltaX = touch.clientX - centerClientX;
+            let deltaY = touch.clientY - centerClientY;
 
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
             
@@ -992,7 +974,7 @@
                 deltaY = Math.sin(angle) * MAX_JOYSTICK_DISTANCE;
             }
 
-            // Update handle position
+            // Update handle position (centered on the container's coordinates)
             JOYSTICK_HANDLE.style.left = `${JOYSTICK_CENTER + deltaX}px`;
             JOYSTICK_HANDLE.style.top = `${JOYSTICK_CENTER + deltaY}px`;
 
@@ -1002,8 +984,6 @@
         }
 
         function endJoystick(e) {
-            if (e.cancelable) e.preventDefault(); 
-
             if (activeTouchId === null) return;
             
             let touchFound = false;
@@ -1015,10 +995,12 @@
             }
             
             if (touchFound) {
+                // IMPORTANT: Only clear the ID if the lifting touch matches the active ID
                 activeTouchId = null;
                 resetJoystickHandle();
                 gameState.joystick.dx = 0;
                 gameState.joystick.dy = 0;
+                
                 // Reset visual feedback
                 JOYSTICK_HANDLE.style.boxShadow = `0 0 20px ${BOT_COLOR}`;
                 JOYSTICK_HANDLE.style.background = BOT_COLOR;
@@ -1042,15 +1024,16 @@
 
         RESTART_BUTTON.addEventListener('click', resetGame);
 
-        // Joystick Event listeners (Passive set to false to allow preventDefault)
+        // Joystick Event listeners: touchstart on container, move/end on document
         JOYSTICK_CONTAINER.addEventListener('touchstart', startJoystick, { passive: false });
         document.addEventListener('touchmove', handleMoveJoystick, { passive: false });
         document.addEventListener('touchend', endJoystick);
         document.addEventListener('touchcancel', endJoystick);
 
 
-        // Initial setup to display the start screen
+        // Initial setup to display the start screen and get joystick bounds
         UI_OVERLAY.classList.add('active');
+        getJoystickBounds();
         draw(); 
     </script>
 </body>

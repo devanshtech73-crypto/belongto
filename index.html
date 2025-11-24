@@ -1,1040 +1,221 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Spike Arena - Mobile Optimized</title>
-    <!-- CRITICAL: locks viewport, prevents scaling/zooming -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
-
-        :root {
-            --color-bg-dark: #000408;
-            --color-arena-dark: #08101a;
-            --color-neon-blue: #00e5ff;
-            --color-neon-magenta: #ff00ff;
-            --color-neon-red: #ff3333;
-            --color-steel: #2e3547;
-        }
-
-        body {
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            background-color: var(--color-bg-dark);
-            font-family: 'Orbitron', sans-serif;
-            color: var(--color-neon-blue);
-            overflow: hidden; 
-            /* Prevent body scroll and zooming */
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-            touch-action: none; 
-        }
-
-        #game-container {
-            position: relative;
-            margin: 20px 0;
-            width: 90vw;
-            max-width: 500px;
-            height: 90vw;
-            max-height: 500px;
-            box-shadow: 0 0 30px var(--color-neon-blue), 0 0 15px var(--color-neon-magenta) inset;
-            border: 3px solid var(--color-neon-blue);
-            border-radius: 10px;
-            overflow: hidden;
-            /* Allow touch events to be processed by children, but prevent default scroll */
-            touch-action: none;
-        }
-
-        #game {
-            display: block;
-            background-color: var(--color-arena-dark);
-            width: 100%;
-            height: 100%;
-        }
-
-        /* === UI Overlay and Messages === */
-        #ui-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background: rgba(0, 0, 0, 0.9);
-            text-align: center;
-            opacity: 0;
-            transition: opacity 0.4s ease-in-out;
-            z-index: 10;
-            /* Critical for button clicks: must be 'all' when visible */
-            pointer-events: none;
-        }
-
-        #ui-overlay.active {
-            opacity: 1;
-            pointer-events: all;
-        }
-
-        #game-message {
-            font-size: 10vw;
-            font-weight: 700;
-            margin-bottom: 30px;
-            text-shadow: 0 0 15px var(--color-neon-blue);
-            color: var(--color-neon-blue);
-            animation: pulse-neon 1.5s infinite alternate;
-        }
-
-        @keyframes pulse-neon {
-            from {
-                text-shadow: 0 0 5px var(--color-neon-blue), 0 0 10px var(--color-neon-blue);
-            }
-            to {
-                text-shadow: 0 0 20px var(--color-neon-blue), 0 0 40px var(--color-neon-magenta);
-            }
-        }
-
-        #restart-button {
-            padding: 15px 40px;
-            font-size: 5vw;
-            font-weight: bold;
-            cursor: pointer;
-            background-color: var(--color-neon-magenta);
-            color: var(--color-bg-dark);
-            border: none;
-            border-radius: 5px;
-            box-shadow: 0 0 15px var(--color-neon-magenta);
-            transition: all 0.2s ease;
-            pointer-events: all; /* Ensure button inside overlay is clickable */
-        }
-
-        #restart-button:active {
-            background-color: var(--color-neon-blue);
-            box-shadow: 0 0 20px var(--color-neon-blue);
-            transform: scale(0.95);
-        }
-
-        /* === Scoreboard === */
-        #score-board {
-            width: 90vw;
-            max-width: 500px;
-            margin-bottom: 10px;
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-around;
-            text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
-            font-size: clamp(10px, 3vw, 16px);
-        }
-
-        .status-box {
-            padding: 5px 10px;
-            margin: 5px;
-            border: 1px solid var(--color-steel);
-            border-radius: 5px;
-            background-color: var(--color-arena-dark);
-            transition: all 0.3s;
-        }
-
-        /* === Joystick Styles === */
-        #joystick-container {
-            position: fixed;
-            bottom: 20px;
-            left: 5vw;
-            width: 150px;
-            height: 150px;
-            z-index: 20;
-            opacity: 0.9;
-            /* Allow touches to go through to the base */
-            touch-action: none;
-        }
-        
-        /* Make base less opaque for better visibility */
-        .joystick-base {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background: rgba(46, 53, 71, 0.3); 
-            border-radius: 50%;
-            border: 2px solid var(--color-neon-blue);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5) inset;
-        }
-
-        .joystick-handle {
-            position: absolute;
-            width: 60px;
-            height: 60px;
-            background: var(--color-neon-magenta);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            top: 50%;
-            left: 50%;
-            box-shadow: 0 0 20px var(--color-neon-magenta);
-            transition: background 0.1s, box-shadow 0.1s;
-        }
-    </style>
-</head>
-<body>
-
-    <div id="score-board">
-        <div class="status-box">TIME: <span id="time-display">0.00</span>s</div>
-        <div class="status-box">HI-SCORE: <span id="high-score-display">0.00</span>s</div>
-        <div class="status-box">PLAYER: <span id="player-status-display" style="color: var(--color-neon-blue);">READY</span></div>
-        <div class="status-box">BOT: <span id="bot-status-display" style="color: var(--color-neon-magenta);">READY</span></div>
-    </div>
-
-    <div id="game-container">
-        <canvas id="game" width="500" height="500"></canvas>
-        <div id="ui-overlay">
-            <div id="game-message">SPIKE ARENA</div>
-            <button id="restart-button">START SIMULATION</button>
-        </div>
-        
-        <!-- Joystick Implementation (Fixed position for mobile) -->
-        <div id="joystick-container">
-            <div class="joystick-base"></div>
-            <div id="joystick-handle" class="joystick-handle"></div>
-        </div>
-    </div>
-
-    <script>
-        // === Configuration and Constants ===
-        const CANVAS = document.getElementById('game');
-        const CTX = CANVAS.getContext('2d');
-        const WIDTH = 500; 
-        const HEIGHT = 500;
-        const PLAYER_SIZE = 25;
-        const BOT_SIZE = 25;
-        const OBSTACLE_SIZE = 40;
-        const MAX_SPEED = 3.5; 
-        const BOT_WANDER_SPEED = MAX_SPEED; 
-        const MAX_SPIKE_LENGTH = 500; 
-        const SEGMENTS = 5; 
-        const SEGMENT_GAP = 4;
-        const TIP_SIZE = 15; 
-        const FIXED_SPIKE_WARNING_TIME_MS = 1500; 
-        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.5; 
-        const MAX_OBSTACLES = 3; 
-        const OBSTACLE_COLOR = 'var(--color-steel)';
-        
-        const SPIKE_COLOR = '#ff9900'; 
-        const WARNING_COLOR_RED = 'var(--color-neon-red)';
-        const PLAYER_COLOR = 'var(--color-neon-blue)';
-        const BOT_COLOR = 'var(--color-neon-magenta)';
-
-        // === Game State Variables ===
-        let gameState = {
-            running: false,
-            gameOver: true,
-            startTime: 0,
-            elapsedTime: 0,
-            highScore: parseFloat(localStorage.getItem('spikeArenaHighScore') || 0),
-            player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: PLAYER_COLOR },
-            bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: BOT_COLOR, targetX: 0, targetY: 0, stuckTimer: 0 },
-            keys: {}, 
-            joystick: { dx: 0, dy: 0 }, 
-            spike: {
-                activeSide: null, 
-                warningTimer: 0,
-                growth: 0, 
-                maxWarning: FIXED_SPIKE_WARNING_TIME_MS,
-                growthSpeed: INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS,
-                isWarning: false,
-                segmentBlockLengths: new Array(SEGMENTS).fill(MAX_SPIKE_LENGTH), 
-                durationTimer: 0,
-                maxDuration: 0,   
-            },
-            obstacles: [],
-            lastFrameTime: 0,
-            frameId: null
-        };
-
-        // === DOM Elements ===
-        const UI_OVERLAY = document.getElementById('ui-overlay');
-        const RESTART_BUTTON = document.getElementById('restart-button');
-        const GAME_MESSAGE = document.getElementById('game-message');
-        const TIME_DISPLAY = document.getElementById('time-display');
-        const HIGH_SCORE_DISPLAY = document.getElementById('high-score-display');
-        const PLAYER_STATUS = document.getElementById('player-status-display');
-        const BOT_STATUS = document.getElementById('bot-status-display');
-        
-        const JOYSTICK_CONTAINER = document.getElementById('joystick-container');
-        const JOYSTICK_HANDLE = document.getElementById('joystick-handle');
-        const JOYSTICK_SIZE = 150;
-        const JOYSTICK_CENTER = JOYSTICK_SIZE / 2;
-        // Calculate max distance dynamically from CSS width/height of the handle
-        const HANDLE_SIZE = 60; // Hardcoded from CSS for robustness
-        const MAX_JOYSTICK_DISTANCE = (JOYSTICK_SIZE / 2) - (HANDLE_SIZE / 2);
-
-        HIGH_SCORE_DISPLAY.textContent = gameState.highScore.toFixed(2);
-        
-        PLAYER_STATUS.style.color = PLAYER_COLOR;
-        BOT_STATUS.style.color = BOT_COLOR;
-
-        // === Utility Functions ===
-        // ... (getRandomCoord, checkCollision, checkObstacleCollision, handlePlayerBotCollision functions remain the same) ...
-        function getRandomCoord(size) {
-            return Math.random() * (WIDTH - size);
-        }
-
-        function checkCollision(r1, r2) {
-            return r1.x < r2.x + r2.w &&
-                   r1.x + r1.w > r2.x &&
-                   r1.y < r2.y + r2.h &&
-                   r1.y + r1.h > r2.y;
-        }
-
-        function checkObstacleCollision(object, newX, newY) {
-            const tempRect = { x: newX, y: newY, w: object.size, h: object.size };
-            for (const obs of gameState.obstacles) {
-                const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                if (checkCollision(tempRect, obsRect)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        function handlePlayerBotCollision() {
-            if (!gameState.player.alive || !gameState.bot.alive) return;
-            const player = gameState.player;
-            const bot = gameState.bot;
-            
-            const playerRect = { x: player.x, y: player.y, w: PLAYER_SIZE, h: PLAYER_SIZE };
-            const botRect = { x: bot.x, y: bot.y, w: BOT_SIZE, h: BOT_SIZE };
-
-            if (checkCollision(playerRect, botRect)) {
-                const centerPlayerX = player.x + player.size / 2;
-                const centerPlayerY = player.y + player.size / 2;
-                const centerBotX = bot.x + bot.size / 2;
-                const centerBotY = bot.y + bot.size / 2;
-
-                const dx = centerBotX - centerPlayerX;
-                const dy = centerBotY - centerPlayerY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                const minDistance = (player.size + bot.size) / 2;
-                const overlap = minDistance - distance;
-
-                if (overlap > 0) {
-                    const angle = Math.atan2(dy, dx);
-                    const moveX = overlap * Math.cos(angle) * 0.5; 
-                    const moveY = overlap * Math.sin(angle) * 0.5;
-
-                    let newBotX = bot.x + moveX;
-                    let newBotY = bot.y + moveY;
-                    
-                    newBotX = Math.max(0, Math.min(newBotX, WIDTH - BOT_SIZE));
-                    newBotY = Math.max(0, Math.min(newBotY, HEIGHT - BOT_SIZE));
-                    
-                    if (!checkObstacleCollision(bot, newBotX, newBotY)) {
-                        bot.x = newBotX;
-                        bot.y = newBotY;
-                    } 
-                }
-            }
-        }
-        
-        // === Game Logic Functions (The rest of the game logic is unchanged and functional) ===
-
-        function resetGame() {
-            gameState.running = false;
-            gameState.gameOver = false;
-            gameState.startTime = Date.now();
-            gameState.elapsedTime = 0;
-            gameState.player.alive = true;
-            gameState.bot.alive = true;
-            gameState.player.x = WIDTH / 2 - PLAYER_SIZE / 2;
-            gameState.player.y = HEIGHT / 2 - PLAYER_SIZE / 2;
-            gameState.bot.x = WIDTH / 2 - BOT_SIZE / 2 + 80;
-            gameState.bot.y = HEIGHT / 2 - BOT_SIZE / 2 + 80;
-            gameState.player.dx = 0;
-            gameState.player.dy = 0;
-            gameState.bot.dx = 0;
-            gameState.bot.dy = 0;
-            gameState.obstacles = [];
-            gameState.spike.activeSide = null;
-            gameState.spike.warningTimer = 0;
-            gameState.spike.growth = 0;
-            gameState.spike.isWarning = false;
-            gameState.spike.segmentBlockLengths.fill(MAX_SPIKE_LENGTH);
-            gameState.spike.durationTimer = 0;
-            gameState.spike.maxDuration = 0; 
-            gameState.joystick.dx = 0;
-            gameState.joystick.dy = 0;
-            resetJoystickHandle();
-
-            spawnObstacles(MAX_OBSTACLES);
-
-            PLAYER_STATUS.textContent = 'ALIVE';
-            PLAYER_STATUS.style.color = PLAYER_COLOR;
-            BOT_STATUS.textContent = 'ALIVE';
-            BOT_STATUS.style.color = BOT_COLOR;
-            TIME_DISPLAY.textContent = '0.00';
-
-            UI_OVERLAY.classList.remove('active');
-            
-            if (gameState.frameId) {
-                cancelAnimationFrame(gameState.frameId);
-            }
-            gameState.lastFrameTime = performance.now();
-            gameState.running = true;
-            gameState.frameId = requestAnimationFrame(gameLoop);
-        }
-
-        function handleInput(deltaTime) {
-            if (!gameState.player.alive) return;
-
-            gameState.player.dx = gameState.joystick.dx * MAX_SPEED;
-            gameState.player.dy = gameState.joystick.dy * MAX_SPEED;
-            
-            // Normalize keyboard movement fallback
-            if (gameState.joystick.dx === 0 && gameState.joystick.dy === 0) {
-                 if (gameState.keys['w']) gameState.player.dy -= MAX_SPEED;
-                 if (gameState.keys['s']) gameState.player.dy += MAX_SPEED;
-                 if (gameState.keys['a']) gameState.player.dx -= MAX_SPEED;
-                 if (gameState.keys['d']) gameState.player.dx += MAX_SPEED;
-                 
-                if (gameState.player.dx !== 0 && gameState.player.dy !== 0) {
-                    const factor = 1 / Math.sqrt(2);
-                    gameState.player.dx *= factor;
-                    gameState.player.dy *= factor;
-                }
-            }
-
-
-            let newX = gameState.player.x + gameState.player.dx;
-            let newY = gameState.player.y + gameState.player.dy;
-
-            newX = Math.max(0, Math.min(newX, WIDTH - PLAYER_SIZE));
-            newY = Math.max(0, Math.min(newY, HEIGHT - PLAYER_SIZE));
-
-            if (!checkObstacleCollision(gameState.player, newX, gameState.player.y)) {
-                gameState.player.x = newX;
-            }
-            if (!checkObstacleCollision(gameState.player, gameState.player.x, newY)) {
-                gameState.player.y = newY;
-            }
-        }
-
-        function botAI(deltaTime) {
-            const bot = gameState.bot;
-            if (!bot.alive) return;
-
-            const speed = BOT_WANDER_SPEED;
-            let targetSpeedX = 0;
-            let targetSpeedY = 0;
-
-            if (gameState.spike.isWarning || gameState.spike.growth > 0) {
-                const side = gameState.spike.activeSide;
-                const buffer = 30; 
-                const spike = gameState.spike;
-
-                let segmentIndex;
-                const isHorizontal = (side === 'top' || side === 'bottom');
-                const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
-                const segmentBaseSize = segmentDimension / SEGMENTS;
-
-                if (isHorizontal) {
-                    segmentIndex = Math.floor((bot.x + bot.size / 2) / segmentBaseSize);
-                } else {
-                    segmentIndex = Math.floor((bot.y + bot.size / 2) / segmentBaseSize);
-                }
-                segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
-                
-                const segmentMaxGrowth = spike.segmentBlockLengths[segmentIndex];
-
-                let safeDist;
-                switch (side) {
-                    case 'top':
-                        safeDist = segmentMaxGrowth + buffer;
-                        if (bot.y < safeDist) targetSpeedY = speed; 
-                        break;
-                    case 'bottom':
-                        safeDist = HEIGHT - segmentMaxGrowth - buffer;
-                        if (bot.y + bot.size > safeDist) targetSpeedY = -speed; 
-                        break;
-                    case 'left':
-                        safeDist = segmentMaxGrowth + buffer;
-                        if (bot.x < safeDist) targetSpeedX = speed; 
-                        break;
-                    case 'right':
-                        safeDist = WIDTH - segmentMaxGrowth - buffer;
-                        if (bot.x + bot.size > safeDist) targetSpeedX = -speed; 
-                        break;
-                }
-                
-                if (targetSpeedX !== 0 || targetSpeedY !== 0) {
-                    bot.dx = targetSpeedX;
-                    bot.dy = targetSpeedY;
-                } else {
-                    const dx = bot.targetX - (bot.x + bot.size / 2);
-                    const dy = bot.targetY - (bot.y + bot.size / 2);
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    if (dist > 0) {
-                        bot.dx = (dx / dist) * speed;
-                        bot.dy = (dy / dist) * speed;
-                    }
-                }
-
-            } else {
-                const dx = bot.targetX - (bot.x + bot.size / 2);
-                const dy = bot.targetY - (bot.y + bot.size / 2);
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                if (dist < 10 || bot.stuckTimer > 30) { 
-                    wander(bot, speed);
-                    bot.stuckTimer = 0;
-                }
-
-                targetSpeedX = (dx / dist) * speed;
-                targetSpeedY = (dy / dist) * speed;
-                
-                bot.dx = targetSpeedX;
-                bot.dy = targetSpeedY;
-            }
-            
-            if (bot.dx !== 0 && bot.dy !== 0) {
-                const factor = 1 / Math.sqrt(2);
-                bot.dx *= factor;
-                bot.dy *= factor;
-            }
-
-            let newX = bot.x + bot.dx;
-            let newY = bot.y + bot.dy;
-
-            if (Math.abs(bot.x - newX) < 0.1 && Math.abs(bot.y - newY) < 0.1 && (bot.dx !== 0 || bot.dy !== 0)) {
-                bot.stuckTimer++;
-            } else {
-                bot.stuckTimer = 0;
-            }
-
-            newX = Math.max(0, Math.min(newX, WIDTH - BOT_SIZE));
-            newY = Math.max(0, Math.min(newY, HEIGHT - BOT_SIZE));
-            
-            if (!checkObstacleCollision(bot, newX, newY)) {
-                bot.x = newX;
-                bot.y = newY;
-            } else {
-                if (!checkObstacleCollision(bot, newX, bot.y)) {
-                    bot.x = newX;
-                } else if (!checkObstacleCollision(bot, bot.x, newY)) {
-                    bot.y = newY;
-                } else {
-                    wander(bot, speed);
-                }
-            }
-        }
-
-        function wander(bot, speed) {
-            bot.targetX = getRandomCoord(bot.size) + bot.size / 2;
-            bot.targetY = getRandomCoord(bot.size) + bot.size / 2;
-        }
-
-        function calculateSegmentBlockLengths() {
-            const side = gameState.spike.activeSide;
-            const isHorizontal = (side === 'top' || side === 'bottom');
-            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
-            const segmentBaseSize = segmentDimension / SEGMENTS;
-            
-            const blockLengths = new Array(SEGMENTS).fill(MAX_SPIKE_LENGTH);
-
-            for (let i = 0; i < SEGMENTS; i++) {
-                const startCoord = i * segmentBaseSize;
-                const endCoord = (i + 1) * segmentBaseSize;
-                let minDistance = MAX_SPIKE_LENGTH;
-
-                for (const obs of gameState.obstacles) {
-                    let dist = MAX_SPIKE_LENGTH;
-                    let isAligned = false;
-
-                    if (isHorizontal) {
-                        if (obs.x < endCoord && obs.x + OBSTACLE_SIZE > startCoord) {
-                            isAligned = true;
-                            dist = (side === 'top') ? obs.y : HEIGHT - (obs.y + OBSTACLE_SIZE);
-                        }
-                    } else {
-                        if (obs.y < endCoord && obs.y + OBSTACLE_SIZE > startCoord) {
-                            isAligned = true;
-                            dist = (side === 'left') ? obs.x : WIDTH - (obs.x + OBSTACLE_SIZE);
-                        }
-                    }
-
-                    if (isAligned && dist < minDistance) {
-                        minDistance = dist;
-                    }
-                }
-                blockLengths[i] = minDistance;
-            }
-            return blockLengths;
-        }
-
-
-        function updateSpikes(deltaTimeMs) {
-            const spike = gameState.spike;
-            const timeSeconds = gameState.elapsedTime;
-
-            spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 60) * 0.5;
-            spike.growthSpeed = Math.min(1.0, spike.growthSpeed); 
-
-            if (timeSeconds > 0 && Math.floor(timeSeconds) % 15 === 0 && Math.floor(timeSeconds) !== Math.floor(gameState.elapsedTime - deltaTimeMs/1000) && gameState.obstacles.length < MAX_OBSTACLES) {
-                spawnObstacles(1);
-            }
-
-            if (spike.activeSide === null) {
-                spike.activeSide = ['top', 'right', 'bottom', 'left'][Math.floor(Math.random() * 4)];
-                spike.isWarning = true;
-                spike.warningTimer = spike.maxWarning;
-                spike.growth = 0;
-                spike.durationTimer = 0;
-                spike.maxDuration = (Math.random() * 3000) + 7000; 
-                spike.segmentBlockLengths = calculateSegmentBlockLengths(); 
-            } else if (spike.isWarning) {
-                spike.warningTimer -= deltaTimeMs;
-                if (spike.warningTimer <= 0) {
-                    spike.isWarning = false;
-                }
-            } else {
-                spike.durationTimer += deltaTimeMs;
-
-                if (spike.growth < MAX_SPIKE_LENGTH) { 
-                    spike.growth += spike.growthSpeed * deltaTimeMs;
-                    spike.growth = Math.min(spike.growth, MAX_SPIKE_LENGTH);
-                }
-
-                if (spike.durationTimer >= spike.maxDuration) {
-                    spike.activeSide = null; 
-                    spike.growth = 0;
-                }
-            }
-        }
-
-        function spawnObstacles(count) {
-            let attempts = 0;
-            const centerArea = { x: WIDTH/2 - 100, y: HEIGHT/2 - 100, w: 200, h: 200 };
-            
-            while (count > 0 && gameState.obstacles.length < MAX_OBSTACLES && attempts < 100) {
-                const newObs = { x: getRandomCoord(OBSTACLE_SIZE), y: getRandomCoord(OBSTACLE_SIZE), w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                const newObsRect = { x: newObs.x, y: newObs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                let collisionFound = false;
-
-                for (const obs of gameState.obstacles) {
-                    const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                    if (checkCollision(newObsRect, {...obsRect, x: obsRect.x - 5, y: obsRect.y - 5, w: obsRect.w + 10, h: obsRect.h + 10 })) {
-                        collisionFound = true;
-                        break;
-                    }
-                }
-
-                 if (checkCollision(newObsRect, centerArea)) {
-                    collisionFound = true;
-                }
-
-                if (!collisionFound) {
-                    gameState.obstacles.push(newObs);
-                    count--;
-                }
-                attempts++;
-            }
-        }
-
-        function checkSpikeCollision() {
-            const spike = gameState.spike;
-            if (spike.growth <= 0 || gameState.gameOver) return;
-
-            const isHorizontal = (spike.activeSide === 'top' || spike.activeSide === 'bottom');
-            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
-            const segmentBaseSize = segmentDimension / SEGMENTS;
-            
-            const checkCollisionForCharacter = (character) => {
-                if (!character.alive) return false;
-
-                let segmentIndex;
-                if (isHorizontal) {
-                    segmentIndex = Math.floor((character.x + character.size / 2) / segmentBaseSize);
-                } else {
-                    segmentIndex = Math.floor((character.y + character.size / 2) / segmentBaseSize);
-                }
-                segmentIndex = Math.min(Math.max(0, segmentIndex), SEGMENTS - 1);
-                
-                const segmentMaxGrowth = gameState.spike.segmentBlockLengths[segmentIndex];
-                
-                const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth + TIP_SIZE); 
-                
-                if (segmentCurrentLength <= 0) return false;
-
-                let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
-                
-                switch (spike.activeSide) {
-                    case 'top':
-                        const xStartTop = segmentIndex * segmentBaseSize;
-                        const xEndTop = (segmentIndex + 1) * segmentBaseSize;
-                        spikeRect = { x: xStartTop, y: 0, w: xEndTop - xStartTop, h: segmentCurrentLength };
-                        break;
-                    case 'bottom':
-                         const xStartBottom = segmentIndex * segmentBaseSize;
-                         const xEndBottom = (segmentIndex + 1) * segmentBaseSize;
-                        spikeRect = { x: xStartBottom, y: HEIGHT - segmentCurrentLength, w: xEndBottom - xStartBottom, h: segmentCurrentLength };
-                        break;
-                    case 'left':
-                        const yStartLeft = segmentIndex * segmentBaseSize;
-                        const yEndLeft = (segmentIndex + 1) * segmentBaseSize;
-                        spikeRect = { x: 0, y: yStartLeft, w: segmentCurrentLength, h: yEndLeft - yStartLeft };
-                        break;
-                    case 'right':
-                        const yStartRight = segmentIndex * segmentBaseSize;
-                        const yEndRight = (segmentIndex + 1) * segmentBaseSize;
-                        spikeRect = { x: WIDTH - segmentCurrentLength, y: yStartRight, w: segmentCurrentLength, h: yEndRight - yStartRight };
-                        break;
-                }
-
-                const charRect = { x: character.x, y: character.y, w: character.size, h: character.size };
-                
-                if (checkCollision(charRect, spikeRect)) {
-                    character.alive = false;
-                    return true;
-                }
-                return false;
-            };
-
-            if (checkCollisionForCharacter(gameState.player)) {
-                PLAYER_STATUS.textContent = 'DESTROYED';
-                PLAYER_STATUS.style.color = WARNING_COLOR_RED;
-                endGame(); 
-                return;
-            }
-
-            if (checkCollisionForCharacter(gameState.bot)) {
-                BOT_STATUS.textContent = 'DESTROYED';
-                BOT_STATUS.style.color = WARNING_COLOR_RED;
-                if (!gameState.player.alive) {
-                    endGame();
-                }
-            }
-            
-            if (gameState.player.alive && !gameState.bot.alive) {
-                 endGame(); 
-            }
-        }
-
-        function endGame() {
-            if (gameState.gameOver) return; 
-
-            gameState.running = false;
-            gameState.gameOver = true;
-            resetJoystickHandle();
-
-            const timeSurvived = gameState.elapsedTime;
-            let message = '';
-
-            if (gameState.player.alive && !gameState.bot.alive) {
-                message = 'PLAYER VICTORIOUS!'; 
-                PLAYER_STATUS.style.color = '#ffff00'; 
-            } else if (!gameState.player.alive && gameState.bot.alive) {
-                message = 'PLAYER DEFEATED!'; 
-                BOT_STATUS.style.color = '#ffff00'; 
-            } else if (!gameState.player.alive && !gameState.bot.alive) {
-                message = 'MUTUAL ANNIHILATION';
-            } else {
-                 message = 'SIMULATION COMPLETE';
-            }
-
-            if (timeSurvived > gameState.highScore) {
-                gameState.highScore = timeSurvived;
-                localStorage.setItem('spikeArenaHighScore', timeSurvived.toFixed(2));
-                HIGH_SCORE_DISPLAY.textContent = timeSurvived.toFixed(2);
-            }
-
-            GAME_MESSAGE.textContent = message;
-            RESTART_BUTTON.textContent = 'RESTART SIMULATION';
-            UI_OVERLAY.classList.add('active');
-        }
-
-        function update(currentTime) {
-            if (!gameState.running) return;
-
-            const deltaTimeMs = currentTime - gameState.lastFrameTime;
-            gameState.lastFrameTime = currentTime;
-            const deltaTime = deltaTimeMs / 1000;
-
-            if (gameState.player.alive || gameState.bot.alive) {
-                gameState.elapsedTime += deltaTime;
-            } else {
-                 return;
-            }
-
-            TIME_DISPLAY.textContent = gameState.elapsedTime.toFixed(2);
-
-            if (gameState.player.alive) handleInput(deltaTime);
-            if (gameState.bot.alive) botAI(deltaTime);
-
-            handlePlayerBotCollision();
-
-            updateSpikes(deltaTimeMs);
-            
-            checkSpikeCollision();
-        }
-
-        // === Rendering Functions (Unchanged) ===
-
-        function drawSpike(side, currentLength, color) {
-            CTX.fillStyle = color;
-            
-            CTX.shadowBlur = 10;
-            CTX.shadowColor = color;
-
-            const isHorizontal = (side === 'top' || side === 'bottom');
-            const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
-            const segmentBaseSize = segmentDimension / SEGMENTS;
-            
-            for (let i = 0; i < SEGMENTS; i++) {
-                const fullStart = i * segmentBaseSize;
-                const fullEnd = (i + 1) * segmentBaseSize;
-                
-                const startCoord = fullStart + SEGMENT_GAP / 2;
-                const endCoord = fullEnd - SEGMENT_GAP / 2;
-                
-                if (startCoord >= endCoord) continue;
-
-                const midCoord = (startCoord + endCoord) / 2;
-
-                const maxSegmentLength = gameState.spike.segmentBlockLengths[i];
-                
-                const drawLength = Math.min(currentLength, maxSegmentLength + TIP_SIZE); 
-                
-                if (drawLength <= 0) continue; 
-                
-                const drawBodyLength = Math.max(0, drawLength - TIP_SIZE); 
-
-                CTX.beginPath();
-                if (side === 'top') {
-                    CTX.moveTo(startCoord, 0);                 
-                    CTX.lineTo(endCoord, 0);                   
-                    CTX.lineTo(endCoord, drawBodyLength);      
-                    CTX.lineTo(midCoord, drawLength);          
-                    CTX.lineTo(startCoord, drawBodyLength);    
-                } else if (side === 'bottom') {
-                    CTX.moveTo(startCoord, HEIGHT);            
-                    CTX.lineTo(endCoord, HEIGHT);              
-                    CTX.lineTo(endCoord, HEIGHT - drawBodyLength);
-                    CTX.lineTo(midCoord, HEIGHT - drawLength);
-                    CTX.lineTo(startCoord, HEIGHT - drawBodyLength);
-                } else if (side === 'left') {
-                    CTX.moveTo(0, startCoord);                 
-                    CTX.lineTo(0, endCoord);                   
-                    CTX.lineTo(drawBodyLength, endCoord);
-                    CTX.lineTo(drawLength, midCoord);
-                    CTX.lineTo(drawBodyLength, startCoord);
-                } else if (side === 'right') {
-                    CTX.moveTo(WIDTH, startCoord);             
-                    CTX.lineTo(WIDTH, endCoord);               
-                    CTX.lineTo(WIDTH - drawBodyLength, endCoord);
-                    CTX.lineTo(WIDTH - drawLength, midCoord);
-                    CTX.lineTo(WIDTH - drawBodyLength, startCoord);
-                }
-                CTX.closePath();
-                CTX.fill();
-            }
-            CTX.shadowBlur = 0; 
-        }
-
-        function draw() {
-            CTX.clearRect(0, 0, WIDTH, HEIGHT);
-
-            CTX.strokeStyle = 'rgba(46, 53, 71, 0.5)';
-            CTX.lineWidth = 1;
-            for (let i = 0; i < WIDTH; i += 50) {
-                CTX.beginPath();
-                CTX.moveTo(i, 0);
-                CTX.lineTo(i, HEIGHT);
-                CTX.stroke();
-                CTX.beginPath();
-                CTX.moveTo(0, i);
-                CTX.lineTo(WIDTH, i);
-                CTX.stroke();
-            }
-
-            CTX.fillStyle = OBSTACLE_COLOR;
-            CTX.shadowBlur = 10;
-            CTX.shadowColor = 'var(--color-steel)';
-            for (const obs of gameState.obstacles) {
-                CTX.fillRect(obs.x, obs.y, OBSTACLE_SIZE, OBSTACLE_SIZE);
-            }
-            CTX.shadowBlur = 0;
-
-            const spike = gameState.spike;
-            if (spike.activeSide) {
-                let color = spike.isWarning ? WARNING_COLOR_RED : SPIKE_COLOR; 
-
-                if (spike.isWarning && Math.floor(gameState.elapsedTime * 6) % 2) {
-                    drawSpike(spike.activeSide, 10, color); 
-                } else if (!spike.isWarning) {
-                    drawSpike(spike.activeSide, spike.growth, color);
-                }
-            }
-
-            if (gameState.player.alive) {
-                CTX.fillStyle = gameState.player.color;
-                CTX.shadowBlur = 15;
-                CTX.shadowColor = gameState.player.color;
-                CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
-                CTX.shadowBlur = 0; 
-            } else if (!gameState.running) {
-                CTX.fillStyle = 'rgba(0, 229, 255, 0.2)';
-                CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
-            }
-
-            if (gameState.bot.alive) {
-                CTX.fillStyle = gameState.bot.color;
-                CTX.shadowBlur = 15;
-                CTX.shadowColor = gameState.bot.color;
-                CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
-                CTX.shadowBlur = 0; 
-            } else if (!gameState.running) {
-                CTX.fillStyle = 'rgba(255, 0, 255, 0.2)';
-                CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
-            }
-        }
-
-        // === Game Loop ===
-        function gameLoop(currentTime) {
-            update(currentTime);
-            draw();
-
-            if (gameState.running) {
-                gameState.frameId = requestAnimationFrame(gameLoop);
-            }
-        }
-
-        // === JOYSTICK LOGIC FIXES ===
-        let activeTouchId = null;
-        let joystickRect = null; // Store bounds for efficient calculation
-
-        function getJoystickBounds() {
-            joystickRect = JOYSTICK_CONTAINER.getBoundingClientRect();
-        }
-        
-        // Call once on load and on resize
-        window.addEventListener('load', getJoystickBounds);
-        window.addEventListener('resize', getJoystickBounds);
-        
-        function startJoystick(e) {
-            if (!gameState.running) return;
-            if (e.changedTouches.length === 0 || activeTouchId !== null) return;
-            
-            // This prevents the touch from also triggering scrolling or zooming
-            if (e.cancelable) e.preventDefault(); 
-            
-            // Re-calculate bounds to be safe
-            getJoystickBounds();
-            
-            const touch = e.changedTouches[0];
-            activeTouchId = touch.identifier;
-            
-            // Add visual feedback
-            JOYSTICK_HANDLE.style.boxShadow = `0 0 30px ${BOT_COLOR}`;
-            JOYSTICK_HANDLE.style.background = BOT_COLOR;
-            
-            handleMoveJoystick(e); // Process the initial touch location
-        }
-
-        function handleMoveJoystick(e) {
-            if (activeTouchId === null) return;
-            
-            // This is CRITICAL for preventing scrolling during drag
-            if (e.cancelable) e.preventDefault(); 
-
-            let touch = null;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === activeTouchId) {
-                    touch = e.changedTouches[i];
-                    break;
-                }
-            }
-            if (!touch || !joystickRect) return;
-            
-            // Calculate coordinates relative to the center of the container
-            const centerClientX = joystickRect.left + JOYSTICK_CENTER;
-            const centerClientY = joystickRect.top + JOYSTICK_CENTER;
-            
-            let deltaX = touch.clientX - centerClientX;
-            let deltaY = touch.clientY - centerClientY;
-
-            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
-            
-            if (distance > MAX_JOYSTICK_DISTANCE) {
-                const angle = Math.atan2(deltaY, deltaX);
-                deltaX = Math.cos(angle) * MAX_JOYSTICK_DISTANCE;
-                deltaY = Math.sin(angle) * MAX_JOYSTICK_DISTANCE;
-            }
-
-            // Update handle position (centered on the container's coordinates)
-            JOYSTICK_HANDLE.style.left = `${JOYSTICK_CENTER + deltaX}px`;
-            JOYSTICK_HANDLE.style.top = `${JOYSTICK_CENTER + deltaY}px`;
-
-            // Update game state direction vector (normalized)
-            gameState.joystick.dx = deltaX / MAX_JOYSTICK_DISTANCE;
-            gameState.joystick.dy = deltaY / MAX_JOYSTICK_DISTANCE;
-        }
-
-        function endJoystick(e) {
-            if (activeTouchId === null) return;
-            
-            let touchFound = false;
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                if (e.changedTouches[i].identifier === activeTouchId) {
-                    touchFound = true;
-                    break;
-                }
-            }
-            
-            if (touchFound) {
-                // IMPORTANT: Only clear the ID if the lifting touch matches the active ID
-                activeTouchId = null;
-                resetJoystickHandle();
-                gameState.joystick.dx = 0;
-                gameState.joystick.dy = 0;
-                
-                // Reset visual feedback
-                JOYSTICK_HANDLE.style.boxShadow = `0 0 20px ${BOT_COLOR}`;
-                JOYSTICK_HANDLE.style.background = BOT_COLOR;
-            }
-        }
-
-        function resetJoystickHandle() {
-            JOYSTICK_HANDLE.style.left = `${JOYSTICK_CENTER}px`;
-            JOYSTICK_HANDLE.style.top = `${JOYSTICK_CENTER}px`;
-        }
-
-
-        // === Event Listeners ===
-        document.addEventListener('keydown', (e) => {
-            gameState.keys[e.key.toLowerCase()] = true;
-        });
-
-        document.addEventListener('keyup', (e) => {
-            gameState.keys[e.key.toLowerCase()] = false;
-        });
-
-        RESTART_BUTTON.addEventListener('click', resetGame);
-
-        // Joystick Event listeners: touchstart on container, move/end on document
-        JOYSTICK_CONTAINER.addEventListener('touchstart', startJoystick, { passive: false });
-        document.addEventListener('touchmove', handleMoveJoystick, { passive: false });
-        document.addEventListener('touchend', endJoystick);
-        document.addEventListener('touchcancel', endJoystick);
-
-
-        // Initial setup to display the start screen and get joystick bounds
-        UI_OVERLAY.classList.add('active');
-        getJoystickBounds();
-        draw(); 
-    </script>
-</body>
-</html>
+/* Custom Properties for Dark Mode (Default) */
+:root {
+    --bg-color: #1e1e1e;
+    --fg-color: #f0f0f0;
+    --sidebar-bg: #2d2d2d;
+    --primary-color: #007acc; /* VS Code Blue */
+    --hover-color: #005f99;
+    --border-color: #3f3f3f;
+    --transition-speed: 0.2s;
+}
+
+/* Light Mode Override */
+body[data-theme="light"] {
+    --bg-color: #ffffff;
+    --fg-color: #1e1e1e;
+    --sidebar-bg: #f5f5f5;
+    --primary-color: #007acc;
+    --hover-color: #e0e0e0;
+    --border-color: #cccccc;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--fg-color);
+    transition: background-color var--transition-speed;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#app {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* --- Top Bar --- */
+#top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#top-bar h1 {
+    font-size: 1.2em;
+    font-weight: 300;
+}
+
+button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    margin-left: 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color var(--transition-speed);
+}
+
+button:hover:not([disabled]) {
+    background-color: var(--hover-color);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Editor Container & Sidebars --- */
+#editor-container {
+    flex-grow: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 250px;
+    background-color: var(--sidebar-bg);
+    padding: 20px;
+    border-right: 1px solid var(--border-color); /* Separator */
+    overflow-y: auto;
+    flex-shrink: 0;
+    transition: transform var(--transition-speed), opacity var(--transition-speed);
+}
+
+#right-sidebar {
+    border-right: none;
+    border-left: 1px solid var(--border-color);
+}
+
+/* --- Tools List --- */
+#tools-list {
+    list-style: none;
+    padding: 0;
+}
+
+#tools-list li button {
+    width: 100%;
+    text-align: left;
+    background: none;
+    color: var(--fg-color);
+    padding: 10px;
+    margin: 5px 0;
+    border: 1px solid transparent;
+    transition: background-color var(--transition-speed), border-color var(--transition-speed);
+}
+
+#tools-list li button:hover {
+    background-color: var(--border-color);
+}
+
+#tools-list li button.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* --- Canvas Area --- */
+#canvas-area {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: var(--bg-color); /* Center background */
+    position: relative;
+    overflow: hidden;
+}
+
+#editor-canvas {
+    max-width: 100%;
+    max-height: 100%;
+    display: none; /* Hide until image is loaded */
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    /* For responsiveness, the JS handles scaling to fit */
+}
+
+#placeholder {
+    font-size: 1.5em;
+    color: var(--border-color);
+}
+
+/* --- Settings Panel --- */
+.setting-group {
+    margin-bottom: 20px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setting-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    font-weight: bold;
+}
+
+.slider-value {
+    font-weight: normal;
+    float: right;
+    color: var(--primary-color);
+}
+
+input[type="range"] {
+    width: 100%;
+    margin-top: 5px;
+}
+
+/* --- Responsive (Mobile View) --- */
+@media (max-width: 768px) {
+    #editor-container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: 50vh; /* Takes half screen on mobile by default */
+        border-right: none;
+        border-left: none;
+    }
+
+    #left-sidebar {
+        order: 1; /* Move tools below canvas */
+        height: auto;
+        max-height: 200px;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    #tools-list {
+        display: flex;
+    }
+
+    #tools-list li {
+        flex-shrink: 0;
+        margin-right: 10px;
+    }
+
+    #canvas-area {
+        order: 0; /* Canvas first */
+    }
+
+    #right-sidebar {
+        order: 2; /* Settings last */
+        position: fixed; /* Overlay on canvas */
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 50vh;
+        z-index: 100;
+        transform: translateY(100%); /* Hidden by default */
+        /* Smooth Slide Animation for Mobile Panel */
+    }
+}

@@ -2,40 +2,62 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Spike Arena</title>
+    <title>Spike Arena - Mobile</title>
+    <!-- Critical for mobile: locks viewport, prevents scaling/zooming -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+        :root {
+            --color-bg-dark: #000408;
+            --color-arena-dark: #08101a;
+            --color-neon-blue: #00e5ff;
+            --color-neon-magenta: #ff00ff;
+            --color-neon-red: #ff3333;
+            --color-steel: #2e3547;
+        }
+
         body {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
             margin: 0;
-            background-color: #0d1117; /* Dark background */
-            font-family: 'Arial', sans-serif;
-            color: #ffffff;
+            background-color: var(--color-bg-dark);
+            font-family: 'Orbitron', sans-serif;
+            color: var(--color-neon-blue);
+            overflow: hidden; /* Prevent body scroll */
             /* Prevent scrolling/zooming on mobile */
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
             user-select: none;
-            touch-action: manipulation;
+            touch-action: none; /* Disable all default touch actions */
         }
 
         #game-container {
             position: relative;
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); /* Neon glow effect */
-            border: 2px solid #00ffff;
-            /* Ensure the container is touch-friendly */
+            margin: 20px 0;
+            width: 90vw;
+            max-width: 500px;
+            height: 90vw;
+            max-height: 500px;
+            box-shadow: 0 0 30px var(--color-neon-blue), 0 0 15px var(--color-neon-magenta) inset;
+            border: 3px solid var(--color-neon-blue);
+            border-radius: 10px;
+            overflow: hidden;
             touch-action: none;
         }
 
         #game {
             display: block;
-            background-color: #161b22; /* Darker inner background */
+            background-color: var(--color-arena-dark);
+            width: 100%;
+            height: 100%;
         }
 
+        /* === UI Overlay and Messages === */
         #ui-overlay {
             position: absolute;
             top: 0;
@@ -46,11 +68,11 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.85);
             text-align: center;
             pointer-events: none;
             opacity: 0;
-            transition: opacity 0.5s ease;
+            transition: opacity 0.4s ease-in-out;
             z-index: 10;
         }
 
@@ -60,95 +82,115 @@
         }
 
         #game-message {
-            font-size: 4em;
-            font-weight: bold;
-            margin-bottom: 20px;
-            text-shadow: 0 0 10px #00ffff;
-            color: #00ffff;
+            font-size: 10vw;
+            font-weight: 700;
+            margin-bottom: 30px;
+            text-shadow: 0 0 15px var(--color-neon-blue);
+            color: var(--color-neon-blue);
+            animation: pulse-neon 1.5s infinite alternate;
+        }
+
+        @keyframes pulse-neon {
+            from {
+                text-shadow: 0 0 5px var(--color-neon-blue), 0 0 10px var(--color-neon-blue);
+            }
+            to {
+                text-shadow: 0 0 20px var(--color-neon-blue), 0 0 40px var(--color-neon-magenta);
+            }
         }
 
         #restart-button {
-            padding: 15px 30px;
-            font-size: 1.5em;
+            padding: 15px 40px;
+            font-size: 5vw;
+            font-weight: bold;
             cursor: pointer;
-            background-color: #00ffff;
-            color: #161b22;
+            background-color: var(--color-neon-magenta);
+            color: var(--color-bg-dark);
             border: none;
             border-radius: 5px;
-            box-shadow: 0 0 15px #00ffff;
-            transition: background-color 0.2s, box-shadow 0.2s;
+            box-shadow: 0 0 15px var(--color-neon-magenta);
+            transition: all 0.2s ease;
         }
 
-        #restart-button:hover {
-            background-color: #00e0e0;
-            box-shadow: 0 0 20px #00ffff, 0 0 5px #00e0e0;
+        #restart-button:active {
+            background-color: var(--color-neon-blue);
+            box-shadow: 0 0 20px var(--color-neon-blue);
+            transform: scale(0.95);
         }
 
+        /* === Scoreboard === */
         #score-board {
-            margin-top: 10px;
-            font-size: 1.2em;
-            width: 500px;
+            width: 90vw;
+            max-width: 500px;
+            margin-bottom: 10px;
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-around;
             text-shadow: 0 0 5px rgba(0, 255, 255, 0.3);
+            font-size: 3vw;
         }
 
         .status-box {
             padding: 5px 10px;
-            border: 1px solid #333;
-            border-radius: 3px;
-            background-color: #1f2730;
+            margin: 5px;
+            border: 1px solid var(--color-steel);
+            border-radius: 5px;
+            background-color: var(--color-arena-dark);
+            transition: all 0.3s;
         }
 
         /* === Joystick Styles === */
         #joystick-container {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
-            left: 20px;
+            left: 5vw;
             width: 150px;
             height: 150px;
             z-index: 20;
-            display: block; /* NEW: Always visible for testing */
+            opacity: 0.9;
         }
 
         .joystick-base {
             position: absolute;
             width: 100%;
             height: 100%;
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(46, 53, 71, 0.5); /* Semi-transparent steel */
             border-radius: 50%;
-            border: 2px solid rgba(0, 255, 255, 0.5);
+            border: 2px solid var(--color-neon-blue);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5) inset;
         }
 
         .joystick-handle {
             position: absolute;
-            width: 50px;
-            height: 50px;
-            background: rgba(0, 255, 255, 0.7);
+            width: 60px;
+            height: 60px;
+            background: var(--color-neon-magenta);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             top: 50%;
             left: 50%;
-            transition: box-shadow 0.1s;
+            box-shadow: 0 0 20px var(--color-neon-magenta);
+            transition: background 0.1s, box-shadow 0.1s;
         }
     </style>
 </head>
 <body>
 
     <div id="score-board">
-        <div class="status-box">Time Survived: <span id="time-display">0.00</span>s</div>
-        <div class="status-box">High Score: <span id="high-score-display">0.00</span>s</div>
-        <div class="status-box">Player Status: <span id="player-status-display" style="color: lime;">ALIVE</span></div>
-        <div class="status-box">Bot Status: <span id="bot-status-display" style="color: lime;">ALIVE</span></div>
+        <div class="status-box">TIME: <span id="time-display">0.00</span>s</div>
+        <div class="status-box">HI-SCORE: <span id="high-score-display">0.00</span>s</div>
+        <div class="status-box">PLAYER: <span id="player-status-display" style="color: var(--color-neon-blue);">READY</span></div>
+        <div class="status-box">BOT: <span id="bot-status-display" style="color: var(--color-neon-magenta);">READY</span></div>
     </div>
 
     <div id="game-container">
         <canvas id="game" width="500" height="500"></canvas>
         <div id="ui-overlay">
             <div id="game-message">SPIKE ARENA</div>
-            <button id="restart-button">Start Game</button>
+            <button id="restart-button">START SIMULATION</button>
         </div>
         
+        <!-- Joystick Implementation (Fixed position for mobile) -->
         <div id="joystick-container">
             <div class="joystick-base"></div>
             <div id="joystick-handle" class="joystick-handle"></div>
@@ -159,25 +201,28 @@
         // === Configuration and Constants ===
         const CANVAS = document.getElementById('game');
         const CTX = CANVAS.getContext('2d');
-        const WIDTH = CANVAS.width;
-        const HEIGHT = CANVAS.height;
+        // Canvas is resized to fill container using CSS, but internal logic uses fixed 500x500 for calculation ease
+        const WIDTH = 500; 
+        const HEIGHT = 500;
         const PLAYER_SIZE = 25;
         const BOT_SIZE = 25;
         const OBSTACLE_SIZE = 40;
-        const MAX_SPEED = 2.5; 
+        const MAX_SPEED = 3.5; // Increased speed for mobile responsiveness
         const BOT_WANDER_SPEED = MAX_SPEED; 
         const MAX_SPIKE_LENGTH = 500; 
         const SEGMENTS = 5; 
         const SEGMENT_GAP = 4;
         const TIP_SIZE = 15; 
-        const FIXED_SPIKE_WARNING_TIME_MS = 2000;
-        // NEW: Increased base spike speed from 0.2 to 0.4
-        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.4; 
-        const MAX_OBSTACLES = 2; 
-        const OBSTACLE_COLOR = '#3b434b';
+        const FIXED_SPIKE_WARNING_TIME_MS = 1500; // Shorter warning time for faster pace
+        const INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS = 0.5; // High base speed
+        const MAX_OBSTACLES = 3; 
+        const OBSTACLE_COLOR = 'var(--color-steel)';
         
-        const SPIKE_COLOR_WOOD = '#8B4513'; 
-        const WARNING_COLOR_RED = '#ff0000';
+        // Neon color variables
+        const SPIKE_COLOR = '#ff9900'; 
+        const WARNING_COLOR_RED = 'var(--color-neon-red)';
+        const PLAYER_COLOR = 'var(--color-neon-blue)';
+        const BOT_COLOR = 'var(--color-neon-magenta)';
 
         // === Game State Variables ===
         let gameState = {
@@ -186,9 +231,9 @@
             startTime: 0,
             elapsedTime: 0,
             highScore: parseFloat(localStorage.getItem('spikeArenaHighScore') || 0),
-            player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: '#00ffff' },
-            bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: '#ff00ff', targetX: 0, targetY: 0, stuckTimer: 0 },
-            keys: {},
+            player: { x: WIDTH / 2 - PLAYER_SIZE / 2, y: HEIGHT / 2 - PLAYER_SIZE / 2, dx: 0, dy: 0, size: PLAYER_SIZE, alive: true, color: PLAYER_COLOR },
+            bot: { x: WIDTH / 2 - BOT_SIZE / 2 + 80, y: HEIGHT / 2 - BOT_SIZE / 2 + 80, dx: 0, dy: 0, size: BOT_SIZE, alive: true, color: BOT_COLOR, targetX: 0, targetY: 0, stuckTimer: 0 },
+            keys: {}, // Keeping for minimal keyboard support if used on hybrid device
             joystick: { dx: 0, dy: 0 }, 
             spike: {
                 activeSide: null, 
@@ -219,13 +264,14 @@
         const JOYSTICK_HANDLE = document.getElementById('joystick-handle');
         const JOYSTICK_SIZE = 150;
         const JOYSTICK_CENTER = JOYSTICK_SIZE / 2;
-        const MAX_JOYSTICK_DISTANCE = (JOYSTICK_SIZE / 2) - (parseInt(getComputedStyle(JOYSTICK_HANDLE).width) / 2);
+        const HANDLE_SIZE = parseInt(getComputedStyle(JOYSTICK_HANDLE).width);
+        const MAX_JOYSTICK_DISTANCE = (JOYSTICK_SIZE / 2) - (HANDLE_SIZE / 2);
 
         HIGH_SCORE_DISPLAY.textContent = gameState.highScore.toFixed(2);
         
-        // === Mobile Detection and Setup (Keep the logic for input handling only) ===
-        const isMobile = /Mobi|Android/i.test(navigator.userAgent);
-        // Joystick is visible by default now
+        // Initial setup for status colors
+        PLAYER_STATUS.style.color = PLAYER_COLOR;
+        BOT_STATUS.style.color = BOT_COLOR;
 
         // === Utility Functions ===
 
@@ -253,7 +299,7 @@
         
         function handlePlayerBotCollision() {
             if (!gameState.player.alive || !gameState.bot.alive) return;
-
+            // Simplified collision check: prevent overlap but don't apply full physics
             const player = gameState.player;
             const bot = gameState.bot;
             
@@ -274,8 +320,9 @@
 
                 if (overlap > 0) {
                     const angle = Math.atan2(dy, dx);
-                    const moveX = overlap * Math.cos(angle);
-                    const moveY = overlap * Math.sin(angle);
+                    // Push the bot away from the player to resolve collision
+                    const moveX = overlap * Math.cos(angle) * 0.5; // Push factor 0.5
+                    const moveY = overlap * Math.sin(angle) * 0.5;
 
                     let newBotX = bot.x + moveX;
                     let newBotY = bot.y + moveY;
@@ -324,9 +371,9 @@
             spawnObstacles(MAX_OBSTACLES);
 
             PLAYER_STATUS.textContent = 'ALIVE';
-            PLAYER_STATUS.style.color = 'lime';
+            PLAYER_STATUS.style.color = PLAYER_COLOR;
             BOT_STATUS.textContent = 'ALIVE';
-            BOT_STATUS.style.color = 'lime';
+            BOT_STATUS.style.color = BOT_COLOR;
             TIME_DISPLAY.textContent = '0.00';
 
             UI_OVERLAY.classList.remove('active');
@@ -342,29 +389,23 @@
         function handleInput(deltaTime) {
             if (!gameState.player.alive) return;
 
-            // Handle keyboard input (PC)
-            gameState.player.dx = 0;
-            gameState.player.dy = 0;
+            // Use joystick input (preferred for mobile)
+            gameState.player.dx = gameState.joystick.dx * MAX_SPEED;
+            gameState.player.dy = gameState.joystick.dy * MAX_SPEED;
             
-            let useKeyboard = !(activeTouchId !== null); // Use keyboard only if joystick isn't actively being used
-            
-            if (useKeyboard) {
-                if (gameState.keys['w']) gameState.player.dy -= MAX_SPEED;
-                if (gameState.keys['s']) gameState.player.dy += MAX_SPEED;
-                if (gameState.keys['a']) gameState.player.dx -= MAX_SPEED;
-                if (gameState.keys['d']) gameState.player.dx += MAX_SPEED;
-            } else {
-                 // Handle joystick input 
-                gameState.player.dx = gameState.joystick.dx * MAX_SPEED;
-                gameState.player.dy = gameState.joystick.dy * MAX_SPEED;
-            }
-
-
-            // Normalize PC diagonal movement
-            if (useKeyboard && gameState.player.dx !== 0 && gameState.player.dy !== 0) {
-                const factor = 1 / Math.sqrt(2);
-                gameState.player.dx *= factor;
-                gameState.player.dy *= factor;
+            // Add keyboard fallback (for hybrid devices)
+            if (gameState.joystick.dx === 0 && gameState.joystick.dy === 0) {
+                 if (gameState.keys['w']) gameState.player.dy -= MAX_SPEED;
+                 if (gameState.keys['s']) gameState.player.dy += MAX_SPEED;
+                 if (gameState.keys['a']) gameState.player.dx -= MAX_SPEED;
+                 if (gameState.keys['d']) gameState.player.dx += MAX_SPEED;
+                 
+                 // Normalize PC diagonal movement
+                if (gameState.player.dx !== 0 && gameState.player.dy !== 0) {
+                    const factor = 1 / Math.sqrt(2);
+                    gameState.player.dx *= factor;
+                    gameState.player.dy *= factor;
+                }
             }
 
 
@@ -434,6 +475,7 @@
                     bot.dx = targetSpeedX;
                     bot.dy = targetSpeedY;
                 } else {
+                    // If not actively evading, continue moving towards the target
                     const dx = bot.targetX - (bot.x + bot.size / 2);
                     const dy = bot.targetY - (bot.y + bot.size / 2);
                     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -480,6 +522,7 @@
             newX = Math.max(0, Math.min(newX, WIDTH - BOT_SIZE));
             newY = Math.max(0, Math.min(newY, HEIGHT - BOT_SIZE));
             
+            // Obstacle collision check and slide logic
             if (!checkObstacleCollision(bot, newX, newY)) {
                 bot.x = newX;
                 bot.y = newY;
@@ -488,6 +531,9 @@
                     bot.x = newX;
                 } else if (!checkObstacleCollision(bot, bot.x, newY)) {
                     bot.y = newY;
+                } else {
+                    // Fully blocked, recalculate target to escape
+                    wander(bot, speed);
                 }
             }
         }
@@ -542,18 +588,13 @@
             const spike = gameState.spike;
             const timeSeconds = gameState.elapsedTime;
 
-            // Increase speed based on time
-            spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 60) * 0.4;
-            spike.growthSpeed = Math.min(0.8, spike.growthSpeed); // Cap max speed
+            // Speed increases over time
+            spike.growthSpeed = INITIAL_SPIKE_GROWTH_SPEED_PX_PER_MS + (timeSeconds / 60) * 0.5;
+            spike.growthSpeed = Math.min(1.0, spike.growthSpeed); 
 
-            // Maintain max 2 obstacles
-            while (gameState.obstacles.length > MAX_OBSTACLES) {
-                gameState.obstacles.shift(); 
-            }
-            
-            // Spawn 1 or 2 new obstacles when timer hits and we are below max
+            // Handle obstacle spawning
             if (timeSeconds > 0 && Math.floor(timeSeconds) % 15 === 0 && Math.floor(timeSeconds) !== Math.floor(gameState.elapsedTime - deltaTimeMs/1000) && gameState.obstacles.length < MAX_OBSTACLES) {
-                spawnObstacles(Math.floor(Math.random() * (MAX_OBSTACLES - gameState.obstacles.length)) + 1);
+                spawnObstacles(1);
             }
 
             if (spike.activeSide === null) {
@@ -572,7 +613,7 @@
             } else {
                 spike.durationTimer += deltaTimeMs;
 
-                // FIX: Allow growth to reach MAX_SPIKE_LENGTH. Individual segments handle the obstacle stop.
+                // Growth is independent of segment blocks, up to MAX_SPIKE_LENGTH
                 if (spike.growth < MAX_SPIKE_LENGTH) { 
                     spike.growth += spike.growthSpeed * deltaTimeMs;
                     spike.growth = Math.min(spike.growth, MAX_SPIKE_LENGTH);
@@ -587,6 +628,7 @@
 
         function spawnObstacles(count) {
             let attempts = 0;
+            const centerArea = { x: WIDTH/2 - 100, y: HEIGHT/2 - 100, w: 200, h: 200 };
             
             while (count > 0 && gameState.obstacles.length < MAX_OBSTACLES && attempts < 100) {
                 const newObs = { x: getRandomCoord(OBSTACLE_SIZE), y: getRandomCoord(OBSTACLE_SIZE), w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
@@ -596,14 +638,14 @@
                 // Check collision with existing obstacles
                 for (const obs of gameState.obstacles) {
                     const obsRect = { x: obs.x, y: obs.y, w: OBSTACLE_SIZE, h: OBSTACLE_SIZE };
-                    if (checkCollision(newObsRect, obsRect)) {
+                    // Give a small buffer between obstacles
+                    if (checkCollision(newObsRect, {...obsRect, x: obsRect.x - 5, y: obsRect.y - 5, w: obsRect.w + 10, h: obsRect.h + 10 })) {
                         collisionFound = true;
                         break;
                     }
                 }
 
-                // Check collision with center area (initial spawn protection)
-                const centerArea = { x: WIDTH/2 - 100, y: HEIGHT/2 - 100, w: 200, h: 200 };
+                // Check collision with center area
                  if (checkCollision(newObsRect, centerArea)) {
                     collisionFound = true;
                 }
@@ -640,6 +682,8 @@
                 
                 // Segment length is capped by its block length (to the obstacle edge) + TIP_SIZE
                 const segmentCurrentLength = Math.min(spike.growth, segmentMaxGrowth + TIP_SIZE); 
+                
+                if (segmentCurrentLength <= 0) return false;
 
                 let spikeRect = { x: 0, y: 0, w: WIDTH, h: HEIGHT };
                 
@@ -677,20 +721,22 @@
             };
 
             if (checkCollisionForCharacter(gameState.player)) {
-                PLAYER_STATUS.textContent = 'DEAD';
-                PLAYER_STATUS.style.color = 'red';
+                PLAYER_STATUS.textContent = 'DESTROYED';
+                PLAYER_STATUS.style.color = WARNING_COLOR_RED;
                 endGame(); 
                 return;
             }
 
             if (checkCollisionForCharacter(gameState.bot)) {
-                BOT_STATUS.textContent = 'DEAD';
-                BOT_STATUS.style.color = 'red';
-                if (gameState.player.alive) {
-                    endGame(); 
-                } else if (!gameState.player.alive) {
+                BOT_STATUS.textContent = 'DESTROYED';
+                BOT_STATUS.style.color = WARNING_COLOR_RED;
+                if (!gameState.player.alive) {
                     endGame();
                 }
+            }
+            
+            if (gameState.player.alive && !gameState.bot.alive) {
+                 endGame(); // Player survived the bot
             }
         }
 
@@ -705,15 +751,15 @@
             let message = '';
 
             if (gameState.player.alive && !gameState.bot.alive) {
-                message = 'YOU WIN!'; 
-                PLAYER_STATUS.style.color = 'gold';
+                message = 'PLAYER VICTORIOUS!'; 
+                PLAYER_STATUS.style.color = '#ffff00'; // Gold color
             } else if (!gameState.player.alive && gameState.bot.alive) {
-                message = 'YOU LOSE!'; 
-                BOT_STATUS.style.color = 'gold';
+                message = 'PLAYER DEFEATED!'; 
+                BOT_STATUS.style.color = '#ffff00'; // Gold color
             } else if (!gameState.player.alive && !gameState.bot.alive) {
-                message = 'GAME OVER!';
+                message = 'MUTUAL ANNIHILATION';
             } else {
-                 message = 'Game Over (Unknown State)';
+                 message = 'SIMULATION COMPLETE';
             }
 
             if (timeSurvived > gameState.highScore) {
@@ -723,7 +769,7 @@
             }
 
             GAME_MESSAGE.textContent = message;
-            RESTART_BUTTON.textContent = 'Restart Game';
+            RESTART_BUTTON.textContent = 'RESTART SIMULATION';
             UI_OVERLAY.classList.add('active');
         }
 
@@ -756,6 +802,11 @@
 
         function drawSpike(side, currentLength, color) {
             CTX.fillStyle = color;
+            
+            // Add a subtle glow for the spike
+            CTX.shadowBlur = 10;
+            CTX.shadowColor = color;
+
             const isHorizontal = (side === 'top' || side === 'bottom');
             const segmentDimension = isHorizontal ? WIDTH : HEIGHT;
             const segmentBaseSize = segmentDimension / SEGMENTS;
@@ -809,23 +860,42 @@
                 CTX.closePath();
                 CTX.fill();
             }
+            CTX.shadowBlur = 0; // Reset shadow
         }
 
         function draw() {
             CTX.clearRect(0, 0, WIDTH, HEIGHT);
 
-            // Draw Obstacles
+            // Draw grid pattern in the background
+            CTX.strokeStyle = 'rgba(46, 53, 71, 0.5)';
+            CTX.lineWidth = 1;
+            for (let i = 0; i < WIDTH; i += 50) {
+                CTX.beginPath();
+                CTX.moveTo(i, 0);
+                CTX.lineTo(i, HEIGHT);
+                CTX.stroke();
+                CTX.beginPath();
+                CTX.moveTo(0, i);
+                CTX.lineTo(WIDTH, i);
+                CTX.stroke();
+            }
+
+            // Draw Obstacles (Glowing squares)
             CTX.fillStyle = OBSTACLE_COLOR;
+            CTX.shadowBlur = 10;
+            CTX.shadowColor = 'var(--color-steel)';
             for (const obs of gameState.obstacles) {
                 CTX.fillRect(obs.x, obs.y, OBSTACLE_SIZE, OBSTACLE_SIZE);
             }
+            CTX.shadowBlur = 0;
 
             // Draw Spike
             const spike = gameState.spike;
             if (spike.activeSide) {
-                let color = spike.isWarning ? WARNING_COLOR_RED : SPIKE_COLOR_WOOD; 
+                let color = spike.isWarning ? WARNING_COLOR_RED : SPIKE_COLOR; 
 
-                if (spike.isWarning && Math.floor(gameState.elapsedTime * 5) % 2) {
+                // Flashing warning effect
+                if (spike.isWarning && Math.floor(gameState.elapsedTime * 6) % 2) {
                     drawSpike(spike.activeSide, 10, color); 
                 } else if (!spike.isWarning) {
                     drawSpike(spike.activeSide, spike.growth, color);
@@ -835,23 +905,25 @@
             // Draw Player
             if (gameState.player.alive) {
                 CTX.fillStyle = gameState.player.color;
-                CTX.shadowBlur = 10;
+                CTX.shadowBlur = 15;
                 CTX.shadowColor = gameState.player.color;
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
                 CTX.shadowBlur = 0; 
             } else if (!gameState.running) {
-                CTX.fillStyle = 'rgba(0, 255, 255, 0.2)';
+                // Ghosted defeated state
+                CTX.fillStyle = 'rgba(0, 229, 255, 0.2)';
                 CTX.fillRect(gameState.player.x, gameState.player.y, PLAYER_SIZE, PLAYER_SIZE);
             }
 
             // Draw Bot
             if (gameState.bot.alive) {
                 CTX.fillStyle = gameState.bot.color;
-                CTX.shadowBlur = 10;
+                CTX.shadowBlur = 15;
                 CTX.shadowColor = gameState.bot.color;
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
                 CTX.shadowBlur = 0; 
             } else if (!gameState.running) {
+                // Ghosted defeated state
                 CTX.fillStyle = 'rgba(255, 0, 255, 0.2)';
                 CTX.fillRect(gameState.bot.x, gameState.bot.y, BOT_SIZE, BOT_SIZE);
             }
@@ -871,21 +943,28 @@
         let activeTouchId = null;
 
         function startJoystick(e) {
-            e.preventDefault();
+            // Prevent default scrolling/zooming immediately
+            if (e.cancelable) e.preventDefault(); 
             if (activeTouchId !== null || !gameState.running) return;
 
             const rect = JOYSTICK_CONTAINER.getBoundingClientRect();
             const touch = e.changedTouches[0];
             
-            // Check if the touch started within the joystick area
-            if (touch.clientX >= rect.left && touch.clientX <= rect.right &&
-                touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+            // Check if the touch started within the joystick area (with a buffer)
+            const buffer = 10;
+            if (touch.clientX >= rect.left - buffer && touch.clientX <= rect.right + buffer &&
+                touch.clientY >= rect.top - buffer && touch.clientY <= rect.bottom + buffer) {
                 activeTouchId = touch.identifier;
                 handleMoveJoystick(e); // Process the initial touch location
+                
+                // Add visual feedback on touch start
+                JOYSTICK_HANDLE.style.boxShadow = `0 0 30px ${BOT_COLOR}`;
+                JOYSTICK_HANDLE.style.background = BOT_COLOR;
             }
         }
 
         function handleMoveJoystick(e) {
+            if (e.cancelable) e.preventDefault(); 
             if (activeTouchId === null) return;
             
             let touch = null;
@@ -898,6 +977,7 @@
             if (!touch) return;
             
             const rect = JOYSTICK_CONTAINER.getBoundingClientRect();
+            // Calculate coordinates relative to the center of the container
             const containerX = rect.left;
             const containerY = rect.top;
             
@@ -922,16 +1002,26 @@
         }
 
         function endJoystick(e) {
+            if (e.cancelable) e.preventDefault(); 
+
             if (activeTouchId === null) return;
             
+            let touchFound = false;
             for (let i = 0; i < e.changedTouches.length; i++) {
                 if (e.changedTouches[i].identifier === activeTouchId) {
-                    activeTouchId = null;
-                    resetJoystickHandle();
-                    gameState.joystick.dx = 0;
-                    gameState.joystick.dy = 0;
+                    touchFound = true;
                     break;
                 }
+            }
+            
+            if (touchFound) {
+                activeTouchId = null;
+                resetJoystickHandle();
+                gameState.joystick.dx = 0;
+                gameState.joystick.dy = 0;
+                // Reset visual feedback
+                JOYSTICK_HANDLE.style.boxShadow = `0 0 20px ${BOT_COLOR}`;
+                JOYSTICK_HANDLE.style.background = BOT_COLOR;
             }
         }
 
@@ -952,8 +1042,8 @@
 
         RESTART_BUTTON.addEventListener('click', resetGame);
 
-        // Joystick Event listeners (always active now)
-        document.addEventListener('touchstart', startJoystick, { passive: false });
+        // Joystick Event listeners (Passive set to false to allow preventDefault)
+        JOYSTICK_CONTAINER.addEventListener('touchstart', startJoystick, { passive: false });
         document.addEventListener('touchmove', handleMoveJoystick, { passive: false });
         document.addEventListener('touchend', endJoystick);
         document.addEventListener('touchcancel', endJoystick);

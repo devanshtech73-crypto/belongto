@@ -2,952 +2,504 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SnapMini Pro Editor (V3)</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Highway Drifter: Light Mode</title>
     <style>
-        /* Custom Properties for Dark Mode (Default) */
-        :root {
-            --bg-color: #121212; /* Deep Black/Gray */
-            --fg-color: #e0e0e0;
-            --sidebar-bg: #1e1e1e;
-            --primary-color: #00bcd4; /* Cyan/Teal Pro Look */
-            --primary-light: #4fffff;
-            --accent-color: #ff9800; /* Orange Accent */
-            --border-color: #2c2c2c;
-            --transition-speed: 0.2s;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--fg-color);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
+        body { 
+            margin: 0; 
             overflow: hidden; 
+            background: #4caf50; /* Green Grass Background */
+            font-family: 'Verdana', sans-serif;
+            touch-action: none;
+            user-select: none; 
+            -webkit-user-select: none;
+        }
+        canvas { display: block; }
+
+        /* Dashboard UI */
+        #dashboard {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            color: #333;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .stat-row { display: flex; align-items: center; gap: 15px; margin-bottom: 5px; }
+        .gear-box {
+            background: #333;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 18px;
+        }
+        .speed-text { font-size: 20px; }
+
+        /* Crash Message */
+        #message {
+            position: absolute;
+            top: 40%;
+            width: 100%;
+            text-align: center;
+            color: #d32f2f;
+            font-size: 32px;
+            font-weight: 900;
+            text-shadow: 2px 2px 0px white;
+            pointer-events: none;
+            display: none;
+            z-index: 20;
         }
 
-        #app {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* --- Top Bar --- */
-        #top-bar {
+        /* Mobile Controls Overlay */
+        .controls-area {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 160px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px;
-            background-color: var(--sidebar-bg);
-            border-bottom: 1px solid var(--primary-color);
-            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
-            flex-shrink: 0;
-        }
-
-        #top-bar h1 {
-            font-size: 1.5em;
-            font-weight: 200;
-            color: var(--primary-color);
-        }
-
-        button {
-            background-color: var(--primary-color);
-            color: var(--bg-color);
-            border: none;
-            padding: 8px 15px;
-            margin-left: 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all var(--transition-speed);
-            font-weight: 600;
-        }
-
-        button:hover:not([disabled]) {
-            background-color: var(--primary-light);
-            box-shadow: 0 0 10px rgba(0, 188, 212, 0.6);
-        }
-
-        button:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-            background-color: var(--border-color);
-            color: var(--fg-color);
-        }
-
-        /* --- Editor Container & Sidebars (PC View Default) --- */
-        #editor-container {
-            flex-grow: 1;
-            display: flex;
-            overflow: hidden;
-        }
-
-        .sidebar {
-            width: 280px;
-            background-color: var(--sidebar-bg);
-            padding: 20px;
-            border-right: 1px solid var(--border-color);
-            overflow-y: auto;
-            flex-shrink: 0;
-            transition: all var(--transition-speed);
-        }
-
-        #right-sidebar {
-            border-right: none;
-            border-left: 1px solid var(--border-color);
-            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
-        }
-
-        /* --- Tools List --- */
-        .tool-category h3 {
-            color: var(--accent-color);
-            margin-top: 15px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        #tools-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        #tools-list li button {
-            width: 100%;
-            text-align: left;
-            background: none;
-            color: var(--fg-color);
-            padding: 10px;
-            margin: 5px 0;
-            border: 1px solid var(--border-color);
-        }
-
-        #tools-list li button:hover {
-            background-color: var(--border-color);
-        }
-
-        #tools-list li button.active {
-            background-color: var(--primary-color);
-            color: var(--bg-color);
-            border-color: var(--primary-color);
-        }
-
-        /* --- Canvas Area --- */
-        #canvas-area {
-            flex-grow: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            position: relative;
-            overflow: hidden;
-            /* Checkerboard background for transparency */
-            background-color: var(--bg-color);
-            background-image: linear-gradient(45deg, var(--border-color) 25%, transparent 25%), 
-                              linear-gradient(-45deg, var(--border-color) 25%, transparent 25%),
-                              linear-gradient(45deg, transparent 75%, var(--border-color) 75%),
-                              linear-gradient(-45deg, transparent 75%, var(--border-color) 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        }
-
-        #editor-canvas {
-            max-width: 95%;
-            max-height: 95%;
-            display: none;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
-            border: 2px solid var(--primary-color);
-        }
-
-        #placeholder {
-            font-size: 1.8em;
-            color: var(--border-color);
-            font-weight: 300;
-        }
-
-        /* --- Settings Panel --- */
-        .setting-group {
-            margin-bottom: 25px;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--border-color);
+            padding: 0 30px;
+            box-sizing: border-box;
+            pointer-events: none;
         }
         
-        .setting-group:last-child {
-            border-bottom: none;
+        .dpad, .pedals {
+            display: flex;
+            gap: 20px;
+            pointer-events: auto;
+            align-items: flex-end;
         }
 
-        .setting-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.95em;
-            font-weight: 600;
-        }
-
-        .slider-value {
-            font-weight: normal;
-            float: right;
-            color: var(--accent-color);
-        }
-
-        input[type="range"] {
-            width: 100%;
-            margin-top: 5px;
-            -webkit-appearance: none;
-            appearance: none;
-            height: 5px;
-            background: var(--border-color);
-            border-radius: 5px;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 15px;
-            height: 15px;
+        .btn {
+            width: 75px;
+            height: 75px;
+            background: rgba(0, 0, 0, 0.1);
+            border: 2px solid rgba(0, 0, 0, 0.5);
             border-radius: 50%;
-            background: var(--primary-color);
-            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-size: 30px;
+            font-weight: bold;
+        }
+        .btn:active { background: rgba(0, 0, 0, 0.3); transform: scale(0.95); }
+        
+        .btn-rect { border-radius: 15px; width: 65px; height: 100px; }
+        .red { background: rgba(255, 50, 50, 0.2); border-color: #d32f2f; }
+        .green { background: rgba(50, 255, 50, 0.2); border-color: #388e3c; }
+
+        /* Steering Wheel Visual */
+        #steering-container {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 120px;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        #wheel-img {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: 8px solid #333;
+            border-radius: 50%;
+            box-sizing: border-box;
+            position: relative;
+            background: rgba(255,255,255,0.2);
+        }
+        /* Spokes of the wheel */
+        #wheel-img::before {
+            content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 10px; background: #333; transform: translateY(-50%);
+        }
+        #wheel-img::after {
+            content: ''; position: absolute; bottom: 0; left: 50%; width: 10px; height: 50%; background: #333; transform: translateX(-50%);
         }
 
-        /* --- Mobile UI/UX Separation --- */
-        @media (max-width: 900px) {
-            
-            /* Hide Left Sidebar completely on Mobile */
-            #left-sidebar {
-                display: none; 
-            }
-            
-            /* Center container is full width */
-            #editor-container {
-                flex-direction: column;
-            }
-
-            /* Tool Selector Bar (Mobile Only) */
-            #mobile-tool-bar {
-                display: flex;
-                overflow-x: auto;
-                background-color: var(--sidebar-bg);
-                border-top: 1px solid var(--border-color);
-                padding: 5px;
-                flex-shrink: 0;
-                list-style: none;
-            }
-            
-            #mobile-tool-bar li button {
-                padding: 8px 15px;
-                margin: 5px;
-                font-size: 0.8em;
-                background-color: var(--border-color);
-                color: var(--fg-color);
-            }
-            #mobile-tool-bar li button.active {
-                background-color: var(--primary-color);
-                color: var(--bg-color);
-            }
-
-            /* Right Sidebar (Settings) becomes a slide-up panel */
-            #right-sidebar {
-                width: 100%;
-                position: fixed; 
-                bottom: 0;
-                left: 0;
-                right: 0;
-                height: 50vh; 
-                z-index: 100;
-                transform: translateY(100%); /* Hidden by default */
-                transition: transform 0.3s ease-in-out; 
-                border-top: 2px solid var(--primary-color);
-                box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.7);
-            }
-            
-            #right-sidebar.active {
-                transform: translateY(0);
-            }
-            
-            /* Re-organize Top Bar for Mobile */
-            #top-bar { padding: 10px; }
-            #top-bar h1 { font-size: 1.2em; }
-            .actions button { margin-left: 5px; padding: 8px 10px; }
-        }
     </style>
 </head>
 <body>
-    <div id="app">
-        <header id="top-bar">
-            <h1>SnapMini Pro</h1>
-            <div class="actions">
-                <input type="file" id="image-upload" accept="image/*" style="display: none;">
-                <button id="load-image-btn" aria-label="Load Image">📂</button>
-                <button id="undo-btn" disabled title="Undo (Ctrl+Z)" aria-label="Undo">↩️</button>
-                <button id="redo-btn" disabled title="Redo (Ctrl+Y)" aria-label="Redo">↪️</button>
-                <button id="save-image-btn" disabled aria-label="Save Image">💾</button>
-            </div>
-        </header>
 
-        <main id="editor-container">
-            <aside id="left-sidebar" class="sidebar">
-                <div class="tool-category">
-                    <h3>🎨 Core Adjustments</h3>
-                    <ul id="tools-list-core"></ul>
-                </div>
-                <div class="tool-category">
-                    <h3>🤖 AI & Advanced</h3>
-                    <ul id="tools-list-ai"></ul>
-                </div>
-                <div class="tool-category">
-                    <h3>🎬 Looks & Effects</h3>
-                    <ul id="tools-list-fx"></ul>
-                </div>
-            </aside>
-
-            <section id="canvas-area">
-                <canvas id="editor-canvas"></canvas>
-                <div id="placeholder">Load an image to start editing.</div>
-            </section>
-            
-            <ul id="mobile-tool-bar">
-                </ul>
-
-            <aside id="right-sidebar" class="sidebar">
-                <h2 id="tool-name">Select a Tool</h2>
-                <div id="settings-panel">
-                    </div>
-            </aside>
-        </main>
+<div id="dashboard">
+    <div class="stat-row">
+        <span>GEAR</span>
+        <div class="gear-box" id="gearDisplay">P</div>
     </div>
+    <div class="stat-row">
+        <span class="speed-text"><span id="speedVal">0</span> km/h</span>
+    </div>
+</div>
 
-    <script id="AIEngine.js">
-        const AIEngine = {
-            /**
-             * Simulate AI model inference for background removal using simple color segmentation.
-             * A real implementation would use WebGL/WASM/ONNX for U-Net/Mask R-CNN inference.
-             * @param {Uint8ClampedArray} data - Pixel array.
-             * @param {number} width - Image width.
-             * @param {number} height - Image height.
-             * @param {number} threshold - Sensitivity (0 to 255).
-             */
-            bg_remove: (data, width, height, threshold) => {
-                // For simplicity, we assume the background is a general light/neutral color 
-                // and the subject is darker/more saturated.
-                
-                // 1. Get average color of image corners (simulated background sample)
-                const samples = [
-                    AIEngine._getPixel(data, 1, 1, width),
-                    AIEngine._getPixel(data, width - 2, 1, width),
-                    AIEngine._getPixel(data, 1, height - 2, width),
-                    AIEngine._getPixel(data, width - 2, height - 2, width)
-                ];
-                
-                const avgR = samples.reduce((sum, p) => sum + p[0], 0) / 4;
-                const avgG = samples.reduce((sum, p) => sum + p[1], 0) / 4;
-                const avgB = samples.reduce((sum, p) => sum + p[2], 0) / 4;
+<div id="message">CRASHED!<br><span style="font-size:16px; color:#333">Tap to Restart</span></div>
 
-                const colorThreshold = threshold * 3; // Combined RGB tolerance
+<div id="steering-container">
+    <div id="wheel-img"></div>
+</div>
 
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-                    
-                    // Calculate distance from the simulated background color
-                    const colorDiff = Math.abs(r - avgR) + Math.abs(g - avgG) + Math.abs(b - avgB);
+<div class="controls-area">
+    <div class="dpad">
+        <div class="btn" id="btnLeft">◄</div>
+        <div class="btn" id="btnRight">►</div>
+    </div>
+    <div class="pedals">
+        <div class="btn btn-rect red" id="btnBrake"></div>
+        <div class="btn btn-rect green" id="btnGas"></div>
+    </div>
+</div>
 
-                    if (colorDiff < colorThreshold) {
-                        // Mark as transparent (background)
-                        data[i + 3] = 0; // Alpha channel = 0
-                    } else {
-                        // Mark as opaque (foreground/subject)
-                        data[i + 3] = 255;
-                    }
-                }
-            },
+<canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const uiSpeed = document.getElementById('speedVal');
+const uiGear = document.getElementById('gearDisplay');
+const msgBox = document.getElementById('message');
+const wheelElement = document.getElementById('wheel-img');
+
+// --- CONFIG ---
+const ROAD_WIDTH = 500; // Width of the asphalt
+const BARRIER_width = 20;
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- INPUTS ---
+const keys = { Up: false, Down: false, Left: false, Right: false };
+let visualSteerAngle = 0;
+
+function setKey(key, state) {
+    if(key === 'ArrowUp' || key === 'w') keys.Up = state;
+    if(key === 'ArrowDown' || key === 's') keys.Down = state;
+    if(key === 'ArrowLeft' || key === 'a') keys.Left = state;
+    if(key === 'ArrowRight' || key === 'd') keys.Right = state;
+}
+
+window.addEventListener('keydown', (e) => setKey(e.key, true));
+window.addEventListener('keyup', (e) => setKey(e.key, false));
+
+function bindTouch(id, keyName) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
+    el.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+}
+bindTouch('btnGas', 'Up');
+bindTouch('btnBrake', 'Down');
+bindTouch('btnLeft', 'Left');
+bindTouch('btnRight', 'Right');
+
+// Restart handler
+window.addEventListener('touchstart', () => {
+    if(!gameState.active) resetGame();
+});
+window.addEventListener('keydown', (e) => {
+    if(!gameState.active && e.key === " ") resetGame();
+});
+
+// --- GAME OBJECTS ---
+const gameState = { active: true };
+
+const car = {
+    x: 0, y: 0,
+    w: 26, h: 48,
+    angle: -Math.PI / 2,
+    vx: 0, vy: 0,
+    speed: 0,
+    gear: 'P',
+    // Physics
+    maxSpeed: 28,
+    accel: 0.3,
+    friction: 0.97,
+    turnSpeed: 0.05,
+    grip: 0.93
+};
+
+let traffic = [];
+let particles = [];
+let skids = [];
+
+function resetGame() {
+    car.x = 0; // Center of road
+    car.y = 0;
+    car.vx = 0; car.vy = 0; 
+    car.angle = -Math.PI / 2;
+    traffic = [];
+    skids = [];
+    gameState.active = true;
+    msgBox.style.display = 'none';
+}
+
+// --- PHYSICS ---
+function updatePhysics() {
+    if (!gameState.active) return;
+
+    // 1. Throttle
+    let thrust = 0;
+    if (keys.Up) thrust = car.accel;
+    if (keys.Down) thrust = -car.accel / 2;
+
+    // 2. Steering & Wheel Visual
+    let targetSteer = 0;
+    if (keys.Left) targetSteer = -90;
+    if (keys.Right) targetSteer = 90;
+    
+    // Smooth wheel rotation
+    visualSteerAngle += (targetSteer - visualSteerAngle) * 0.2;
+    wheelElement.style.transform = `rotate(${visualSteerAngle}deg)`;
+
+    // Apply steering to car
+    if (Math.abs(car.speed) > 0.5) {
+        const dir = (keys.Down) ? -1 : 1;
+        if (keys.Left) car.angle -= car.turnSpeed * dir;
+        if (keys.Right) car.angle += car.turnSpeed * dir;
+    }
+
+    // 3. Move Car
+    car.vx += Math.cos(car.angle) * thrust;
+    car.vy += Math.sin(car.angle) * thrust;
+
+    // Friction
+    car.vx *= car.friction;
+    car.vy *= car.friction;
+
+    car.speed = Math.sqrt(car.vx**2 + car.vy**2);
+
+    // Drift Logic
+    if (car.speed > 0.1) {
+        const hx = Math.cos(car.angle);
+        const hy = Math.sin(car.angle);
+        car.vx = car.vx * car.grip + (hx * car.speed) * (1 - car.grip);
+        car.vy = car.vy * car.grip + (hy * car.speed) * (1 - car.grip);
+    }
+
+    car.x += car.vx;
+    car.y += car.vy;
+
+    // 4. Barrier Collision
+    const roadEdge = ROAD_WIDTH / 2 - 20;
+    if (car.x < -roadEdge || car.x > roadEdge) {
+        if (car.speed > 8) {
+            // Crash at high speed
+            gameState.active = false;
+            msgBox.style.display = 'block';
+            createExplosion(car.x, car.y, '#333');
+        } else {
+            // Bounce at low speed
+            car.x = (car.x < 0) ? -roadEdge : roadEdge;
+            car.vx *= -0.5; // Bounce off wall
+        }
+    }
+
+    // 5. Gearbox Logic
+    const kph = Math.floor(car.speed * 8); // Fake KPH scale
+    if(car.speed < 0.1 && !keys.Up && !keys.Down) car.gear = 'P';
+    else if(keys.Down && car.speed > 0.5 && Math.abs(car.angle - Math.atan2(car.vy, car.vx)) < 1) car.gear = 'R'; // Crude reverse check
+    else if(kph < 30) car.gear = '1';
+    else if(kph < 70) car.gear = '2';
+    else if(kph < 110) car.gear = '3';
+    else car.gear = '4';
+
+    uiSpeed.innerText = kph;
+    uiGear.innerText = car.gear;
+
+    // 6. Traffic Spawning
+    manageTraffic();
+    
+    // 7. Skidmarks
+    const moveAngle = Math.atan2(car.vy, car.vx);
+    const drift = Math.abs(Math.sin(moveAngle - car.angle)) * car.speed;
+    if (drift > 2) {
+        const c = Math.cos(car.angle), s = Math.sin(car.angle);
+        skids.push({x: car.x - c*20 - s*10, y: car.y - s*20 + c*10, a: 0.4});
+        skids.push({x: car.x - c*20 + s*10, y: car.y - s*20 - c*10, a: 0.4});
+    }
+}
+
+function manageTraffic() {
+    // Spawn ahead
+    if (traffic.length < 4 && car.speed > 2) {
+        if (Math.random() < 0.03) {
+            const lane = (Math.random() > 0.5) ? 1 : -1;
+            const xPos = lane * (ROAD_WIDTH/4); // Two lanes
+            const yPos = car.y + (Math.sin(car.angle) * 900) + (Math.random()*200);
             
-            _getPixel: (data, x, y, width) => {
-                const index = (y * width + x) * 4;
-                return [data[index], data[index + 1], data[index + 2]];
-            },
-            
-            // Other AI models would go here (e.g., face enhancement, upscaling)
-        };
-    </script>
-
-    <script>
-        const $ = selector => document.querySelector(selector);
-        const $$ = selector => document.querySelectorAll(selector);
-
-        const canvas = $('#editor-canvas');
-        const ctx = canvas.getContext('2d');
-        const imgUpload = $('#image-upload');
-
-        let originalImage = new Image(); 
-        let currentImage = null; 
-        let historyStack = []; 
-        let historyPointer = -1;
-        
-        let adjustmentLayers = {
-            // Core
-            brightness: 0, contrast: 0, saturation: 0, exposure: 0,
-            clarity: 0, // Local Contrast
-            shadows: 0, highlights: 0,
-            
-            // Color
-            hue: 0, warmth: 0,
-            r: 0, g: 0, b: 0, 
-            
-            // Effects
-            vignette: 0, grain: 0, 
-            
-            // AI/Advanced
-            ai_enhance: false,
-            bg_threshold: 50, // BG Remove threshold
-        };
-
-        let activeTool = null;
-        const MAX_HISTORY = 10;
-        let updateTimeout = null; 
-
-        // --- Core Utility Functions ---
-
-        function createOffscreenCanvas(img) {
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = img.naturalWidth;
-            offCanvas.height = img.naturalHeight;
-            const offCtx = offCanvas.getContext('2d');
-            offCtx.drawImage(img, 0, 0);
-            return offCanvas;
-        }
-        
-        // --- State Management (Undo/Redo) ---
-
-        function saveState() {
-            if (historyPointer < historyStack.length - 1) {
-                historyStack = historyStack.slice(0, historyPointer + 1);
-            }
-            historyStack.push({...adjustmentLayers});
-            if (historyStack.length > MAX_HISTORY) {
-                historyStack.shift();
-            }
-            historyPointer = historyStack.length - 1;
-            updateUndoRedoButtons();
-        }
-
-        function navigateHistory(delta) {
-            const newPointer = historyPointer + delta;
-            if (newPointer >= 0 && newPointer < historyStack.length) {
-                historyPointer = newPointer;
-                Object.assign(adjustmentLayers, historyStack[historyPointer]);
-                applyAllFilters();
-                updateSettingsPanel(); 
-            }
-            updateUndoRedoButtons();
-        }
-
-        function updateUndoRedoButtons() {
-            $('#undo-btn').disabled = historyPointer <= 0;
-            $('#redo-btn').disabled = historyPointer >= historyStack.length - 1;
-        }
-        
-        // --- Image Loading & Rendering ---
-
-        function loadImage(file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                originalImage.onload = () => {
-                    currentImage = createOffscreenCanvas(originalImage);
-                    
-                    historyStack = [];
-                    historyPointer = -1;
-                    // Reset adjustments to initial values
-                    adjustmentLayers = Object.fromEntries(
-                        Object.keys(adjustmentLayers).map(key => [key, key === 'ai_enhance' ? false : (key === 'bg_threshold' ? 50 : 0)])
-                    );
-                    saveState(); 
-                    
-                    applyAllFilters();
-                    
-                    $('#placeholder').style.display = 'none';
-                    canvas.style.display = 'block';
-                    $('#save-image-btn').disabled = false;
-                    
-                    activateTool('adjust'); // Default tool
-                };
-                originalImage.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function renderCanvas() {
-            if (!currentImage) return;
-
-            const imgWidth = currentImage.width;
-            const imgHeight = currentImage.height;
-            const container = $('#canvas-area');
-            const containerWidth = container.clientWidth;
-            const containerHeight = container.clientHeight;
-
-            // Calculate scaling
-            const scale = Math.min(containerWidth / imgWidth, containerHeight / imgHeight);
-
-            const targetWidth = imgWidth * scale * 0.95; // 95% margin
-            const targetHeight = imgHeight * scale * 0.95;
-
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
-            
-            ctx.clearRect(0, 0, targetWidth, targetHeight);
-            ctx.drawImage(currentImage, 0, 0, imgWidth, imgHeight, 0, 0, targetWidth, targetHeight);
-        }
-
-        // --- Core Pixel Filters ---
-
-        /**
-         * Converts RGB to HSL for Hue/Saturation manipulation.
-         * @returns {[number, number, number]} [H, S, L]
-         */
-        function rgbToHsl(r, g, b) {
-            r /= 255; g /= 255; b /= 255;
-            const max = Math.max(r, g, b), min = Math.min(r, g, b);
-            let h, s, l = (max + min) / 2;
-
-            if (max === min) {
-                h = s = 0; // achromatic
-            } else {
-                const d = max - min;
-                s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-                switch (max) {
-                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                    case g: h = (b - r) / d + 2; break;
-                    case b: h = (r - g) / d + 4; break;
-                }
-                h /= 6;
-            }
-            return [h * 360, s * 100, l * 100];
-        }
-
-        /**
-         * Converts HSL back to RGB.
-         * @returns {[number, number, number]} [R, G, B]
-         */
-        function hslToRgb(h, s, l) {
-            h /= 360; s /= 100; l /= 100;
-            let r, g, b;
-
-            if (s === 0) {
-                r = g = b = l; // achromatic
-            } else {
-                const hue2rgb = (p, q, t) => {
-                    if (t < 0) t += 1;
-                    if (t > 1) t -= 1;
-                    if (t < 1/6) return p + (q - p) * 6 * t;
-                    if (t < 1/2) return q;
-                    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-                    return p;
-                };
-                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                const p = 2 * l - q;
-                r = hue2rgb(p, q, h + 1/3);
-                g = hue2rgb(p, q, h);
-                b = hue2rgb(p, q, h - 1/3);
-            }
-
-            return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
-        }
-        
-        function processPixelData(data, adjustments, width) {
-            const len = data.length;
-            
-            // Pre-calculate factors
-            const contrastFactor = (259 * (adjustments.contrast + 255)) / (255 * (259 - adjustments.contrast));
-            const exposureBoost = adjustments.exposure;
-
-            for (let i = 0; i < len; i += 4) {
-                let r = data[i];
-                let g = data[i + 1];
-                let b = data[i + 2];
-                
-                // 1. Exposure/Brightness
-                r += exposureBoost + adjustments.brightness;
-                g += exposureBoost + adjustments.brightness;
-                b += exposureBoost + adjustments.brightness;
-
-                // 2. Shadows/Highlights (Simplified sigmoid curve adjustment)
-                const shadowStrength = adjustments.shadows / 100;
-                const highlightStrength = adjustments.highlights / 100;
-                
-                // Adjust shadows (lift dark tones)
-                if (shadowStrength > 0) {
-                    r = r + (255 - r) * (1 - r / 255) * shadowStrength;
-                    g = g + (255 - g) * (1 - g / 255) * shadowStrength;
-                    b = b + (255 - b) * (1 - b / 255) * shadowStrength;
-                }
-                // Adjust highlights (tame bright tones)
-                if (highlightStrength < 0) {
-                    r = r + (0 - r) * (r / 255) * Math.abs(highlightStrength);
-                    g = g + (0 - g) * (g / 255) * Math.abs(highlightStrength);
-                    b = b + (0 - b) * (b / 255) * Math.abs(highlightStrength);
-                }
-                
-                // 3. Contrast
-                r = (r - 128) * contrastFactor + 128;
-                g = (g - 128) * contrastFactor + 128;
-                b = (b - 128) * contrastFactor + 128;
-                
-                // 4. HSL/Color
-                let [h, s, l] = rgbToHsl(r, g, b);
-
-                // Hue Rotation
-                h = (h + adjustments.hue) % 360;
-                if (h < 0) h += 360;
-
-                // Saturation
-                s += adjustments.saturation;
-                s = Math.min(100, Math.max(0, s));
-
-                [r, g, b] = hslToRgb(h, s, l);
-                
-                // 5. Color Balance (Post HSL)
-                r += adjustments.r;
-                g += adjustments.g;
-                b += adjustments.b;
-
-                // 6. AI Enhancement (Remini Sim)
-                if (adjustments.ai_enhance) {
-                     // High-pass filter simulation for sharpness/detail recovery
-                     r = Math.min(255, Math.max(0, r * 1.05));
-                     g = Math.min(255, Math.max(0, g * 1.05));
-                     b = Math.min(255, Math.max(0, b * 1.05));
-                }
-
-                // 7. Local Contrast / Clarity (Simulated Unsharp Mask on Luminosity)
-                // True clarity requires neighborhood sampling, this is a global approximation
-                const clarityStrength = adjustments.clarity / 100;
-                const avgL = (r + g + b) / 3;
-                r = r + (r - avgL) * clarityStrength;
-                g = g + (g - avgL) * clarityStrength;
-                b = b + (b - avgL) * clarityStrength;
-
-
-                // Clamp values and write back
-                data[i] = Math.min(255, Math.max(0, r));
-                data[i + 1] = Math.min(255, Math.max(0, g));
-                data[i + 2] = Math.min(255, Math.max(0, b));
-                // data[i + 3] remains alpha
-            }
-        }
-
-        /**
-         * Main function to apply all stored adjustment layers and re-render.
-         */
-        function applyAllFilters() {
-            if (!originalImage.complete || !currentImage) return;
-
-            // 1. Reset the currentImage canvas to the original state
-            const offCtx = currentImage.getContext('2d');
-            offCtx.drawImage(originalImage, 0, 0);
-
-            const imageData = offCtx.getImageData(0, 0, currentImage.width, currentImage.height);
-            const data = imageData.data;
-            
-            // 2. AI Background Removal (Must run FIRST to modify Alpha channel)
-            const bgThreshold = adjustmentLayers.bg_threshold;
-            if (bgThreshold > 0) {
-                // Call the simulated external library function
-                AIEngine.bg_remove(data, currentImage.width, currentImage.height, bgThreshold);
-            }
-
-            // 3. Core Pixel Processing
-            clearTimeout(updateTimeout);
-            updateTimeout = setTimeout(() => {
-                // This runs on the potentially modified (alpha-changed) data
-                processPixelData(data, adjustmentLayers, currentImage.width);
-
-                // Put the processed data back
-                offCtx.putImageData(imageData, 0, 0);
-
-                // 4. Render to the display canvas
-                renderCanvas();
-            }, 16);
-        }
-
-        // --- UI and Tool Management ---
-
-        const tools = {
-            'adjust': {
-                name: 'Light & Exposure',
-                group: 'core',
-                settings: [
-                    { id: 'exposure', label: 'Exposure', min: -50, max: 50, step: 1 },
-                    { id: 'contrast', label: 'Contrast', min: -100, max: 100, step: 1 },
-                    { id: 'brightness', label: 'Brightness', min: -100, max: 100, step: 1 },
-                    { id: 'shadows', label: 'Shadows Lift', min: -100, max: 100, step: 1 },
-                    { id: 'highlights', label: 'Highlights Cap', min: -100, max: 100, step: 1 },
-                ]
-            },
-            'structure': {
-                name: 'Clarity & Detail',
-                group: 'core',
-                settings: [
-                    { id: 'clarity', label: 'Clarity (Local Contrast)', min: -100, max: 100, step: 1 },
-                    { id: 'sharpness', label: 'Sharpness (Sim)', min: 0, max: 100, step: 1 }, // Currently unused in processPixelData
-                ]
-            },
-            'color': {
-                name: 'Color & Hue',
-                group: 'core',
-                settings: [
-                    { id: 'saturation', label: 'Saturation', min: -100, max: 100, step: 1 },
-                    { id: 'hue', label: 'Hue Rotation', min: 0, max: 360, step: 1 },
-                    { id: 'warmth', label: 'Warmth (Temp Sim)', min: -100, max: 100, step: 1 }, // Not yet implemented in filters
-                ]
-            },
-            'rgb_mix': {
-                name: 'Color Mixer (RGB)',
-                group: 'core',
-                settings: [
-                    { id: 'r', label: 'Red Channel', min: -50, max: 50, step: 1 },
-                    { id: 'g', label: 'Green Channel', min: -50, max: 50, step: 1 },
-                    { id: 'b', label: 'Blue Channel', min: -50, max: 50, step: 1 },
-                ]
-            },
-            'bg_remove': {
-                name: 'AI BG Remove',
-                group: 'ai',
-                settings: [
-                    { id: 'bg_threshold', label: 'Sensitivity Threshold', min: 0, max: 255, step: 1 },
-                ]
-            },
-            'ai_enhance': {
-                name: 'AI Face/HD',
-                group: 'ai',
-                settings: [
-                    { id: 'ai_enhance', label: 'Enable HD Enhancement', type: 'checkbox' }
-                ]
-            },
-            'effects': {
-                name: 'Vignette & Grain',
-                group: 'fx',
-                settings: [
-                    { id: 'vignette', label: 'Vignette Strength', min: 0, max: 100, step: 1 }, // Not yet implemented
-                    { id: 'grain', label: 'Grain Amount', min: 0, max: 100, step: 1 }, // Not yet implemented
-                ]
-            },
-            'filters': {
-                name: 'Presets (10 Looks)',
-                group: 'fx',
-                settings: [
-                    // This would list 10+ preset buttons, each overriding adjustmentLayers
-                    { id: 'matte_film', label: 'Matte Film (Sim)', type: 'button' },
-                    { id: 'b_w', label: 'Black & White (Sim)', type: 'button' },
-                    { id: 'vintage', label: 'Vintage Sepia (Sim)', type: 'button' },
-                ]
-            },
-        };
-
-        function initToolsList() {
-            const lists = {
-                core: $('#tools-list-core'),
-                ai: $('#tools-list-ai'),
-                fx: $('#tools-list-fx'),
-                mobile: $('#mobile-tool-bar')
-            };
-
-            for (const toolId in tools) {
-                const tool = tools[toolId];
-                
-                // Create button for Desktop Sidebar
-                const desktopButton = createToolButton(toolId, tool.name, activateTool);
-                const listItemDesktop = document.createElement('li');
-                listItemDesktop.appendChild(desktopButton);
-                if (lists[tool.group]) lists[tool.group].appendChild(listItemDesktop);
-                
-                // Create button for Mobile Toolbar
-                const mobileButton = createToolButton(toolId, tool.name, activateTool);
-                const listItemMobile = document.createElement('li');
-                listItemMobile.appendChild(mobileButton);
-                lists.mobile.appendChild(listItemMobile);
-            }
-        }
-        
-        function createToolButton(toolId, name, handler) {
-            const button = document.createElement('button');
-            button.innerHTML = name;
-            button.setAttribute('data-tool', toolId);
-            button.onclick = () => handler(toolId);
-            return button;
-        }
-
-        function activateTool(toolId) {
-            if (!currentImage) return;
-
-            activeTool = tools[toolId];
-            
-            // Highlight active tool in both PC sidebar and Mobile bar
-            $$('[data-tool]').forEach(btn => btn.classList.remove('active'));
-            $$(`[data-tool="${toolId}"]`).forEach(btn => btn.classList.add('active'));
-
-            $('#tool-name').textContent = `${activeTool.name} Settings`;
-            renderSettingsPanel(activeTool);
-            
-            // Show settings panel on Mobile
-            $('#right-sidebar').classList.add('active');
-        }
-        
-        function renderSettingsPanel(tool) {
-            const panel = $('#settings-panel');
-            panel.innerHTML = ''; 
-
-            tool.settings.forEach(setting => {
-                const value = adjustmentLayers[setting.id];
-                const group = document.createElement('div');
-                group.classList.add('setting-group');
-                
-                if (setting.type === 'checkbox') {
-                    group.innerHTML = `
-                        <label for="${setting.id}">${setting.label}</label>
-                        <input type="checkbox" id="${setting.id}" ${value ? 'checked' : ''} onchange="handleSettingChange(this)">
-                    `;
-                } else if (setting.type === 'button') {
-                    group.innerHTML = `<button onclick="applyPreset('${setting.id}')" style="width: 100%;">${setting.label}</button>`;
-                } else {
-                    group.innerHTML = `
-                        <label for="${setting.id}">${setting.label} <span id="${setting.id}-value" class="slider-value">${value}</span></label>
-                        <input type="range" id="${setting.id}" min="${setting.min}" max="${setting.max}" step="${setting.step}" value="${value}"
-                            oninput="updateSliderValue(this)"
-                            onmouseup="handleSettingChange(this)"
-                            ontouchend="handleSettingChange(this)"> 
-                    `;
-                }
-                panel.appendChild(group);
+            traffic.push({
+                x: xPos, y: yPos,
+                w: 26, h: 48,
+                angle: car.angle, // Drive same direction
+                speed: 8 + Math.random() * 6,
+                color: ['#1e88e5', '#8e24aa', '#fdd835', '#43a047'][Math.floor(Math.random()*4)]
             });
-            updateSettingsPanel();
         }
-        
-        function updateSettingsPanel() {
-            if (activeTool) {
-                activeTool.settings.forEach(setting => {
-                    const value = adjustmentLayers[setting.id];
-                    const input = $(`#${setting.id}`);
-                    if (input) {
-                        if (input.type === 'checkbox') {
-                            input.checked = value;
-                        } else if (input.type === 'range') {
-                            input.value = value;
-                            $(`#${setting.id}-value`).textContent = value;
-                        }
-                    }
-                });
-            }
+    }
+
+    // Move & Collide
+    for (let i = 0; i < traffic.length; i++) {
+        let t = traffic[i];
+        t.x += Math.cos(t.angle) * t.speed;
+        t.y += Math.sin(t.angle) * t.speed;
+
+        // Collision
+        if (Math.hypot(car.x - t.x, car.y - t.y) < 30) {
+            gameState.active = false;
+            msgBox.style.display = 'block';
+            createExplosion((car.x+t.x)/2, (car.y+t.y)/2, t.color);
         }
 
-        function updateSliderValue(input) {
-            $(`#${input.id}-value`).textContent = input.value;
-            
-            adjustmentLayers[input.id] = parseFloat(input.value);
-            applyAllFilters();
+        // Cleanup
+        if (Math.hypot(car.x - t.x, car.y - t.y) > 1200) {
+            traffic.splice(i, 1);
+            i--;
         }
+    }
+}
 
-        function handleSettingChange(input) {
-            if (input.type === 'checkbox') {
-                adjustmentLayers[input.id] = input.checked;
-            } else {
-                adjustmentLayers[input.id] = parseFloat(input.value);
-            }
-            
-            applyAllFilters(); 
-            saveState();
-        }
-        
-        function applyPreset(presetId) {
-            // Apply a set of complex adjustments for a cinematic look
-            if (presetId === 'matte_film') {
-                adjustmentLayers.contrast = -20;
-                adjustmentLayers.shadows = 50;
-                adjustmentLayers.highlights = -50;
-                adjustmentLayers.saturation = -10;
-                adjustmentLayers.r = 10;
-                adjustmentLayers.b = -10;
-            } else if (presetId === 'b_w') {
-                adjustmentLayers.saturation = -100;
-                adjustmentLayers.contrast = 20;
-            } else if (presetId === 'vintage') {
-                adjustmentLayers.saturation = -50;
-                adjustmentLayers.warmth = 50; // Will affect R/G/B in filter logic if implemented
-                adjustmentLayers.r = 20;
-                adjustmentLayers.b = -20;
-            }
-            // Trigger filter application and save state
-            applyAllFilters();
-            saveState();
-            updateSettingsPanel(); // Refresh sliders
-        }
-
-        // --- Exporting / Saving ---
-
-        function saveImage() {
-            if (!currentImage) return;
-
-            // Important: Use the display canvas for export
-            // If background removal was used, PNG is required to preserve transparency
-            const mimeType = adjustmentLayers.bg_threshold > 0 ? 'image/png' : 'image/jpeg';
-            const dataURL = canvas.toDataURL(mimeType, 0.9);
-
-            const a = document.createElement('a');
-            a.href = dataURL;
-            a.download = `snapmini_pro_edited.${mimeType.split('/')[1]}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-
-        // --- Initialization and Event Listeners ---
-
-        document.addEventListener('DOMContentLoaded', () => {
-            initToolsList();
-
-            $('#load-image-btn').onclick = () => imgUpload.click();
-            imgUpload.onchange = (e) => {
-                if (e.target.files.length > 0) {
-                    loadImage(e.target.files[0]);
-                }
-            };
-            
-            $('#save-image-btn').onclick = saveImage;
-            
-            $('#undo-btn').onclick = () => navigateHistory(-1);
-            $('#redo-btn').onclick = () => navigateHistory(1);
-            
-            window.addEventListener('resize', renderCanvas);
-            
-            // Hide settings panel when tapping canvas on Mobile
-            $('#canvas-area').onclick = () => {
-                const rightSidebar = $('#right-sidebar');
-                if (window.innerWidth <= 900) { // Check for mobile viewport
-                    rightSidebar.classList.remove('active');
-                }
-            };
-            
-            // Keyboard Shortcuts
-            document.addEventListener('keydown', (e) => {
-                if (e.ctrlKey || e.metaKey) { 
-                    if (e.key === 'z') {
-                        e.preventDefault();
-                        navigateHistory(-1);
-                    } else if (e.key === 'y') {
-                        e.preventDefault();
-                        navigateHistory(1);
-                    } else if (e.key === 's') {
-                        e.preventDefault();
-                        if (!$('#save-image-btn').disabled) saveImage();
-                    }
-                }
-            });
+function createExplosion(x, y, color) {
+    for(let k=0; k<25; k++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random()-0.5)*12, vy: (Math.random()-0.5)*12,
+            life: 60, color: color
         });
-    </script>
+    }
+}
+
+// --- DRAWING ---
+function draw() {
+    // Canvas Background (Grass)
+    ctx.fillStyle = '#4caf50';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    // Camera follow
+    ctx.translate(canvas.width/2 - car.x, canvas.height/2 - car.y);
+
+    // 1. Draw Road
+    // We draw a long strip based on car Y to simulate infinity
+    const drawDist = 1000;
+    const roadTop = car.y - drawDist;
+    const roadBot = car.y + drawDist;
+    
+    // Main Asphalt
+    ctx.fillStyle = '#666'; 
+    ctx.fillRect(-ROAD_WIDTH/2, roadTop, ROAD_WIDTH, (roadBot-roadTop));
+
+    // Road Markings (Dashed Line)
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([30, 30]);
+    ctx.beginPath();
+    ctx.moveTo(0, roadTop);
+    ctx.lineTo(0, roadBot);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Barriers (Red/White rails)
+    const barrierSize = 40;
+    const offset = Math.floor(car.y / barrierSize) * barrierSize; // Texture scrolling
+    
+    for(let y = roadTop - (roadTop%barrierSize); y < roadBot; y+=barrierSize) {
+        // Left Barrier
+        ctx.fillStyle = (Math.floor(y/barrierSize) % 2 === 0) ? '#d32f2f' : '#fff';
+        ctx.fillRect(-ROAD_WIDTH/2 - 10, y, 10, barrierSize);
+        // Right Barrier
+        ctx.fillRect(ROAD_WIDTH/2, y, 10, barrierSize);
+    }
+
+    // 2. Skids
+    for (let s of skids) {
+        ctx.fillStyle = '#333';
+        ctx.globalAlpha = s.a;
+        ctx.fillRect(s.x, s.y, 4, 4);
+        s.a -= 0.005;
+        ctx.globalAlpha = 1;
+    }
+
+    // 3. Traffic
+    for (let t of traffic) {
+        drawVehicle(t.x, t.y, t.angle, t.color, false);
+    }
+
+    // 4. Player Car
+    drawVehicle(car.x, car.y, car.angle, '#f57f17', true);
+
+    // 5. Particles
+    for (let i = 0; i < particles.length; i++) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.life--;
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); 
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2); 
+        ctx.fill();
+        if(p.life<=0) { particles.splice(i,1); i--; }
+    }
+
+    ctx.restore();
+    updatePhysics();
+    requestAnimationFrame(draw);
+}
+
+function drawVehicle(x, y, angle, color, isPlayer) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-22, -10, 48, 26);
+
+    // Body
+    ctx.fillStyle = color;
+    // Drawing a simple sedan shape
+    ctx.beginPath();
+    ctx.roundRect(-24, -13, 48, 26, 4);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Roof / Windshield
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.roundRect(-10, -11, 24, 22, 3);
+    ctx.fill();
+
+    // Lights
+    if(isPlayer && keys.Down) {
+        ctx.fillStyle = '#ff0000'; // Braking
+        ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 10;
+    } else {
+        ctx.fillStyle = '#800000'; // Normal tail lights
+        ctx.shadowBlur = 0;
+    }
+    // Tail lights
+    ctx.fillRect(-24, -12, 2, 6);
+    ctx.fillRect(-24, 6, 2, 6);
+    ctx.shadowBlur = 0;
+
+    // Headlights
+    ctx.fillStyle = '#fff9c4';
+    ctx.fillRect(22, -12, 2, 6);
+    ctx.fillRect(22, 6, 2, 6);
+
+    ctx.restore();
+}
+
+resetGame();
+draw();
+</script>
 </body>
 </html>

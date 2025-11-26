@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Highway Drifter: Light Mode</title>
+    <title>Highway Drifter: Auto-Drive</title>
     <style>
         body { 
             margin: 0; 
@@ -69,7 +69,8 @@
             pointer-events: none;
         }
         
-        .dpad, .pedals {
+        /* Pedals only */
+        .pedals {
             display: flex;
             gap: 20px;
             pointer-events: auto;
@@ -95,7 +96,7 @@
         .red { background: rgba(255, 50, 50, 0.2); border-color: #d32f2f; }
         .green { background: rgba(50, 255, 50, 0.2); border-color: #388e3c; }
 
-        /* Steering Wheel Visual */
+        /* Steering Wheel Visual & Input Area */
         #steering-container {
             position: absolute;
             bottom: 30px;
@@ -103,8 +104,8 @@
             transform: translateX(-50%);
             width: 120px;
             height: 120px;
-            pointer-events: none;
             opacity: 0.8;
+            pointer-events: auto; /* IMPORTANT: Allows touch input */
         }
         #wheel-img {
             width: 100%;
@@ -145,13 +146,9 @@
 </div>
 
 <div class="controls-area">
-    <div class="dpad">
-        <div class="btn" id="btnLeft">◄</div>
-        <div class="btn" id="btnRight">►</div>
-    </div>
     <div class="pedals">
-        <div class="btn btn-rect red" id="btnBrake"></div>
-        <div class="btn btn-rect green" id="btnGas"></div>
+        <div class="btn btn-rect red" id="btnBrake">B</div>
+        <div class="btn btn-rect green" id="btnGas">A</div>
     </div>
 </div>
 
@@ -163,11 +160,12 @@ const ctx = canvas.getContext('2d');
 const uiSpeed = document.getElementById('speedVal');
 const uiGear = document.getElementById('gearDisplay');
 const msgBox = document.getElementById('message');
+const wheelContainer = document.getElementById('steering-container');
 const wheelElement = document.getElementById('wheel-img');
 
 // --- CONFIG ---
-const ROAD_WIDTH = 500; // Width of the asphalt
-const BARRIER_width = 20;
+const ROAD_WIDTH = 500;
+const ROAD_CENTER_X = 0; // Relative to world space
 
 function resize() {
     canvas.width = window.innerWidth;
@@ -177,36 +175,67 @@ window.addEventListener('resize', resize);
 resize();
 
 // --- INPUTS ---
-const keys = { Up: false, Down: false, Left: false, Right: false };
+const keys = { Gas: false, Brake: false, SteerAmount: 0 }; // SteerAmount is -1 to 1
 let visualSteerAngle = 0;
 
-function setKey(key, state) {
-    if(key === 'ArrowUp' || key === 'w') keys.Up = state;
-    if(key === 'ArrowDown' || key === 's') keys.Down = state;
-    if(key === 'ArrowLeft' || key === 'a') keys.Left = state;
-    if(key === 'ArrowRight' || key === 'd') keys.Right = state;
+// Keyboard input
+window.addEventListener('keydown', (e) => {
+    if(e.key === 'ArrowUp' || e.key === 'w') keys.Gas = true;
+    if(e.key === 'ArrowDown' || e.key === 's') keys.Brake = true;
+    if(e.key === 'ArrowLeft' || e.key === 'a') keys.SteerAmount = -1;
+    if(e.key === 'ArrowRight' || e.key === 'd') keys.SteerAmount = 1;
+});
+window.addEventListener('keyup', (e) => {
+    if(e.key === 'ArrowUp' || e.key === 'w') keys.Gas = false;
+    if(e.key === 'ArrowDown' || e.key === 's') keys.Brake = false;
+    if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowRight' || e.key === 'd') keys.SteerAmount = 0;
+});
+
+// Touch mapping helper for pedals
+document.getElementById('btnGas').addEventListener('touchstart', (e) => { e.preventDefault(); keys.Gas = true; });
+document.getElementById('btnGas').addEventListener('touchend', (e) => { e.preventDefault(); keys.Gas = false; });
+document.getElementById('btnBrake').addEventListener('touchstart', (e) => { e.preventDefault(); keys.Brake = true; });
+document.getElementById('btnBrake').addEventListener('touchend', (e) => { e.preventDefault(); keys.Brake = false; });
+
+// Steering Wheel Input Logic
+let isTouchingWheel = false;
+
+function handleWheelStart(e) {
+    if (!gameState.active) return;
+    isTouchingWheel = true;
+    handleWheelMove(e.touches ? e.touches[0] : e);
 }
 
-window.addEventListener('keydown', (e) => setKey(e.key, true));
-window.addEventListener('keyup', (e) => setKey(e.key, false));
+function handleWheelMove(e) {
+    if (!isTouchingWheel) return;
+    const rect = wheelContainer.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
 
-function bindTouch(id, keyName) {
-    const el = document.getElementById(id);
-    el.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; });
-    el.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; });
+    // Calculate position relative to center of wheel (-1 to 1)
+    let relativeX = (clientX - centerX) / (rect.width / 2);
+
+    // Clamp and apply a cubic easing curve for smoother steering response near center
+    relativeX = Math.max(-1, Math.min(1, relativeX));
+    keys.SteerAmount = relativeX * Math.abs(relativeX);
 }
-bindTouch('btnGas', 'Up');
-bindTouch('btnBrake', 'Down');
-bindTouch('btnLeft', 'Left');
-bindTouch('btnRight', 'Right');
+
+function handleWheelEnd() {
+    isTouchingWheel = false;
+    keys.SteerAmount = 0;
+}
+
+// Bind touch events to the steering container
+wheelContainer.addEventListener('mousedown', handleWheelStart);
+wheelContainer.addEventListener('mousemove', handleWheelMove);
+document.addEventListener('mouseup', handleWheelEnd);
+wheelContainer.addEventListener('touchstart', handleWheelStart);
+wheelContainer.addEventListener('touchmove', handleWheelMove);
+document.addEventListener('touchend', handleWheelEnd);
 
 // Restart handler
-window.addEventListener('touchstart', () => {
-    if(!gameState.active) resetGame();
-});
-window.addEventListener('keydown', (e) => {
-    if(!gameState.active && e.key === " ") resetGame();
-});
+window.addEventListener('touchstart', () => { if(!gameState.active) resetGame(); });
+window.addEventListener('keydown', (e) => { if(!gameState.active && e.key === " ") resetGame(); });
 
 // --- GAME OBJECTS ---
 const gameState = { active: true };
@@ -219,11 +248,12 @@ const car = {
     speed: 0,
     gear: 'P',
     // Physics
-    maxSpeed: 28,
+    maxCruiseSpeed: 16,
+    maxBoostSpeed: 30,
     accel: 0.3,
     friction: 0.97,
     turnSpeed: 0.05,
-    grip: 0.93
+    grip: 0.88 // Lower for more drift
 };
 
 let traffic = [];
@@ -231,7 +261,7 @@ let particles = [];
 let skids = [];
 
 function resetGame() {
-    car.x = 0; // Center of road
+    car.x = 0; 
     car.y = 0;
     car.vx = 0; car.vy = 0; 
     car.angle = -Math.PI / 2;
@@ -245,27 +275,38 @@ function resetGame() {
 function updatePhysics() {
     if (!gameState.active) return;
 
-    // 1. Throttle
+    // 1. Automatic Drive & Throttle
     let thrust = 0;
-    if (keys.Up) thrust = car.accel;
-    if (keys.Down) thrust = -car.accel / 2;
+    let targetSpeed = car.maxCruiseSpeed;
 
-    // 2. Steering & Wheel Visual
-    let targetSteer = 0;
-    if (keys.Left) targetSteer = -90;
-    if (keys.Right) targetSteer = 90;
-    
-    // Smooth wheel rotation
-    visualSteerAngle += (targetSteer - visualSteerAngle) * 0.2;
-    wheelElement.style.transform = `rotate(${visualSteerAngle}deg)`;
-
-    // Apply steering to car
-    if (Math.abs(car.speed) > 0.5) {
-        const dir = (keys.Down) ? -1 : 1;
-        if (keys.Left) car.angle -= car.turnSpeed * dir;
-        if (keys.Right) car.angle += car.turnSpeed * dir;
+    if (keys.Gas) { // Gas pedal is now a boost
+        targetSpeed = car.maxBoostSpeed;
+    } else if (keys.Brake) { // Brake
+        targetSpeed = 0;
+        thrust = -car.accel; // Immediate braking force
     }
 
+    // Automatic acceleration to cruise speed
+    const currentSpeedMagnitude = car.speed;
+    if (currentSpeedMagnitude < targetSpeed) {
+        thrust = car.accel * (1 - currentSpeedMagnitude / targetSpeed);
+    } else if (currentSpeedMagnitude > targetSpeed) {
+        thrust = -car.accel * 0.5; // Decelerate if over target speed
+    }
+
+    // 2. Steering & Wheel Visual
+    let steerFactor = keys.SteerAmount;
+    
+    // Smooth visual wheel rotation
+    visualSteerAngle += (steerFactor * 120 - visualSteerAngle) * 0.15;
+    wheelElement.style.transform = `rotate(${visualSteerAngle}deg)`;
+
+    // Apply steering to car (Steering is reduced at low speed and increased by drift)
+    if (currentSpeedMagnitude > 0.5) {
+        const turnRate = car.turnSpeed * (1 + currentSpeedMagnitude / car.maxBoostSpeed);
+        car.angle += turnRate * steerFactor;
+    }
+    
     // 3. Move Car
     car.vx += Math.cos(car.angle) * thrust;
     car.vy += Math.sin(car.angle) * thrust;
@@ -276,12 +317,23 @@ function updatePhysics() {
 
     car.speed = Math.sqrt(car.vx**2 + car.vy**2);
 
-    // Drift Logic
+    // Drift Logic (Enhanced)
     if (car.speed > 0.1) {
         const hx = Math.cos(car.angle);
         const hy = Math.sin(car.angle);
-        car.vx = car.vx * car.grip + (hx * car.speed) * (1 - car.grip);
-        car.vy = car.vy * car.grip + (hy * car.speed) * (1 - car.grip);
+        
+        // Lateral velocity component reduction
+        const moveAngle = Math.atan2(car.vy, car.vx);
+        const perpAngle = car.angle + Math.PI / 2;
+        const lateralX = Math.cos(perpAngle);
+        const lateralY = Math.sin(perpAngle);
+
+        // Project current velocity onto car's lateral axis
+        const lateralVelocity = car.vx * lateralX + car.vy * lateralY;
+
+        // Reduce lateral velocity (this is the true grip/drift factor)
+        car.vx -= lateralX * lateralVelocity * (1 - car.grip);
+        car.vy -= lateralY * lateralVelocity * (1 - car.grip);
     }
 
     car.x += car.vx;
@@ -290,37 +342,36 @@ function updatePhysics() {
     // 4. Barrier Collision
     const roadEdge = ROAD_WIDTH / 2 - 20;
     if (car.x < -roadEdge || car.x > roadEdge) {
-        if (car.speed > 8) {
-            // Crash at high speed
+        if (car.speed * 8 > 70) { // Crash above 70kph
             gameState.active = false;
             msgBox.style.display = 'block';
             createExplosion(car.x, car.y, '#333');
         } else {
-            // Bounce at low speed
+            // Low speed bounce
             car.x = (car.x < 0) ? -roadEdge : roadEdge;
-            car.vx *= -0.5; // Bounce off wall
+            car.vx *= -0.5;
+            car.vy *= 0.9;
         }
     }
 
     // 5. Gearbox Logic
-    const kph = Math.floor(car.speed * 8); // Fake KPH scale
-    if(car.speed < 0.1 && !keys.Up && !keys.Down) car.gear = 'P';
-    else if(keys.Down && car.speed > 0.5 && Math.abs(car.angle - Math.atan2(car.vy, car.vx)) < 1) car.gear = 'R'; // Crude reverse check
-    else if(kph < 30) car.gear = '1';
-    else if(kph < 70) car.gear = '2';
-    else if(kph < 110) car.gear = '3';
+    const kph = Math.floor(car.speed * 8);
+    if(kph < 1) car.gear = (keys.Brake) ? 'R' : 'P';
+    else if(kph < 40) car.gear = '1';
+    else if(kph < 80) car.gear = '2';
+    else if(kph < 120) car.gear = '3';
     else car.gear = '4';
 
     uiSpeed.innerText = kph;
     uiGear.innerText = car.gear;
 
-    // 6. Traffic Spawning
+    // 6. Traffic Spawning & Collision
     manageTraffic();
     
     // 7. Skidmarks
     const moveAngle = Math.atan2(car.vy, car.vx);
     const drift = Math.abs(Math.sin(moveAngle - car.angle)) * car.speed;
-    if (drift > 2) {
+    if (drift > 3) { // Higher threshold for drift
         const c = Math.cos(car.angle), s = Math.sin(car.angle);
         skids.push({x: car.x - c*20 - s*10, y: car.y - s*20 + c*10, a: 0.4});
         skids.push({x: car.x - c*20 + s*10, y: car.y - s*20 - c*10, a: 0.4});
@@ -329,20 +380,18 @@ function updatePhysics() {
 
 function manageTraffic() {
     // Spawn ahead
-    if (traffic.length < 4 && car.speed > 2) {
-        if (Math.random() < 0.03) {
-            const lane = (Math.random() > 0.5) ? 1 : -1;
-            const xPos = lane * (ROAD_WIDTH/4); // Two lanes
-            const yPos = car.y + (Math.sin(car.angle) * 900) + (Math.random()*200);
-            
-            traffic.push({
-                x: xPos, y: yPos,
-                w: 26, h: 48,
-                angle: car.angle, // Drive same direction
-                speed: 8 + Math.random() * 6,
-                color: ['#1e88e5', '#8e24aa', '#fdd835', '#43a047'][Math.floor(Math.random()*4)]
-            });
-        }
+    if (traffic.length < 4 && car.speed > 2 && Math.random() < 0.02) {
+        const lane = (Math.random() > 0.5) ? 1 : -1;
+        const xPos = lane * (ROAD_WIDTH/4); 
+        const yPos = car.y + (Math.sin(car.angle) * 1000) + (Math.random()*200);
+        
+        traffic.push({
+            x: xPos, y: yPos,
+            w: 26, h: 48,
+            angle: car.angle + (Math.random()-0.5)*0.1, 
+            speed: 8 + Math.random() * 6, // Slower than player
+            color: ['#1e88e5', '#8e24aa', '#fdd835', '#43a047'][Math.floor(Math.random()*4)]
+        });
     }
 
     // Move & Collide
@@ -359,7 +408,7 @@ function manageTraffic() {
         }
 
         // Cleanup
-        if (Math.hypot(car.x - t.x, car.y - t.y) > 1200) {
+        if (Math.hypot(car.x - t.x, car.y - t.y) > 1500) {
             traffic.splice(i, 1);
             i--;
         }
@@ -378,16 +427,15 @@ function createExplosion(x, y, color) {
 
 // --- DRAWING ---
 function draw() {
-    // Canvas Background (Grass)
+    // Background (Grass)
     ctx.fillStyle = '#4caf50';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    // Camera follow
+    // Camera follow (Main translation)
     ctx.translate(canvas.width/2 - car.x, canvas.height/2 - car.y);
 
-    // 1. Draw Road
-    // We draw a long strip based on car Y to simulate infinity
+    // 1. Road
     const drawDist = 1000;
     const roadTop = car.y - drawDist;
     const roadBot = car.y + drawDist;
@@ -408,8 +456,6 @@ function draw() {
 
     // Barriers (Red/White rails)
     const barrierSize = 40;
-    const offset = Math.floor(car.y / barrierSize) * barrierSize; // Texture scrolling
-    
     for(let y = roadTop - (roadTop%barrierSize); y < roadBot; y+=barrierSize) {
         // Left Barrier
         ctx.fillStyle = (Math.floor(y/barrierSize) % 2 === 0) ? '#d32f2f' : '#fff';
@@ -463,7 +509,6 @@ function drawVehicle(x, y, angle, color, isPlayer) {
 
     // Body
     ctx.fillStyle = color;
-    // Drawing a simple sedan shape
     ctx.beginPath();
     ctx.roundRect(-24, -13, 48, 26, 4);
     ctx.fill();
@@ -478,7 +523,7 @@ function drawVehicle(x, y, angle, color, isPlayer) {
     ctx.fill();
 
     // Lights
-    if(isPlayer && keys.Down) {
+    if(isPlayer && keys.Brake) {
         ctx.fillStyle = '#ff0000'; // Braking
         ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 10;
     } else {

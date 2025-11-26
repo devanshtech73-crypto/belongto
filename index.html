@@ -1500,7 +1500,44 @@ loadDraft();
 /* ==========================================================
    FINAL BLOCK — CLOSE ALL SCRIPTS
    ========================================================== */
+    /* ==========================================================
+   FIX PATCH — RESTORE BROKEN EVENT HANDLERS
+   ========================================================== */
+
+/* Ensure buttons exist */
+const _send = document.getElementById("sendButton");
+const _input = document.getElementById("userInput");
+
+/* Safety guard */
+if (_send && _input) {
+
+    /* Remove all old listeners */
+    _send.replaceWith(_send.cloneNode(true));
+    document.getElementById("sendButton").id = "sendButton"; // keep reference safe
+
+    /* Re-bind send button */
+    document.getElementById("sendButton").addEventListener("click", () => {
+        handleSendStreaming();
+    });
+
+    /* Re-bind Enter key */
+    _input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSendStreaming();
+        }
+    });
+
+    /* Auto-grow fix */
+    _input.addEventListener("input", () => {
+        _input.style.height = "auto";
+        _input.style.height = Math.min(_input.scrollHeight, 180) + "px";
+    });
+
+}
+
 </script>
 
 </body>
 </html>
+

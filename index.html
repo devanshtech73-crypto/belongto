@@ -3,121 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Highway Drifter: Auto-Drive</title>
+    <title>Manual Gear Drift Racing</title>
     <style>
         body { 
-            margin: 0; 
-            overflow: hidden; 
-            background: #4caf50; /* Green Grass Background */
-            font-family: 'Verdana', sans-serif;
-            touch-action: none;
-            user-select: none; 
-            -webkit-user-select: none;
+            margin: 0; overflow: hidden; background: #4caf50; 
+            font-family: 'Verdana', sans-serif; touch-action: none;
+            user-select: none; -webkit-user-select: none;
         }
         canvas { display: block; }
 
-        /* Dashboard UI */
+        /* Dashboard & Gearbox UI */
+        #ui-top {
+            position: absolute; top: 20px; width: 100%; display: flex; 
+            justify-content: space-between; padding: 0 20px; z-index: 10;
+        }
         #dashboard {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px 20px;
-            border-radius: 12px;
-            border: 2px solid #333;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            color: #333;
-            font-weight: bold;
-            z-index: 10;
+            background: rgba(255, 255, 255, 0.9); padding: 10px 20px;
+            border-radius: 12px; border: 2px solid #333; color: #333;
         }
         .stat-row { display: flex; align-items: center; gap: 15px; margin-bottom: 5px; }
         .gear-box {
-            background: #333;
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: monospace;
-            font-size: 18px;
+            background: #333; color: #fff; padding: 2px 8px; border-radius: 4px;
+            font-family: monospace; font-size: 18px; min-width: 25px; text-align: center;
         }
         .speed-text { font-size: 20px; }
 
-        /* Crash Message */
-        #message {
-            position: absolute;
-            top: 40%;
-            width: 100%;
-            text-align: center;
-            color: #d32f2f;
-            font-size: 32px;
-            font-weight: 900;
-            text-shadow: 2px 2px 0px white;
-            pointer-events: none;
-            display: none;
-            z-index: 20;
+        /* Manual Gear Shifter */
+        #gear-controls { display: flex; flex-direction: column; gap: 5px; }
+        .gear-btn {
+            width: 40px; height: 40px; background: rgba(0, 0, 0, 0.7); color: white;
+            border-radius: 8px; border: none; font-size: 24px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
         }
+        .gear-btn:active { background: #ff3333; }
 
         /* Mobile Controls Overlay */
         .controls-area {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            height: 160px;
-            display: flex;
-            justify-content: space-between;
-            padding: 0 30px;
-            box-sizing: border-box;
-            pointer-events: none;
+            position: absolute; bottom: 20px; width: 100%; height: 160px;
+            display: flex; justify-content: space-between; padding: 0 30px;
+            box-sizing: border-box; pointer-events: none;
         }
         
-        /* Pedals only */
+        /* Pedals (Right Side) */
         .pedals {
-            display: flex;
-            gap: 20px;
-            pointer-events: auto;
-            align-items: flex-end;
+            display: flex; gap: 20px; pointer-events: auto; align-items: flex-end;
         }
-
-        .btn {
-            width: 75px;
-            height: 75px;
-            background: rgba(0, 0, 0, 0.1);
-            border: 2px solid rgba(0, 0, 0, 0.5);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333;
-            font-size: 30px;
-            font-weight: bold;
+        .btn-rect { 
+            border-radius: 15px; width: 65px; height: 100px; font-size: 20px; 
+            display: flex; align-items: center; justify-content: center;
         }
-        .btn:active { background: rgba(0, 0, 0, 0.3); transform: scale(0.95); }
-        
-        .btn-rect { border-radius: 15px; width: 65px; height: 100px; }
         .red { background: rgba(255, 50, 50, 0.2); border-color: #d32f2f; }
         .green { background: rgba(50, 255, 50, 0.2); border-color: #388e3c; }
 
-        /* Steering Wheel Visual & Input Area */
+        /* Steering Wheel (Left Side) */
         #steering-container {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 120px;
-            height: 120px;
-            opacity: 0.8;
-            pointer-events: auto; /* IMPORTANT: Allows touch input */
+            position: absolute; bottom: 30px; left: 30px;
+            width: 120px; height: 120px; opacity: 0.8; pointer-events: auto; 
         }
         #wheel-img {
-            width: 100%;
-            height: 100%;
-            background: transparent;
-            border: 8px solid #333;
-            border-radius: 50%;
-            box-sizing: border-box;
+            width: 100%; height: 100%; background: rgba(255,255,255,0.2);
+            border: 8px solid #333; border-radius: 50%; box-sizing: border-box;
             position: relative;
-            background: rgba(255,255,255,0.2);
         }
-        /* Spokes of the wheel */
         #wheel-img::before {
             content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 10px; background: #333; transform: translateY(-50%);
         }
@@ -125,28 +72,44 @@
             content: ''; position: absolute; bottom: 0; left: 50%; width: 10px; height: 50%; background: #333; transform: translateX(-50%);
         }
 
+        /* Crash Message */
+        #message {
+            position: absolute; top: 40%; width: 100%; text-align: center; color: #d32f2f;
+            font-size: 32px; font-weight: 900; text-shadow: 2px 2px 0px white;
+            pointer-events: none; display: none; z-index: 20;
+        }
     </style>
 </head>
 <body>
 
-<div id="dashboard">
-    <div class="stat-row">
-        <span>GEAR</span>
-        <div class="gear-box" id="gearDisplay">P</div>
+<div id="ui-top">
+    <div id="dashboard">
+        <div class="stat-row">
+            <span>GEAR</span>
+            <div class="gear-box" id="gearDisplay">P</div>
+        </div>
+        <div class="stat-row">
+            <span class="speed-text"><span id="speedVal">0</span> km/h</span>
+        </div>
+        <div class="stat-row">
+            <span>RPM: <span id="rpmDisplay">0</span></span>
+        </div>
     </div>
-    <div class="stat-row">
-        <span class="speed-text"><span id="speedVal">0</span> km/h</span>
+    
+    <div id="gear-controls">
+        <button class="gear-btn" id="gearUp">+</button>
+        <button class="gear-btn" id="gearDown">-</button>
     </div>
 </div>
 
-<div id="message">CRASHED!<br><span style="font-size:16px; color:#333">Tap to Restart</span></div>
+<div id="message">CRASHED!<br><span style="font-size:16px; color:#333">Tap/Space to Restart</span></div>
 
 <div id="steering-container">
     <div id="wheel-img"></div>
 </div>
 
 <div class="controls-area">
-    <div class="pedals">
+    <div class="pedals" style="margin-left: auto;">
         <div class="btn btn-rect red" id="btnBrake">B</div>
         <div class="btn btn-rect green" id="btnGas">A</div>
     </div>
@@ -159,13 +122,15 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const uiSpeed = document.getElementById('speedVal');
 const uiGear = document.getElementById('gearDisplay');
+const uiRpm = document.getElementById('rpmDisplay');
 const msgBox = document.getElementById('message');
 const wheelContainer = document.getElementById('steering-container');
 const wheelElement = document.getElementById('wheel-img');
 
 // --- CONFIG ---
 const ROAD_WIDTH = 500;
-const ROAD_CENTER_X = 0; // Relative to world space
+const GEAR_LIMITS = { 'P': 0, 'R': 0, 'N': 0, '1': 40, '2': 80, '3': 120, '4': 180 };
+const GEAR_NAMES = ['P', 'R', 'N', '1', '2', '3', '4'];
 
 function resize() {
     canvas.width = window.innerWidth;
@@ -174,9 +139,10 @@ function resize() {
 window.addEventListener('resize', resize);
 resize();
 
-// --- INPUTS ---
-const keys = { Gas: false, Brake: false, SteerAmount: 0 }; // SteerAmount is -1 to 1
+// --- INPUTS & STATE ---
+const keys = { Gas: false, Brake: false, SteerAmount: 0 };
 let visualSteerAngle = 0;
+let gearIndex = 2; // Start in Neutral 'N'
 
 // Keyboard input
 window.addEventListener('keydown', (e) => {
@@ -184,6 +150,9 @@ window.addEventListener('keydown', (e) => {
     if(e.key === 'ArrowDown' || e.key === 's') keys.Brake = true;
     if(e.key === 'ArrowLeft' || e.key === 'a') keys.SteerAmount = -1;
     if(e.key === 'ArrowRight' || e.key === 'd') keys.SteerAmount = 1;
+    if(e.key === 'Shift' || e.key === '.') shiftUp();
+    if(e.key === 'Control' || e.key === ',') shiftDown();
+    if(e.key === ' ') {if(!gameState.active) resetGame();}
 });
 window.addEventListener('keyup', (e) => {
     if(e.key === 'ArrowUp' || e.key === 'w') keys.Gas = false;
@@ -191,11 +160,14 @@ window.addEventListener('keyup', (e) => {
     if(e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'ArrowRight' || e.key === 'd') keys.SteerAmount = 0;
 });
 
-// Touch mapping helper for pedals
+// Pedal & Gear Touch Mapping
 document.getElementById('btnGas').addEventListener('touchstart', (e) => { e.preventDefault(); keys.Gas = true; });
 document.getElementById('btnGas').addEventListener('touchend', (e) => { e.preventDefault(); keys.Gas = false; });
 document.getElementById('btnBrake').addEventListener('touchstart', (e) => { e.preventDefault(); keys.Brake = true; });
 document.getElementById('btnBrake').addEventListener('touchend', (e) => { e.preventDefault(); keys.Brake = false; });
+
+document.getElementById('gearUp').addEventListener('touchstart', (e) => { e.preventDefault(); shiftUp(); });
+document.getElementById('gearDown').addEventListener('touchstart', (e) => { e.preventDefault(); shiftDown(); });
 
 // Steering Wheel Input Logic
 let isTouchingWheel = false;
@@ -203,7 +175,9 @@ let isTouchingWheel = false;
 function handleWheelStart(e) {
     if (!gameState.active) return;
     isTouchingWheel = true;
-    handleWheelMove(e.touches ? e.touches[0] : e);
+    // Use targetTouches for mobile, or e for desktop mouse
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    handleWheelMove({clientX: clientX});
 }
 
 function handleWheelMove(e) {
@@ -212,12 +186,10 @@ function handleWheelMove(e) {
     const centerX = rect.left + rect.width / 2;
     const clientX = e.clientX || (e.touches ? e.touches[0].clientX : 0);
 
-    // Calculate position relative to center of wheel (-1 to 1)
     let relativeX = (clientX - centerX) / (rect.width / 2);
-
-    // Clamp and apply a cubic easing curve for smoother steering response near center
     relativeX = Math.max(-1, Math.min(1, relativeX));
-    keys.SteerAmount = relativeX * Math.abs(relativeX);
+    // Less sensitive steering: Reduce input magnitude slightly
+    keys.SteerAmount = relativeX * 0.5; // Reduced sensitivity factor
 }
 
 function handleWheelEnd() {
@@ -235,25 +207,50 @@ document.addEventListener('touchend', handleWheelEnd);
 
 // Restart handler
 window.addEventListener('touchstart', () => { if(!gameState.active) resetGame(); });
-window.addEventListener('keydown', (e) => { if(!gameState.active && e.key === " ") resetGame(); });
+
+// --- MANUAL GEARBOX LOGIC ---
+function shiftUp() {
+    if (!gameState.active || gearIndex >= GEAR_NAMES.length - 1) return;
+    
+    // Allow shifting from N to 1 or R to N
+    if (GEAR_NAMES[gearIndex] === 'N') { gearIndex = 3; return; } // N to 1
+    
+    // Check speed threshold (must be below max speed for next gear)
+    const currentKPH = Math.floor(car.speed * 8);
+    if (currentKPH < GEAR_LIMITS[GEAR_NAMES[gearIndex + 1]] * 1.2) { // Allow slight overshoot
+        gearIndex++;
+    }
+}
+
+function shiftDown() {
+    if (!gameState.active || gearIndex <= 0) return;
+
+    if (GEAR_NAMES[gearIndex] === '1') { gearIndex = 2; return; } // 1 to N
+    if (GEAR_NAMES[gearIndex] === 'N') { gearIndex = 1; return; } // N to R
+    
+    // Check speed threshold (must be slow enough to downshift, e.g. speed must be above current gear's minimum speed)
+    if (car.speed * 8 > GEAR_LIMITS[GEAR_NAMES[gearIndex - 1]] * 0.8 || GEAR_NAMES[gearIndex] === 'R') {
+        gearIndex--;
+    }
+}
+
 
 // --- GAME OBJECTS ---
-const gameState = { active: true };
+const gameState = { active: true, roadCurvature: 0 }; // Road curve state
 
 const car = {
     x: 0, y: 0,
     w: 26, h: 48,
-    angle: -Math.PI / 2,
+    angle: -Math.PI / 2, // Starts facing up
     vx: 0, vy: 0,
     speed: 0,
-    gear: 'P',
-    // Physics
-    maxCruiseSpeed: 16,
-    maxBoostSpeed: 30,
-    accel: 0.3,
-    friction: 0.97,
-    turnSpeed: 0.05,
-    grip: 0.88 // Lower for more drift
+    rpm: 0,
+    
+    // Physics tuned for D R I F T
+    maxPower: 0.05, // Thrust multiplier
+    friction: 0.98,
+    turnSpeed: 0.02, // Less sensitive turning
+    grip: 0.75, // VERY low grip for heavy drift
 };
 
 let traffic = [];
@@ -261,53 +258,48 @@ let particles = [];
 let skids = [];
 
 function resetGame() {
-    car.x = 0; 
-    car.y = 0;
-    car.vx = 0; car.vy = 0; 
+    car.x = 0; car.y = 0; car.vx = 0; car.vy = 0; 
     car.angle = -Math.PI / 2;
-    traffic = [];
-    skids = [];
+    gearIndex = 2; // N
+    traffic = []; skids = []; particles = [];
     gameState.active = true;
+    gameState.roadCurvature = 0;
     msgBox.style.display = 'none';
 }
 
-// --- PHYSICS ---
+// --- PHYSICS & GAME LOOP ---
 function updatePhysics() {
     if (!gameState.active) return;
 
-    // 1. Automatic Drive & Throttle
+    car.gear = GEAR_NAMES[gearIndex];
+    const kph = Math.floor(car.speed * 8);
+    const gearLimit = GEAR_LIMITS[car.gear];
+    
+    // 1. Thrust/Power
     let thrust = 0;
-    let targetSpeed = car.maxCruiseSpeed;
-
-    if (keys.Gas) { // Gas pedal is now a boost
-        targetSpeed = car.maxBoostSpeed;
-    } else if (keys.Brake) { // Brake
-        targetSpeed = 0;
-        thrust = -car.accel; // Immediate braking force
+    if (keys.Gas && car.gear !== 'P' && car.gear !== 'N') {
+        // Power calculation based on RPM/Gear
+        const rpmRatio = car.rpm / 8000;
+        thrust = car.maxPower * (1 - rpmRatio) * (car.gear === 'R' ? -0.5 : 1);
+    } else if (keys.Brake) {
+        // Braking force is applied regardless of gear
+        thrust = -0.05;
+        if (car.speed < 1 && car.gear === 'R') thrust = -0.0; // Stop reverse movement
     }
 
-    // Automatic acceleration to cruise speed
-    const currentSpeedMagnitude = car.speed;
-    if (currentSpeedMagnitude < targetSpeed) {
-        thrust = car.accel * (1 - currentSpeedMagnitude / targetSpeed);
-    } else if (currentSpeedMagnitude > targetSpeed) {
-        thrust = -car.accel * 0.5; // Decelerate if over target speed
+    // 2. RPM & Engine Simulation
+    if (car.gear === 'P' || car.gear === 'N') {
+        car.rpm = 800; // Idle
+    } else {
+        // RPM rises based on speed within the gear range
+        const baseSpeed = GEAR_LIMITS[GEAR_NAMES[gearIndex - 1]] || 0;
+        car.rpm = 1500 + Math.max(0, kph - baseSpeed) * 35; 
+        if(keys.Gas) car.rpm = Math.min(9000, car.rpm + 500); // Revving engine
+        if (kph > gearLimit * 1.1) car.rpm = 9000; // Redline
+        car.rpm = Math.max(800, car.rpm * 0.95 + 0.05 * (keys.Gas ? 8000 : 2000));
     }
 
-    // 2. Steering & Wheel Visual
-    let steerFactor = keys.SteerAmount;
-    
-    // Smooth visual wheel rotation
-    visualSteerAngle += (steerFactor * 120 - visualSteerAngle) * 0.15;
-    wheelElement.style.transform = `rotate(${visualSteerAngle}deg)`;
-
-    // Apply steering to car (Steering is reduced at low speed and increased by drift)
-    if (currentSpeedMagnitude > 0.5) {
-        const turnRate = car.turnSpeed * (1 + currentSpeedMagnitude / car.maxBoostSpeed);
-        car.angle += turnRate * steerFactor;
-    }
-    
-    // 3. Move Car
+    // 3. Movement
     car.vx += Math.cos(car.angle) * thrust;
     car.vy += Math.sin(car.angle) * thrust;
 
@@ -317,21 +309,24 @@ function updatePhysics() {
 
     car.speed = Math.sqrt(car.vx**2 + car.vy**2);
 
-    // Drift Logic (Enhanced)
-    if (car.speed > 0.1) {
-        const hx = Math.cos(car.angle);
-        const hy = Math.sin(car.angle);
-        
-        // Lateral velocity component reduction
-        const moveAngle = Math.atan2(car.vy, car.vx);
+    // 4. Turning and Drift Physics
+    let steerFactor = keys.SteerAmount;
+    visualSteerAngle += (steerFactor * 120 - visualSteerAngle) * 0.15;
+    wheelElement.style.transform = `rotate(${visualSteerAngle}deg)`;
+
+    if (car.speed > 0.5) {
+        const effectiveTurnSpeed = car.turnSpeed * (1 + car.speed / 10); // Steer more effectively at speed
+        car.angle += effectiveTurnSpeed * steerFactor * (car.gear === 'R' ? -1 : 1);
+    }
+
+    // Heavy Drift Logic (Lateral Velocity Reduction)
+    if (car.speed > 1) {
         const perpAngle = car.angle + Math.PI / 2;
         const lateralX = Math.cos(perpAngle);
         const lateralY = Math.sin(perpAngle);
-
-        // Project current velocity onto car's lateral axis
         const lateralVelocity = car.vx * lateralX + car.vy * lateralY;
 
-        // Reduce lateral velocity (this is the true grip/drift factor)
+        // Reduce lateral velocity significantly due to low grip (1 - grip)
         car.vx -= lateralX * lateralVelocity * (1 - car.grip);
         car.vy -= lateralY * lateralVelocity * (1 - car.grip);
     }
@@ -339,57 +334,51 @@ function updatePhysics() {
     car.x += car.vx;
     car.y += car.vy;
 
-    // 4. Barrier Collision
-    const roadEdge = ROAD_WIDTH / 2 - 20;
-    if (car.x < -roadEdge || car.x > roadEdge) {
-        if (car.speed * 8 > 70) { // Crash above 70kph
+    // 5. Winding Road & Barrier Collision
+    // Slowly change the center of the road to simulate turns
+    gameState.roadCurvature += Math.sin(car.y / 800) * 0.05 * (car.speed/15);
+    gameState.roadCurvature = Math.max(-50, Math.min(50, gameState.roadCurvature));
+    
+    // Road center oscillates around car.x for an infinite winding feel
+    const roadCenterX = gameState.roadCurvature;
+
+    const roadEdgeLeft = roadCenterX - ROAD_WIDTH / 2 + 20;
+    const roadEdgeRight = roadCenterX + ROAD_WIDTH / 2 - 20;
+
+    if (car.x < roadEdgeLeft || car.x > roadEdgeRight) {
+        if (kph > 80) { // Crash above 80kph
             gameState.active = false;
             msgBox.style.display = 'block';
             createExplosion(car.x, car.y, '#333');
         } else {
-            // Low speed bounce
-            car.x = (car.x < 0) ? -roadEdge : roadEdge;
-            car.vx *= -0.5;
+            // Low speed bounce off guardrail
+            car.x = (car.x < roadCenterX) ? roadEdgeLeft : roadEdgeRight;
+            car.vx *= -0.3;
             car.vy *= 0.9;
         }
     }
 
-    // 5. Gearbox Logic
-    const kph = Math.floor(car.speed * 8);
-    if(kph < 1) car.gear = (keys.Brake) ? 'R' : 'P';
-    else if(kph < 40) car.gear = '1';
-    else if(kph < 80) car.gear = '2';
-    else if(kph < 120) car.gear = '3';
-    else car.gear = '4';
-
+    // Update UI
     uiSpeed.innerText = kph;
     uiGear.innerText = car.gear;
+    uiRpm.innerText = Math.floor(car.rpm);
 
-    // 6. Traffic Spawning & Collision
-    manageTraffic();
-    
-    // 7. Skidmarks
-    const moveAngle = Math.atan2(car.vy, car.vx);
-    const drift = Math.abs(Math.sin(moveAngle - car.angle)) * car.speed;
-    if (drift > 3) { // Higher threshold for drift
-        const c = Math.cos(car.angle), s = Math.sin(car.angle);
-        skids.push({x: car.x - c*20 - s*10, y: car.y - s*20 + c*10, a: 0.4});
-        skids.push({x: car.x - c*20 + s*10, y: car.y - s*20 - c*10, a: 0.4});
-    }
+    manageTraffic(roadCenterX);
+    manageSkidmarks();
 }
 
-function manageTraffic() {
-    // Spawn ahead
-    if (traffic.length < 4 && car.speed > 2 && Math.random() < 0.02) {
+// --- Traffic & Effects ---
+function manageTraffic(roadCenterX) {
+    if (traffic.length < 5 && Math.random() < 0.02) {
         const lane = (Math.random() > 0.5) ? 1 : -1;
-        const xPos = lane * (ROAD_WIDTH/4); 
+        const xPos = roadCenterX + lane * (ROAD_WIDTH/4); 
         const yPos = car.y + (Math.sin(car.angle) * 1000) + (Math.random()*200);
         
         traffic.push({
             x: xPos, y: yPos,
             w: 26, h: 48,
-            angle: car.angle + (Math.random()-0.5)*0.1, 
-            speed: 8 + Math.random() * 6, // Slower than player
+            angle: car.angle, 
+            speed: 10 + Math.random() * 5,
             color: ['#1e88e5', '#8e24aa', '#fdd835', '#43a047'][Math.floor(Math.random()*4)]
         });
     }
@@ -400,18 +389,31 @@ function manageTraffic() {
         t.x += Math.cos(t.angle) * t.speed;
         t.y += Math.sin(t.angle) * t.speed;
 
-        // Collision
         if (Math.hypot(car.x - t.x, car.y - t.y) < 30) {
             gameState.active = false;
             msgBox.style.display = 'block';
             createExplosion((car.x+t.x)/2, (car.y+t.y)/2, t.color);
         }
 
-        // Cleanup
         if (Math.hypot(car.x - t.x, car.y - t.y) > 1500) {
-            traffic.splice(i, 1);
-            i--;
+            traffic.splice(i, 1); i--;
         }
+    }
+}
+
+function manageSkidmarks() {
+    const moveAngle = Math.atan2(car.vy, car.vx);
+    const drift = Math.abs(Math.sin(moveAngle - car.angle)) * car.speed;
+
+    if (drift > 4) { // High drift threshold
+        const c = Math.cos(car.angle), s = Math.sin(car.angle);
+        skids.push({x: car.x - c*20 - s*10, y: car.y - s*20 + c*10, a: 0.6});
+        skids.push({x: car.x - c*20 + s*10, y: car.y - s*20 - c*10, a: 0.6});
+    }
+
+    for (let i = 0; i < skids.length; i++) {
+        skids[i].a -= 0.005;
+        if(skids[i].a <= 0) { skids.splice(i, 1); i--; }
     }
 }
 
@@ -427,70 +429,62 @@ function createExplosion(x, y, color) {
 
 // --- DRAWING ---
 function draw() {
-    // Background (Grass)
     ctx.fillStyle = '#4caf50';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
-    // Camera follow (Main translation)
     ctx.translate(canvas.width/2 - car.x, canvas.height/2 - car.y);
 
-    // 1. Road
     const drawDist = 1000;
     const roadTop = car.y - drawDist;
     const roadBot = car.y + drawDist;
+    const roadCenterX = gameState.roadCurvature;
     
-    // Main Asphalt
+    // Draw Road (Dynamically offset by curvature)
     ctx.fillStyle = '#666'; 
-    ctx.fillRect(-ROAD_WIDTH/2, roadTop, ROAD_WIDTH, (roadBot-roadTop));
+    ctx.fillRect(roadCenterX - ROAD_WIDTH/2, roadTop, ROAD_WIDTH, (roadBot-roadTop));
 
-    // Road Markings (Dashed Line)
+    // Road Markings
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 4;
     ctx.setLineDash([30, 30]);
     ctx.beginPath();
-    ctx.moveTo(0, roadTop);
-    ctx.lineTo(0, roadBot);
+    ctx.moveTo(roadCenterX, roadTop);
+    ctx.lineTo(roadCenterX, roadBot);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Barriers (Red/White rails)
+    // Barriers
     const barrierSize = 40;
     for(let y = roadTop - (roadTop%barrierSize); y < roadBot; y+=barrierSize) {
         // Left Barrier
         ctx.fillStyle = (Math.floor(y/barrierSize) % 2 === 0) ? '#d32f2f' : '#fff';
-        ctx.fillRect(-ROAD_WIDTH/2 - 10, y, 10, barrierSize);
+        ctx.fillRect(roadCenterX - ROAD_WIDTH/2 - 10, y, 10, barrierSize);
         // Right Barrier
-        ctx.fillRect(ROAD_WIDTH/2, y, 10, barrierSize);
+        ctx.fillRect(roadCenterX + ROAD_WIDTH/2, y, 10, barrierSize);
     }
 
-    // 2. Skids
+    // Skids
     for (let s of skids) {
         ctx.fillStyle = '#333';
         ctx.globalAlpha = s.a;
         ctx.fillRect(s.x, s.y, 4, 4);
-        s.a -= 0.005;
         ctx.globalAlpha = 1;
     }
 
-    // 3. Traffic
+    // Traffic
     for (let t of traffic) {
-        drawVehicle(t.x, t.y, t.angle, t.color, false);
+        drawVehicle(t.x, t.y, t.angle, t.color);
     }
 
-    // 4. Player Car
-    drawVehicle(car.x, car.y, car.angle, '#f57f17', true);
+    // Player Car
+    drawVehicle(car.x, car.y, car.angle, '#f57f17');
 
-    // 5. Particles
-    for (let i = 0; i < particles.length; i++) {
-        let p = particles[i];
-        p.x += p.vx; p.y += p.vy;
+    // Particles
+    for (let p of particles) {
         p.life--;
         ctx.fillStyle = p.color;
-        ctx.beginPath(); 
-        ctx.arc(p.x, p.y, 4, 0, Math.PI*2); 
-        ctx.fill();
-        if(p.life<=0) { particles.splice(i,1); i--; }
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill();
     }
 
     ctx.restore();
@@ -498,48 +492,16 @@ function draw() {
     requestAnimationFrame(draw);
 }
 
-function drawVehicle(x, y, angle, color, isPlayer) {
+function drawVehicle(x, y, angle, color) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
     
-    // Shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(-22, -10, 48, 26);
-
     // Body
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(-24, -13, 48, 26, 4);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Roof / Windshield
-    ctx.fillStyle = '#333';
-    ctx.beginPath();
-    ctx.roundRect(-10, -11, 24, 22, 3);
-    ctx.fill();
-
-    // Lights
-    if(isPlayer && keys.Brake) {
-        ctx.fillStyle = '#ff0000'; // Braking
-        ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 10;
-    } else {
-        ctx.fillStyle = '#800000'; // Normal tail lights
-        ctx.shadowBlur = 0;
-    }
-    // Tail lights
-    ctx.fillRect(-24, -12, 2, 6);
-    ctx.fillRect(-24, 6, 2, 6);
-    ctx.shadowBlur = 0;
-
-    // Headlights
-    ctx.fillStyle = '#fff9c4';
-    ctx.fillRect(22, -12, 2, 6);
-    ctx.fillRect(22, 6, 2, 6);
-
     ctx.restore();
 }
 

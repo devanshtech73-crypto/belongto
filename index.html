@@ -1,235 +1,208 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Top-Down Driving Game</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            touch-action: none;
-            background-color: #333;
-        }
-        canvas {
-            display: block;
-            background-color: #8FBC8F;
-            border: 1px solid #000;
-        }
-        .controls {
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-        }
-        .control-btn {
-            width: 70px;
-            height: 70px;
-            background-color: rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            border: 2px solid #FFF;
-            color: #FFF;
-            font-size: 1.2em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            touch-action: manipulation;
-        }
-        .hud {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: #FFF;
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-        }
-    </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Top-Down Driving — Demo</title>
+<style>
+  :root{
+    --ui-size: 14px;
+  }
+  html,body{height:100%;margin:0;background:#111;color:#eee;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;}
+  #game-wrap{display:flex;flex-direction:column;height:100vh;align-items:center;justify-content:center;padding:6px;box-sizing:border-box;}
+  #ui-row{width:100%;max-width:1100px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .panel{background:rgba(0,0,0,0.4);padding:6px 10px;border-radius:10px;backdrop-filter: blur(4px);box-shadow:0 6px 20px rgba(0,0,0,0.6);}
+  #hud{display:flex;gap:8px;align-items:center;}
+  #speedo{font-weight:700;font-size:16px;letter-spacing:1px;}
+  #timer{font-size:14px;}
+  #canvas-wrap{width:100%;max-width:1100px;flex:1;display:flex;align-items:center;justify-content:center;}
+  canvas{width:100%;height:100%;max-height:75vh;border-radius:10px;background:#2b7a2b;display:block;touch-action:none;}
+  /* Mobile floating controls */
+  .touch-controls{position:fixed;bottom:20px;left:0;right:0;pointer-events:none;display:flex;justify-content:space-between;padding:0 16px;}
+  .control-zone{pointer-events:auto;display:flex;gap:10px;align-items:center;}
+  .btn{width:68px;height:68px;border-radius:14px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:20px;user-select:none;touch-action:none;border:1px solid rgba(255,255,255,0.04);}
+  .small{width:50px;height:50px;border-radius:12px;font-size:18px;}
+  .invisible{opacity:0.001}
+  /* Layout helper for desktop controls overlay (hidden on mobile) */
+  #debug{margin-left:8px;font-size:13px;color:#ddd;opacity:0.9;}
+  @media(min-width:900px){
+    .touch-controls{display:none;}
+    canvas{max-height:70vh;}
+  }
+  @media(max-width:899px){
+    #ui-row{padding:0 6px;}
+    .panel{padding:6px 8px;}
+    :root{--ui-size:12px;}
+  }
+</style>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <div class="controls">
-        <div class="control-btn" id="leftBtn">◀</div>
-        <div class="control-btn" id="gasBtn">▲</div>
-        <div class="control-btn" id="brakeBtn">▼</div>
-        <div class="control-btn" id="rightBtn">▶</div>
+<div id="game-wrap">
+  <div id="ui-row">
+    <div class="panel" id="hud">
+      <div id="speedo">SPEED: 0</div>
+      <div id="timer">TIME: 00:00.000</div>
+      <div id="laps">DIST: 0m</div>
     </div>
-    <div class="hud">
-        <div>Speed: <span id="speed">0</span> km/h</div>
-        <div>Distance: <span id="distance">0</span> m</div>
-    </div>
+    <div class="panel" id="debug">Use W/A/S/D or touch controls. Tap Gas to accelerate, Brake to reverse.</div>
+  </div>
 
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
+  <div id="canvas-wrap" class="panel">
+    <canvas id="game" width="1100" height="700"></canvas>
+  </div>
+</div>
 
-        // Resize canvas
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight * 0.9;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+<!-- Mobile floating controls -->
+<div class="touch-controls" aria-hidden="true">
+  <div class="control-zone">
+    <div class="btn small" id="left-btn">◀</div>
+    <div class="btn small" id="right-btn">▶</div>
+  </div>
+  <div class="control-zone">
+    <div class="btn" id="gas-btn">▲</div>
+    <div class="btn" id="brake-btn">▼</div>
+  </div>
+</div>
 
-        // InputHandler class
-        class InputHandler {
-            constructor() {
-                this.keys = {};
-                this.touch = { left: false, right: false, gas: false, brake: false };
-                window.addEventListener('keydown', (e) => this.keys[e.key] = true);
-                window.addEventListener('keyup', (e) => this.keys[e.key] = false);
-                ['leftBtn', 'rightBtn', 'gasBtn', 'brakeBtn'].forEach(id => {
-                    const btn = document.getElementById(id);
-                    btn.addEventListener('touchstart', (e) => {
-                        e.preventDefault();
-                        this.touch[id.replace('Btn', '')] = true;
-                    });
-                    btn.addEventListener('touchend', () => this.touch[id.replace('Btn', '')] = false);
-                });
-            }
-            getSteering() {
-                if (this.keys['a'] || this.touch.left) return -1;
-                if (this.keys['d'] || this.touch.right) return 1;
-                return 0;
-            }
-            getAcceleration() {
-                if (this.keys['w'] || this.touch.gas) return 1;
-                if (this.keys['s'] || this.touch.brake) return -1;
-                return 0;
-            }
-        }
+<script>
+/* ========== Config ========== */
+const CONFIG = {
+  maxSpeed: 6.4,         // pixels per frame base
+  accel: 0.18,           // acceleration per tick
+  brakeAccel: 0.24,      // braking / reverse accel
+  friction: 0.985,       // global speed decay (1 = no friction)
+  steerSpeed: 0.04,       // base steering sensitivity
+  driftFactor: 0.85,      // lateral velocity damping when sliding
+  width: 1100,
+  height: 700,
+  meterPerPixel: 0.4     // simple conversion for "meters"
+};
 
-        // Car class
-        class Car {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.angle = 0;
-                this.speed = 0;
-                this.maxSpeed = 0.15;
-                this.acceleration = 0.001;
-                this.brake = 0.003;
-                this.friction = 0.99;
-                this.steering = 0;
-                this.steeringFactor = 0.05;
-                this.driftFactor = 0.995;
-                this.distance = 0;
-            }
-            update(input) {
-                // Acceleration
-                this.speed += input.getAcceleration() * this.acceleration;
-                this.speed -= input.getAcceleration() * this.brake;
-                // Limit speed
-                this.speed = Math.max(-this.maxSpeed, Math.min(this.maxSpeed, this.speed));
-                // Apply friction
-                this.speed *= this.friction;
-                // Steering
-                this.steering = input.getSteering();
-                if (Math.abs(this.speed) > 0.01) {
-                    this.angle += this.steering * this.steeringFactor * this.speed;
-                    this.angle %= 2 * Math.PI;
-                } else {
-                    this.angle += this.steering * this.steeringFactor;
-                }
-                // Movement
-                this.x += Math.cos(this.angle) * this.speed;
-                this.y += Math.sin(this.angle) * this.speed;
-                // Drift effect
-                if (Math.abs(this.speed) > 0.05 && Math.abs(this.steering) > 0) {
-                    this.speed *= this.driftFactor;
-                }
-                // Track distance
-                this.distance += Math.abs(this.speed) * 100;
-            }
-            draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.rotate(this.angle);
-                // Draw shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
-                ctx.fillRect(-12, -8, 24, 16);
-                // Draw car
-                ctx.fillStyle = '#336699';
-                ctx.fillRect(-10, -6, 20, 12);
-                ctx.restore();
-            }
-        }
+/* ========== Utilities ========== */
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function now(){return performance.now();}
 
-        // Track class
-        class Track {
-            constructor() {
-                this.boundaries = [
-                    { x: 50, y: 50, w: 800, h: 40 },
-                    { x: 850, y: 50, w: 40, h: 600 },
-                    { x: 50, y: 650, w: 800, h: 40 },
-                    { x: 50, y: 50, w: 40, h: 600 }
-                ];
-                this.obstacles = [
-                    { x: 200, y: 200, w: 20, h: 20 },
-                    { x: 400, y: 300, w: 20, h: 20 },
-                    { x: 600, y: 400, w: 20, h: 20 }
-                ];
-            }
-            draw() {
-                // Draw road
-                ctx.fillStyle = '#666';
-                ctx.fillRect(50, 50, 800, 600);
-                // Draw boundaries
-                this.boundaries.forEach(boundary => {
-                    ctx.fillStyle = '#333';
-                    ctx.fillRect(boundary.x, boundary.y, boundary.w, boundary.h);
-                });
-                // Draw obstacles
-                this.obstacles.forEach(obstacle => {
-                    ctx.fillStyle = '#A00';
-                    ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
-                });
-            }
-            checkCollision(car) {
-                for (let boundary of this.boundaries) {
-                    if (car.x + 10 > boundary.x && car.x - 10 < boundary.x + boundary.w &&
-                        car.y + 6 > boundary.y && car.y - 6 < boundary.y + boundary.h) {
-                        return true;
-                    }
-                }
-                for (let obstacle of this.obstacles) {
-                    if (car.x + 10 > obstacle.x && car.x - 10 < obstacle.x + obstacle.w &&
-                        car.y + 6 > obstacle.y && car.y - 6 < obstacle.y + obstacle.h) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
+/* ========== Track & Obstacles (simple vector track) ========== */
+class Track {
+  constructor(w,h){
+    this.w = w; this.h = h;
+    // generate a simple road path as an array of segments (for collisions and rendering)
+    this.road = []; // polygon outer ring and inner ring approximated by rectangles/curves
+    this.obstacles = [];
+    this.generate();
+  }
+  generate(){
+    // For demo: draw a curvy loop using simple bezier-ish segments.
+    // We'll build a path by sampling a parametric circle distorted.
+    const cx = this.w/2, cy = this.h/2;
+    const radius = Math.min(this.w,this.h)/2 - 80;
+    this.centerPath = [];
+    const points = 120;
+    for(let i=0;i<points;i++){
+      const a = (i/points)*Math.PI*2;
+      const r = radius * (1 + 0.12*Math.sin(a*3)+0.06*Math.cos(a*5));
+      this.centerPath.push({x:cx+Math.cos(a)*r, y:cy+Math.sin(a)*r});
+    }
+    // create obstacles at some points
+    for(let i=0;i<12;i++){
+      const p = this.centerPath[Math.floor(Math.random()*this.centerPath.length)];
+      const ox = p.x + (Math.random()*300-150);
+      const oy = p.y + (Math.random()*200-100);
+      this.obstacles.push({x:ox,y:oy,r:16,type:'cone'});
+    }
+    // Add some fixed obstacles near start line
+    this.obstacles.push({x:cx+120,y:cy-40,r:20,type:'rock'});
+    this.obstacles.push({x:cx-200,y:cy+80,r:22,type:'barrier'});
+  }
+  draw(ctx,cam){
+    // fill grass
+    ctx.fillStyle='#225f22';
+    ctx.fillRect(0,0,this.w,this.h);
 
-        // Game initialization
-        const input = new InputHandler();
-        const car = new Car(100, 100);
-        const track = new Track();
+    // draw road by stroking the center path as thick gray ribbon
+    ctx.save();
+    ctx.translate(-cam.x + cam.viewW/2, -cam.y + cam.viewH/2);
+    // smooth path
+    ctx.lineJoin='round';
+    ctx.lineCap='round';
+    // draw road as thick line (two strokes: base + edges)
+    ctx.strokeStyle='#666';
+    ctx.lineWidth=180; // road width
+    ctx.beginPath();
+    for(let i=0;i<this.centerPath.length;i++){
+      const p=this.centerPath[i];
+      if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
 
-        // Game loop
-        function gameLoop() {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Update car
-            car.update(input);
-            // Check collision
-            if (track.checkCollision(car)) {
-                car.speed *= 0.8; // Slow down on collision
-            }
-            // Draw track and car
-            track.draw();
-            car.draw();
-            // Update HUD
-            document.getElementById('speed').textContent = Math.round(Math.abs(car.speed) * 1000);
-            document.getElementById('distance').textContent = Math.round(car.distance);
-            // Loop
-            requestAnimationFrame(gameLoop);
-        }
-        gameLoop();
-    </script>
-</body>
-</html>
+    // draw road centerline dashed
+    ctx.strokeStyle='rgba(255,255,255,0.18)';
+    ctx.lineWidth=3;
+    ctx.setLineDash([18,18]);
+    ctx.beginPath();
+    for(let i=0;i<this.centerPath.length;i++){
+      const p=this.centerPath[i];
+      if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // obstacles
+    for(const o of this.obstacles){
+      ctx.beginPath();
+      if(o.type==='cone'){
+        ctx.fillStyle='#ff6b00';
+        ctx.moveTo(o.x, o.y - o.r);
+        ctx.lineTo(o.x + o.r, o.y + o.r);
+        ctx.lineTo(o.x - o.r, o.y + o.r);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillStyle='#3a3a3a';
+        ctx.fillRect(o.x - o.r, o.y - o.r, o.r*2, o.r*2);
+      }
+    }
+
+    // start/finish marker
+    const s = this.centerPath[0];
+    ctx.fillStyle='rgba(255,255,0,0.95)';
+    ctx.fillRect(s.x-120, s.y-12, 240, 8);
+
+    ctx.restore();
+  }
+}
+
+/* ========== Car ========== */
+class Car {
+  constructor(x,y){
+    this.x = x; this.y = y;
+    this.width = 48; this.height = 28;
+    this.angle = -Math.PI/2; // facing up
+    this.speed = 0;
+    this.velX = 0; this.velY = 0;
+    this.lastLapPos = {x,y};
+    this.color = '#e83';
+    this.shadowOffset = 8;
+  }
+  update(input,dt){
+    // dt ~= time step fraction (not used heavily here). Use fixed-step-ish physics.
+    // Input: throttle (-1 to 1), steer (-1 to 1)
+    const throttle = input.throttle; // -1 to +1
+    const steer = input.steer; // -1 left, +1 right
+    // Apply acceleration/brake
+    if(throttle > 0.001){
+      this.speed += CONFIG.accel * throttle;
+    } else if(throttle < -0.001){
+      this.speed += CONFIG.brakeAccel * throttle; // negative
+    } else {
+      // natural slowdown via friction below
+    }
+
+    // limit speed (reverse lower)
+    const maxF = CONFIG.maxSpeed;
+    const maxR = -CONFIG.maxSpeed * 0.5;
+    this.speed = clamp(this.speed, maxR, maxF);
+
+    // Steering scaled by speed magnitude (low speed -> low steering

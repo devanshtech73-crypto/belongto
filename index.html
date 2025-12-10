@@ -66,12 +66,14 @@
         justify-content: space-between;
         align-items: flex-end;
         padding: 0 5vw;
-        pointer-events: none; /* only buttons receive events */
+        pointer-events: none;
     }
     .control-group {
         display: flex;
         gap: 3vw;
         pointer-events: auto;
+        align-items: center;
+        justify-content: center;
     }
     .control-btn {
         width: 18vw;
@@ -103,6 +105,31 @@
         border-color: rgba(255,0,0,0.8);
     }
 
+    /* Steering wheel */
+    #steeringWheel {
+        position: relative;
+        border-radius: 50%;
+        border: 4px solid rgba(255,255,255,0.9);
+        background: rgba(0,0,0,0.25);
+        width: 26vw;
+        height: 26vw;
+        max-width: 140px;
+        max-height: 140px;
+        min-width: 90px;
+        min-height: 90px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    #steeringWheel::before {
+        content: "";
+        position: absolute;
+        width: 60%;
+        height: 8%;
+        background: rgba(255,255,255,0.85);
+        border-radius: 999px;
+    }
     @media (orientation: landscape) {
         #controls {
             bottom: 4vh;
@@ -123,8 +150,7 @@
 
     <div id="controls">
         <div class="control-group" id="steerGroup">
-            <div class="control-btn" id="leftBtn">◀</div>
-            <div class="control-btn" id="rightBtn">▶</div>
+            <div id="steeringWheel"></div>
         </div>
         <div class="control-group" id="pedalGroup">
             <div class="control-btn" id="gasBtn">▲</div>
@@ -134,44 +160,24 @@
 </div>
 
 <script>
-/* ---------- Canvas & sizing ---------- */
+/* ---------- Canvas & sizing (no aspect forcing) ---------- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 function resizeCanvas() {
     const container = document.getElementById('gameContainer');
-    const w = container.clientWidth;
-    const h = container.clientHeight;
-
-    // Keep an internal 16:9 virtual resolution for physics / drawing
-    const aspect = 16 / 9;
-    let vw = w;
-    let vh = w / aspect;
-    if (vh > h) {
-        vh = h;
-        vw = h * aspect;
-    }
-    canvas.width = vw;
-    canvas.height = vh;
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-/* ---------- InputHandler class ---------- */
+/* ---------- InputHandler class with steering wheel ---------- */
 class InputHandler {
     constructor() {
-        this.keys = {
-            w: false,
-            s: false,
-            a: false,
-            d: false
-        };
-        this.touch = {
-            left: false,
-            right: false,
-            gas: false,
-            brake: false
-        };
+        this.keys = { w: false, s: false, a: false, d: false };
+        this.touch = { gas: false, brake: false };
+        this.wheelSteer = 0; // -1..1 from steering wheel
 
         window.addEventListener('keydown', e => {
             const key = e.key.toLowerCase();
@@ -189,32 +195,85 @@ class InputHandler {
             }
         }, { passive: false });
 
-        function bindButton(id, prop) {
-            const btn = document.getElementById(id);
-            const start = e => {
-                e.preventDefault();
-                this.touch[prop] = true;
-            };
-            const end = e => {
-                e.preventDefault();
-                this.touch[prop] = false;
-            };
-            btn.addEventListener('touchstart', start, { passive: false });
-            btn.addEventListener('touchend', end, { passive: false });
-            btn.addEventListener('touchcancel', end, { passive: false });
-            btn.addEventListener('mousedown', start);
-            window.addEventListener('mouseup', end);
-        }
+        const gasBtn = document.getElementById('gasBtn');
+        const brakeBtn = document.getElementById('brakeBtn');
 
-        bindButton.call(this, 'leftBtn', 'left');
-        bindButton.call(this, 'rightBtn', 'right');
-        bindButton.call(this, 'gasBtn', 'gas');
-        bindButton.call(this, 'brakeBtn', 'brake');
+        const startGas = e => { e.preventDefault(); this.touch.gas = true; };
+        const endGas   = e => { e.preventDefault(); this.touch.gas = false; };
+        const startBrake = e => { e.preventDefault(); this.touch.brake = true; };
+        const endBrake   = e => { e.preventDefault(); this.touch.brake = false; };
 
-        // Prevent whole-page scrolling on touch
+        gasBtn.addEventListener('touchstart', startGas, { passive: false });
+        gasBtn.addEventListener('touchend', endGas, { passive: false });
+        gasBtn.addEventListener('touchcancel', endGas, { passive: false });
+        gasBtn.addEventListener('mousedown', startGas);
+        window.addEventListener('mouseup', endGas);
+
+        brakeBtn.addEventListener('touchstart', startBrake, { passive: false });
+        brakeBtn.addEventListener('touchend', endBrake, { passive: false });
+        brakeBtn.addEventListener('touchcancel', endBrake, { passive: false });
+        brakeBtn.addEventListener('mousedown', startBrake);
+        window.addEventListener('mouseup', endBrake);
+
+        // Steering wheel control
+        this.initSteeringWheel();
+
         document.body.addEventListener('touchmove', e => {
             e.preventDefault();
         }, { passive: false });
+    }
+
+    initSteeringWheel() {
+        const wheel = document.getElementById('steeringWheel');
+        let active = false;
+        let center = { x: 0, y: 0 };
+        let currentAngle = 0;
+
+        const updateCenter = () => {
+            const rect = wheel.getBoundingClientRect();
+            center.x = rect.left + rect.width / 2;
+            center.y = rect.top + rect.height / 2;
+        };
+        updateCenter();
+        window.addEventListener('resize', updateCenter);
+
+        const handlePointer = (clientX, clientY) => {
+            const dx = clientX - center.x;
+            const dy = clientY - center.y;
+            const angle = Math.atan2(dy, dx); // -PI..PI
+            currentAngle = angle;
+            wheel.style.transform = `rotate(${angle}rad)`;
+            const maxAngle = Math.PI / 3; // 60°
+            let steer = angle / maxAngle;
+            if (steer > 1) steer = 1;
+            if (steer < -1) steer = -1;
+            this.wheelSteer = steer;
+        };
+
+        const start = e => {
+            active = true;
+            const t = e.touches ? e.touches[0] : e;
+            handlePointer(t.clientX, t.clientY);
+        };
+        const move = e => {
+            if (!active) return;
+            const t = e.touches ? e.touches[0] : e;
+            handlePointer(t.clientX, t.clientY);
+        };
+        const end = () => {
+            active = false;
+            this.wheelSteer = 0;
+            wheel.style.transform = 'rotate(0rad)';
+        };
+
+        wheel.addEventListener('touchstart', start, { passive: false });
+        wheel.addEventListener('touchmove', move, { passive: false });
+        wheel.addEventListener('touchend', end, { passive: false });
+        wheel.addEventListener('touchcancel', end, { passive: false });
+
+        wheel.addEventListener('mousedown', start);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
     }
 
     getAcceleration() {
@@ -226,11 +285,16 @@ class InputHandler {
     }
 
     getSteering() {
-        const left = this.keys.a || this.touch.left;
-        const right = this.keys.d || this.touch.right;
-        if (left && !right) return -1;
-        if (right && !left) return 1;
-        return 0;
+        // Keyboard steering plus wheel steering combined
+        const left = this.keys.a;
+        const right = this.keys.d;
+        let kb = 0;
+        if (left && !right) kb = -1;
+        else if (right && !left) kb = 1;
+
+        // If wheel is in use, prefer it; otherwise use keyboard
+        if (Math.abs(this.wheelSteer) > 0.05) return this.wheelSteer;
+        return kb;
     }
 }
 
@@ -241,14 +305,13 @@ class Obstacle {
         this.y = y;
         this.w = w;
         this.h = h;
-        this.type = type; // for different colors/shapes
+        this.type = type;
     }
-
     draw(ctx) {
         ctx.save();
         if (this.type === 'cone') ctx.fillStyle = '#ffb347';
         else if (this.type === 'rock') ctx.fillStyle = '#777';
-        else ctx.fillStyle = '#aa0000'; // roadblock
+        else ctx.fillStyle = '#aa0000';
         ctx.fillRect(this.x, this.y, this.w, this.h);
         ctx.restore();
     }
@@ -257,83 +320,83 @@ class Obstacle {
 /* ---------- Track class ---------- */
 class Track {
     constructor() {
-        // Road rectangle (big track with open center)
-        this.roadOuter = { x: 60, y: 40, w: 1000, h: 600 };
-        this.roadInner = { x: 220, y: 140, w: 680, h: 400 }; // inner grass hole (curve-like)
+        // Use canvas size on creation; will still work as we only use ratios loosely
+        const w = canvas.width;
+        const h = canvas.height;
+        const margin = 0.06 * w;
 
-        // Boundaries as solid collision rectangles around outer & inner edges
+        this.roadOuter = { x: margin, y: margin, w: w - 2*margin, h: h - 2*margin };
+        this.roadInner = {
+            x: this.roadOuter.x + this.roadOuter.w * 0.22,
+            y: this.roadOuter.y + this.roadOuter.h * 0.2,
+            w: this.roadOuter.w * 0.56,
+            h: this.roadOuter.h * 0.6
+        };
+
         const o = this.roadOuter;
         const i = this.roadInner;
+        const bw = 0.018 * w;
+        const bh = 0.025 * h;
         this.boundaries = [];
 
-        // Outer ring
-        this.boundaries.push({ x: o.x, y: o.y, w: o.w, h: 20 });
-        this.boundaries.push({ x: o.x, y: o.y + o.h - 20, w: o.w, h: 20 });
-        this.boundaries.push({ x: o.x, y: o.y, w: 20, h: o.h });
-        this.boundaries.push({ x: o.x + o.w - 20, y: o.y, w: 20, h: o.h });
+        this.boundaries.push({ x: o.x, y: o.y, w: o.w, h: bh });
+        this.boundaries.push({ x: o.x, y: o.y + o.h - bh, w: o.w, h: bh });
+        this.boundaries.push({ x: o.x, y: o.y, w: bw, h: o.h });
+        this.boundaries.push({ x: o.x + o.w - bw, y: o.y, w: bw, h: o.h });
 
-        // Inner ring (walls)
-        this.boundaries.push({ x: i.x, y: i.y, w: i.w, h: 20 });
-        this.boundaries.push({ x: i.x, y: i.y + i.h - 20, w: i.w, h: 20 });
-        this.boundaries.push({ x: i.x, y: i.y, w: 20, h: i.h });
-        this.boundaries.push({ x: i.x + i.w - 20, y: i.y, w: 20, h: i.h });
+        this.boundaries.push({ x: i.x, y: i.y, w: i.w, h: bh });
+        this.boundaries.push({ x: i.x, y: i.y + i.h - bh, w: i.w, h: bh });
+        this.boundaries.push({ x: i.x, y: i.y, w: bw, h: i.h });
+        this.boundaries.push({ x: i.x + i.w - bw, y: i.y, w: bw, h: i.h });
 
-        // Obstacles (cones, rocks, roadblocks) scattered around
+        const obSize = 0.03 * w;
         this.obstacles = [
-            new Obstacle(150, 120, 24, 24, 'cone'),
-            new Obstacle(320, 520, 26, 26, 'rock'),
-            new Obstacle(700, 460, 30, 18, 'roadblock'),
-            new Obstacle(830, 200, 22, 22, 'cone'),
-            new Obstacle(580, 310, 24, 24, 'rock'),
-            new Obstacle(250, 260, 26, 26, 'roadblock')
+            new Obstacle(o.x + o.w * 0.12, o.y + o.h * 0.15, obSize, obSize, 'cone'),
+            new Obstacle(o.x + o.w * 0.35, o.y + o.h * 0.8, obSize, obSize, 'rock'),
+            new Obstacle(o.x + o.w * 0.7, o.y + o.h * 0.7, obSize * 1.2, obSize * 0.7, 'roadblock'),
+            new Obstacle(o.x + o.w * 0.85, o.y + o.h * 0.3, obSize, obSize, 'cone'),
+            new Obstacle(o.x + o.w * 0.55, o.y + o.h * 0.45, obSize, obSize, 'rock'),
+            new Obstacle(o.x + o.w * 0.25, o.y + o.h * 0.4, obSize * 1.1, obSize * 0.7, 'roadblock')
         ];
 
-        // Start/finish line segment for lap counting
         this.lapLine = {
-            x1: o.x + 60,
-            y1: o.y + 20,
-            x2: o.x + 60,
-            y2: o.y + o.h - 20
+            x1: o.x + o.w * 0.12,
+            y1: o.y + bh,
+            x2: o.x + o.w * 0.12,
+            y2: o.y + o.h - bh
         };
     }
 
     draw(ctx) {
         ctx.save();
-        // Grass is canvas background
-
-        // Outer road
         ctx.fillStyle = '#555';
         ctx.fillRect(this.roadOuter.x, this.roadOuter.y, this.roadOuter.w, this.roadOuter.h);
 
-        // Inner grass "island"
         ctx.fillStyle = '#2f5e2f';
         ctx.fillRect(this.roadInner.x, this.roadInner.y, this.roadInner.w, this.roadInner.h);
 
-        // Boundary walls
         ctx.fillStyle = '#222';
-        for (const b of this.boundaries) {
-            ctx.fillRect(b.x, b.y, b.w, b.h);
-        }
+        for (const b of this.boundaries) ctx.fillRect(b.x, b.y, b.w, b.h);
 
-        // Lane marking around hole to hint curves
         ctx.strokeStyle = '#ddd';
         ctx.setLineDash([10, 8]);
         ctx.lineWidth = 2;
-        ctx.strokeRect(this.roadInner.x + 50, this.roadInner.y + 40,
-                       this.roadInner.w - 100, this.roadInner.h - 80);
+        ctx.strokeRect(
+            this.roadInner.x + this.roadInner.w * 0.08,
+            this.roadInner.y + this.roadInner.h * 0.08,
+            this.roadInner.w * 0.84,
+            this.roadInner.h * 0.84
+        );
         ctx.setLineDash([]);
 
-        // Obstacles
         for (const ob of this.obstacles) ob.draw(ctx);
 
-        // Start/finish line
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(this.lapLine.x1, this.lapLine.y1);
         ctx.lineTo(this.lapLine.x2, this.lapLine.y2);
         ctx.stroke();
-
         ctx.restore();
     }
 
@@ -351,14 +414,12 @@ class Track {
             if (this.checkRectCollision(carRect, b)) return true;
         }
         for (const ob of this.obstacles) {
-            const r = { x: ob.x, y: ob.y, w: ob.w, h: ob.h };
-            if (this.checkRectCollision(carRect, r)) return true;
+            if (this.checkRectCollision(carRect, { x: ob.x, y: ob.y, w: ob.w, h: ob.h })) return true;
         }
         return false;
     }
 
     pointSideOfLapLine(x, y) {
-        // Line from (x1,y1) to (x2,y2), use cross product sign
         const L = this.lapLine;
         const vx = L.x2 - L.x1;
         const vy = L.y2 - L.y1;
@@ -371,29 +432,27 @@ class Track {
 /* ---------- Car class ---------- */
 class Car {
     constructor(x, y) {
+        const base = Math.min(canvas.width, canvas.height);
+        this.width = base * 0.05;
+        this.height = this.width * 0.5;
         this.x = x;
         this.y = y;
-        this.width = 40;
-        this.height = 20;
-        this.angle = 0;          // radians
-        this.speed = 0;          // units/ms
+        this.angle = 0;
+        this.speed = 0;
         this.maxSpeed = 0.45;
         this.accelerationRate = 0.0006;
         this.brakeRate = 0.001;
         this.friction = 0.985;
-        this.steeringFactor = 0.004; // angle change per unit speed
+        this.steeringFactor = 0.004;
         this.driftFactor = 0.96;
-
         this.distanceTravelled = 0;
         this.lastX = x;
         this.lastY = y;
-
         this.lastLapSide = 0;
         this.laps = 0;
     }
 
     getRect() {
-        // Approximate AABB from center & size (not fully rotated, but good enough)
         return {
             x: this.x - this.width / 2,
             y: this.y - this.height / 2,
@@ -403,63 +462,48 @@ class Car {
     }
 
     update(dt, input, track) {
-        // Save last position for distance
         this.lastX = this.x;
         this.lastY = this.y;
 
         const accelInput = input.getAcceleration();
-        if (accelInput > 0) {
-            this.speed += this.accelerationRate * dt;
-        } else if (accelInput < 0) {
-            this.speed -= this.brakeRate * dt;
-        }
+        if (accelInput > 0) this.speed += this.accelerationRate * dt;
+        else if (accelInput < 0) this.speed -= this.brakeRate * dt;
 
-        // Limit speed
         if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
         if (this.speed < -this.maxSpeed * 0.5) this.speed = -this.maxSpeed * 0.5;
 
-        // Friction
         this.speed *= this.friction;
 
-        // Steering
         const steerInput = input.getSteering();
-        if (steerInput !== 0 && Math.abs(this.speed) > 0.0002) {
+        if (Math.abs(steerInput) > 0.01 && Math.abs(this.speed) > 0.0002) {
             this.angle += steerInput * this.steeringFactor * dt * (this.speed / this.maxSpeed);
         }
 
-        // Drift: reduce speed more when steering hard at higher speed
-        if (Math.abs(steerInput) > 0 && Math.abs(this.speed) > this.maxSpeed * 0.5) {
+        if (Math.abs(steerInput) > 0.1 && Math.abs(this.speed) > this.maxSpeed * 0.5) {
             this.speed *= this.driftFactor;
         }
 
-        // Normalise angle
         if (this.angle > Math.PI) this.angle -= Math.PI * 2;
         if (this.angle < -Math.PI) this.angle += Math.PI * 2;
 
-        // Movement
         const dx = Math.cos(this.angle) * this.speed * dt;
         const dy = Math.sin(this.angle) * this.speed * dt;
         this.x += dx;
         this.y += dy;
 
-        // Distance tracking (for HUD)
         const segDist = Math.hypot(this.x - this.lastX, this.y - this.lastY);
         this.distanceTravelled += segDist;
 
-        // Collision handling: simple push-back on collision
         const rect = this.getRect();
         if (track.checkCollision(rect)) {
-            // Move back and damp speed
             this.x -= dx * 1.5;
             this.y -= dy * 1.5;
             this.speed *= -0.3;
         }
 
-        // Lap counting by crossing lap line
         const side = track.pointSideOfLapLine(this.x, this.y);
         if (this.lastLapSide !== 0 && side !== 0 && side !== this.lastLapSide) {
-            // Crossed line
-            this.laps += 0.5; // count both directions; if track is one direction, you can enforce direction
+            this.laps += 0.5;
         }
         this.lastLapSide = side;
     }
@@ -469,23 +513,20 @@ class Car {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
-        // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.45)';
         ctx.beginPath();
-        ctx.ellipse(0, 6, this.width * 0.55, this.height * 0.55, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, this.height * 0.3, this.width * 0.55, this.height * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Car body
         ctx.fillStyle = '#1e88e5';
         ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
 
-        // Roof
         ctx.fillStyle = '#bbdefb';
         ctx.fillRect(-this.width * 0.2, -this.height * 0.4, this.width * 0.4, this.height * 0.8);
 
-        // Front bumper highlight
         ctx.fillStyle = '#eeeeee';
-        ctx.fillRect(this.width / 2 - 4, -this.height / 2 + 3, 3, this.height - 6);
+        ctx.fillRect(this.width / 2 - this.width * 0.08, -this.height / 2 + this.height * 0.15,
+                     this.width * 0.06, this.height - this.height * 0.3);
 
         ctx.restore();
     }
@@ -493,8 +534,9 @@ class Car {
 
 /* ---------- Game state ---------- */
 const input = new InputHandler();
-const track = new Track();
-const car = new Car(track.roadOuter.x + 120, track.roadOuter.y + track.roadOuter.h / 2);
+let track = new Track();
+let car = new Car(track.roadOuter.x + track.roadOuter.w * 0.15,
+                  track.roadOuter.y + track.roadOuter.h * 0.5);
 
 const hudSpeed = document.getElementById('speedValue');
 const hudDistance = document.getElementById('distanceValue');
@@ -510,16 +552,13 @@ function loop(timestamp) {
     lastTimestamp = timestamp;
     elapsedTime += dt;
 
-    // Physics & logic
     car.update(dt, input, track);
 
-    // Clear and draw
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     track.draw(ctx);
     car.draw(ctx);
 
-    // HUD update (convert internal units to readable)
-    const speedKmh = Math.abs(car.speed) * 3600; // simple scaling
+    const speedKmh = Math.abs(car.speed) * 3600;
     hudSpeed.textContent = speedKmh.toFixed(0);
     hudDistance.textContent = (car.distanceTravelled).toFixed(0);
     hudTime.textContent = (elapsedTime / 1000).toFixed(1);
@@ -529,6 +568,5 @@ function loop(timestamp) {
 }
 requestAnimationFrame(loop);
 </script>
-</div>
 </body>
 </html>

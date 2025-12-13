@@ -2,437 +2,72 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Drift Racer 2D</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Next Topper - App Embed Viewer</title>
+    <!-- Load Tailwind CSS for modern, responsive styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load Lucide Icons for aesthetic elements (logo) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Configure Tailwind and Custom Styles -->
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
         body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #222;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            touch-action: none; /* Prevents zooming/scrolling on mobile */
+            font-family: 'Inter', sans-serif;
+            /* Applying a subtle body gradient */
+            background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%);
         }
-
-        #gameCanvas {
-            display: block;
-            background-color: #353535;
-        }
-
-        /* UI Overlay */
-        #ui-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
+        /* Ensure the body and html take up the full viewport */
+        html, body {
             height: 100%;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
         }
-
-        /* HUD */
-        #hud {
-            padding: 20px;
-            color: white;
-            text-shadow: 1px 1px 2px black;
-            font-size: 20px;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .hud-box {
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px 20px;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        /* Mobile Controls */
-        #controls {
-            pointer-events: auto;
-            display: none; /* Hidden by default, shown via JS on touch devices */
+        /* Custom class for the iframe to ensure it fills its container */
+        .full-iframe {
             width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        .control-group {
-            position: absolute;
-            bottom: 30px;
-            display: flex;
-            gap: 20px;
-        }
-
-        .left-controls { left: 30px; }
-        .right-controls { right: 30px; }
-
-        .btn {
-            width: 80px;
-            height: 80px;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
-            color: white;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            user-select: none;
-            backdrop-filter: blur(4px);
-            transition: background 0.1s;
-        }
-
-        .btn:active { background: rgba(255, 255, 255, 0.4); }
-
-        /* Pedal shapes */
-        .btn.gas { border-radius: 15px 15px 50% 50%; height: 100px; background: rgba(0, 255, 0, 0.1); }
-        .btn.brake { border-radius: 10px; height: 60px; margin-top: 40px; background: rgba(255, 0, 0, 0.1); }
-
-        @media (hover: none) and (pointer: coarse) {
-            #controls { display: block; }
+            /* Height adjustment: 100vh - (Header H: 5rem) - (Main P: 2rem) */
+            height: calc(100vh - 5rem - 2rem);
         }
     </style>
 </head>
-<body>
+<body class="flex flex-col h-full">
 
-    <div id="ui-layer">
-        <div id="hud">
-            <div class="hud-box">SPEED: <span id="speedVal">0</span> KM/H</div>
-            <div class="hud-box">DISTANCE: <span id="distVal">0</span> M</div>
+    <!-- Header Section: Next Topper Style Navigation Bar -->
+    <header class="bg-indigo-700 shadow-2xl p-4 flex justify-between items-center w-full h-20 z-10">
+        <!-- Logo Area -->
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-white rounded-full text-indigo-700 shadow-lg">
+                <i data-lucide="zap" class="w-6 h-6"></i>
+            </div>
+            <h1 class="text-white text-3xl font-extrabold tracking-wide">
+                Next <span class="text-indigo-300">Topper</span>
+            </h1>
         </div>
         
-        <!-- Mobile Touch Controls -->
-        <div id="controls">
-            <div class="control-group left-controls">
-                <div class="btn" id="btnLeft">◀</div>
-                <div class="btn" id="btnRight">▶</div>
-            </div>
-            <div class="control-group right-controls" style="align-items: flex-end;">
-                <div class="btn brake" id="btnBrake">Brake</div>
-                <div class="btn gas" id="btnGas">Gas</div>
-            </div>
+        <!-- Status/Info Area -->
+        <div class="hidden sm:flex items-center space-x-2 bg-indigo-600/50 px-4 py-2 rounded-full shadow-inner">
+            <i data-lucide="external-link" class="w-4 h-4 text-indigo-300"></i>
+            <p class="text-indigo-200 text-sm font-medium">New Batches Coming Soon....</p>
         </div>
-    </div>
+    </header>
 
-    <canvas id="gameCanvas"></canvas>
-
-<script>
-/**
- * ENGINE CLASSES
- */
-
-class InputHandler {
-    constructor() {
-        this.keys = {
-            up: false,
-            down: false,
-            left: false,
-            right: false
-        };
-
-        // Keyboard Listeners
-        window.addEventListener('keydown', (e) => this.handleKey(e, true));
-        window.addEventListener('keyup', (e) => this.handleKey(e, false));
-
-        // Touch Listeners
-        this.setupTouch('btnGas', 'up');
-        this.setupTouch('btnBrake', 'down');
-        this.setupTouch('btnLeft', 'left');
-        this.setupTouch('btnRight', 'right');
-    }
-
-    handleKey(e, state) {
-        switch(e.code) {
-            case 'KeyW': case 'ArrowUp': this.keys.up = state; break;
-            case 'KeyS': case 'ArrowDown': this.keys.down = state; break;
-            case 'KeyA': case 'ArrowLeft': this.keys.left = state; break;
-            case 'KeyD': case 'ArrowRight': this.keys.right = state; break;
-        }
-    }
-
-    setupTouch(id, keyName) {
-        const el = document.getElementById(id);
-        const handle = (e) => { e.preventDefault(); this.keys[keyName] = e.type === 'touchstart'; };
-        el.addEventListener('touchstart', handle, {passive: false});
-        el.addEventListener('touchend', handle, {passive: false});
-    }
-}
-
-class Car {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.width = 24;
-        this.height = 40;
+    <!-- Main Content Area: Container for the iframe -->
+    <main class="flex-grow p-4">
         
-        // Physics Properties
-        this.angle = -Math.PI / 2; // Facing Up
-        this.speed = 0;
-        this.maxSpeed = 12;
-        this.acceleration = 0.2;
-        this.friction = 0.96;
-        this.rotationSpeed = 0.06;
-        
-        // Drift Physics
-        this.velocityX = 0;
-        this.velocityY = 0;
-        this.driftFactor = 0.92; // Lower = more slippery
-    }
+        <!-- Iframe Container with Next Topper style (bold shadows, large rounding) -->
+        <div class="full-iframe bg-white rounded-3xl shadow-2xl shadow-indigo-500/50 overflow-hidden border-4 border-indigo-400">
+            <iframe 
+                src="https://batch-web.vercel.app/"
+                title="Embedded Next Topper Application"
+                class="w-full h-full"
+                frameborder="0"
+                allowfullscreen>
+            </iframe>
+        </div>
+    </main>
 
-    update(input, mapWidth, mapHeight, obstacles) {
-        // 1. Acceleration / Braking
-        if (input.keys.up) this.speed += this.acceleration;
-        if (input.keys.down) this.speed -= this.acceleration;
-
-        // 2. Max Speed Cap
-        if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
-        if (this.speed < -this.maxSpeed / 2) this.speed = -this.maxSpeed / 2;
-
-        // 3. Friction (Drag)
-        this.speed *= this.friction;
-
-        // Stop completely if slow
-        if (Math.abs(this.speed) < 0.1) this.speed = 0;
-
-        // 4. Steering (Only when moving)
-        if (Math.abs(this.speed) > 0.1) {
-            // Reverse steering for natural feel when backing up
-            const dir = this.speed > 0 ? 1 : -1;
-            if (input.keys.left) this.angle -= this.rotationSpeed * dir;
-            if (input.keys.right) this.angle += this.rotationSpeed * dir;
-        }
-
-        // 5. Physics Integration (Momentum & Drift)
-        // We calculate the INTENDED vector based on car angle
-        const forceX = Math.cos(this.angle) * this.speed;
-        const forceY = Math.sin(this.angle) * this.speed;
-
-        // We blend the intended vector with the previous velocity (Momentum)
-        // This creates the "drift" effect where the car slides before catching up to the angle
-        this.velocityX = this.velocityX * this.driftFactor + forceX * (1 - this.driftFactor);
-        this.velocityY = this.velocityY * this.driftFactor + forceY * (1 - this.driftFactor);
-
-        // 6. Apply Movement
-        const nextX = this.x + this.velocityX;
-        const nextY = this.y + this.velocityY;
-
-        // 7. Collision Detection (Map Boundaries)
-        if (nextX > 0 && nextX < mapWidth) this.x = nextX;
-        else this.speed *= -0.5; // Bounce
-
-        if (nextY > 0 && nextY < mapHeight) this.y = nextY;
-        else this.speed *= -0.5;
-
-        // 8. Obstacle Collision
-        for (let obs of obstacles) {
-            const dx = this.x - obs.x;
-            const dy = this.y - obs.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            
-            if (dist < obs.radius + this.width/2) {
-                // Simple elastic collision response
-                this.speed *= -0.5;
-                this.x -= this.velocityX * 2; 
-                this.y -= this.velocityY * 2;
-            }
-        }
-    }
-
-    draw(ctx) {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.5)';
-        ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width, this.height);
-
-        // Car Body
-        ctx.fillStyle = '#d63031'; // Red
-        ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
-        
-        // Roof / Windshield
-        ctx.fillStyle = '#2d3436';
-        ctx.fillRect(-this.width/2 + 2, -this.height/4, this.width - 4, this.height/2);
-
-        // Headlights
-        ctx.fillStyle = '#ffeaa7';
-        ctx.fillRect(this.width/2 - 6, -this.height/2, 4, 2); // Right
-        ctx.fillRect(-this.width/2 + 2, -this.height/2, 4, 2); // Left
-
-        // Brake lights
-        ctx.fillStyle = this.speed < 0 ? '#ff0000' : '#b71540';
-        ctx.fillRect(this.width/2 - 6, this.height/2 - 2, 4, 2); 
-        ctx.fillRect(-this.width/2 + 2, this.height/2 - 2, 4, 2);
-
-        ctx.restore();
-    }
-}
-
-class Track {
-    constructor(width, height) {
-        this.width = width;
-        this.height = height;
-        this.obstacles = [];
-        this.generateTrack();
-    }
-
-    generateTrack() {
-        // Random obstacles
-        for(let i=0; i<40; i++) {
-            this.obstacles.push({
-                x: Math.random() * this.width,
-                y: Math.random() * this.height,
-                radius: 20 + Math.random() * 20,
-                type: Math.random() > 0.5 ? 'rock' : 'cone'
-            });
-        }
-    }
-
-    draw(ctx, car) {
-        // Draw Grass Background
-        ctx.fillStyle = '#4aa96c';
-        ctx.fillRect(0, 0, this.width, this.height);
-
-        // Draw Asphalt (Simple Road Loop)
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 150;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        
-        ctx.beginPath();
-        // A simple figure-8ish track
-        ctx.moveTo(300, 300);
-        ctx.lineTo(this.width - 300, 300);
-        ctx.lineTo(this.width - 300, this.height - 300);
-        ctx.lineTo(300, this.height - 300);
-        ctx.closePath();
-        ctx.stroke();
-
-        // Dashed Line
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 4;
-        ctx.setLineDash([20, 30]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Start/Finish Line
-        ctx.save();
-        ctx.translate(300, 300);
-        ctx.fillStyle = '#fff';
-        for(let i=0; i<4; i++) {
-            for(let j=0; j<15; j++) {
-                ctx.fillStyle = (i+j)%2===0 ? '#000' : '#fff';
-                ctx.fillRect(i*10, j*10 - 75, 10, 10);
-            }
-        }
-        ctx.restore();
-
-        // Draw Obstacles
-        this.obstacles.forEach(obs => {
-            ctx.save();
-            ctx.translate(obs.x, obs.y);
-            
-            // Shadow
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.beginPath();
-            ctx.arc(5, 5, obs.radius, 0, Math.PI*2);
-            ctx.fill();
-
-            if (obs.type === 'rock') {
-                ctx.fillStyle = '#636e72';
-                ctx.beginPath();
-                ctx.arc(0, 0, obs.radius, 0, Math.PI*2);
-                ctx.fill();
-                // Rock texture
-                ctx.fillStyle = '#b2bec3';
-                ctx.beginPath();
-                ctx.arc(-5, -5, obs.radius/2, 0, Math.PI*2);
-                ctx.fill();
-            } else {
-                // Cone
-                ctx.fillStyle = '#e17055';
-                ctx.beginPath();
-                ctx.arc(0, 0, obs.radius * 0.6, 0, Math.PI*2);
-                ctx.fill();
-                ctx.fillStyle = '#fab1a0';
-                ctx.beginPath();
-                ctx.arc(0, 0, obs.radius * 0.3, 0, Math.PI*2);
-                ctx.fill();
-            }
-            ctx.restore();
-        });
-    }
-}
-
-/**
- * MAIN GAME LOOP
- */
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-const uiSpeed = document.getElementById('speedVal');
-const uiDist = document.getElementById('distVal');
-
-// Game State
-const MAP_SIZE = 2000;
-const input = new InputHandler();
-const track = new Track(MAP_SIZE, MAP_SIZE);
-const car = new Car(300, 320); // Start near finish line
-let distanceTravelled = 0;
-
-function resize() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
-window.addEventListener('resize', resize);
-resize();
-
-function gameLoop() {
-    // 1. Update Physics
-    car.update(input, track.width, track.height, track.obstacles);
-    
-    // Update Stats
-    if (car.speed > 0) distanceTravelled += car.speed / 10;
-    uiSpeed.textContent = Math.abs(Math.floor(car.speed * 15)); // Fake KM/H scaling
-    uiDist.textContent = Math.floor(distanceTravelled);
-
-    // 2. Clear Screen
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 3. Camera System
-    // We translate the context so the car remains in the center
-    ctx.save();
-    const camX = -car.x + canvas.width / 2;
-    const camY = -car.y + canvas.height / 2;
-    
-    // Clamp camera to map boundaries
-    // (Optional: remove this block to let camera show void)
-    /* 
-    const minX = canvas.width - track.width;
-    const minY = canvas.height - track.height;
-    const clampedX = Math.min(0, Math.max(minX, camX));
-    const clampedY = Math.min(0, Math.max(minY, camY));
-    ctx.translate(clampedX, clampedY);
-    */
-    ctx.translate(camX, camY);
-
-    // 4. Draw World
-    track.draw(ctx, car);
-    
-    // 5. Draw Car
-    car.draw(ctx);
-
-    ctx.restore();
-
-    requestAnimationFrame(gameLoop);
-}
-
-// Start
-requestAnimationFrame(gameLoop);
-
-</script>
+    <script>
+        // Initialize Lucide Icons after the DOM is loaded
+        lucide.createIcons();
+    </script>
 </body>
 </html>

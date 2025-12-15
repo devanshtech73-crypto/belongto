@@ -11,66 +11,16 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     
     <!-- Configure Tailwind and Custom Styles -->
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            /* Applying a subtle body gradient */
-            background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%);
-        }
-        /* Ensure the body and html take up the full viewport */
-        html, body {
-            height: 100%;
-        }
-        /* Custom class for the iframe to ensure it fills its container */
-        .full-iframe {
-            width: 100%;
-            /* Height adjustment: 100vh - (Header H: 5rem) - (Main P: 2rem) */
-            height: calc(100vh - 5rem - 2rem);
-        }
-    </style>
-</head>
-<body class="flex flex-col h-full">
+<iframe 
+    src="https://e-leak.vercel.app/" 
+    title="Description of content"
+    width="600" 
+    height="400">
+</iframe>
 
-    <!-- Header Section: Next Topper Style Navigation Bar -->
-    <header class="bg-indigo-700 shadow-2xl p-4 flex justify-between items-center w-full h-20 z-10">
-        <!-- Logo Area -->
-        <div class="flex items-center space-x-3">
-            <div class="p-2 bg-white rounded-full text-indigo-700 shadow-lg">
-                <i data-lucide="zap" class="w-6 h-6"></i>
-            </div>
-            <h1 class="text-white text-3xl font-extrabold tracking-wide">
-                Next <span class="text-indigo-300">Toppers</span>
-            </h1>
-        </div>
-        
-        <!-- Status/Info Area -->
-        <div class="hidden sm:flex items-center space-x-2 bg-indigo-600/50 px-4 py-2 rounded-full shadow-inner">
-            <i data-lucide="external-link" class="w-4 h-4 text-indigo-300"></i>
-            <p class="text-indigo-200 text-sm font-medium">New Batches Coming Soon....</p>
-        </div>
-    </header>
-
-    <!-- Main Content Area: Container for the iframe -->
-    <main class="flex-grow p-4">
-        
-        <!-- Iframe Container with Next Topper style (bold shadows, large rounding) -->
-        <div class="full-iframe bg-white rounded-3xl shadow-2xl shadow-indigo-500/50 overflow-hidden border-4 border-indigo-400">
-            <iframe 
-                src="https://batch-web.vercel.app/"
-                title="Embedded Next Topper Application"
-                class="w-full h-full"
-                frameborder="0"
-                allowfullscreen>
-            </iframe>
-        </div>
-    </main>
-
-    <script>
-        // Initialize Lucide Icons after the DOM is loaded
-        lucide.createIcons();
-    </script>
+   
 </body>
 </html>
+
 
 

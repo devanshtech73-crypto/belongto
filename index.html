@@ -82,7 +82,7 @@
                     <p class="text-muted">
                         free physics wallah batches are added very soon, please wait while we are working.
                     </p>
-                    <div id="countdownDisplay" class="text-secondary small">Closing in 5 seconds...</div>
+                    <div id="countdownDisplay" class="text-secondary small">Closing in 10 seconds...</div>
                 </div>
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-custom-close" id="manualCloseButton">
@@ -124,7 +124,7 @@
          * Starts the 5-second auto-close timer and the visible countdown.
          */
         function startAutoCloseTimer() {
-            countdown = 5;
+            countdown = 10;
             countdownDisplay.textContent = `Closing in ${countdown} seconds...`;
             
             // 5-second auto-close timer
@@ -167,4 +167,5 @@
     </script>
 </body>
 </html>
+
 

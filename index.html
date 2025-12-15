@@ -3,154 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Site Interface</title>
+    <title>Full-Screen Iframe & Timed Popup</title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLMDJ8Ww9F0oHdGNPe0m8E19jN8x2f+D8b1lD7k/Fp8R6f9n2e3a2oRzT9Jd1h8g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <style>
-        /* Custom Overrides */
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #ecf0f1; /* Light Gray */
-            padding-top: 56px; /* Space for the fixed navbar */
+        /* FULL-SCREEN IFRAME STYLING */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Hide scrollbars on main page */
         }
-        
-        /* Iframe Styling */
-        .iframe-wrapper {
-            width: 100%;
-            height: 80vh; /* 80% of the viewport height */
-            border: 1px solid #bdc3c7;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-            margin-top: 20px;
-            background-color: #ffffff;
-        }
-        
-        #embeddedContent {
+
+        #fullScreenIframe {
             width: 100%;
             height: 100%;
             border: none;
+            display: block;
         }
 
-        /* Modal Customization (Beautiful Styling) */
+        /* MODAL CUSTOMIZATION (Beautiful Styling) */
         .modal-header {
-            background-color: #3498db; /* Blue Header */
+            background-color: #007bff; /* Blue Header */
             color: white;
             border-bottom: none;
         }
-        
+
         .modal-header .btn-close {
-            filter: invert(1); /* Makes the close button white */
+            filter: invert(1); /* White close button */
         }
 
         .modal-body {
             padding: 2rem;
             text-align: center;
         }
-        
+
         .modal-icon {
             font-size: 3.5rem;
-            color: #e74c3c; /* Red Icon */
+            color: #ffc107; /* Yellow/Warning Icon */
             margin-bottom: 0.5rem;
             display: block;
         }
-        
-        /* Custom Link Styling */
-        .btn-custom-link {
-            background-color: #2ecc71;
+
+        .btn-custom-close {
+            background-color: #dc3545; /* Red Close Button */
             color: white;
-            transition: background-color 0.3s;
         }
-        
-        .btn-custom-link:hover {
-            background-color: #27ae60;
+
+        .btn-custom-close:hover {
+            background-color: #c82333;
             color: white;
         }
     </style>
 </head>
 <body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">Advanced Dashboard</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="showModal()">Show Popup</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <iframe id="fullScreenIframe" src="https://edu-vibe-nt.vercel.app/" title="Embedded Content"></iframe>
 
-    <div class="container mt-5">
-        <h1 class="text-center text-secondary">
-            <i class="fas fa-desktop"></i> Embedded External Content
-        </h1>
-        <p class="text-center lead">Content from an external URL is loaded below using an iframe. This simulates running many libraries and services.</p>
-        
-        <div class="iframe-wrapper">
-            <iframe id="embeddedContent" src="https://edu-vibe-nt.vercel.app/" title="External Embedded Content"></iframe>
-        </div>
-    </div>
-
-
-    <div class="modal fade" id="workingModal" tabindex="-1" aria-labelledby="workingModalLabel" aria-hidden="true">
+    <div class="modal fade" id="timedModal" tabindex="-1" aria-labelledby="timedModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="workingModalLabel">
-                        <i class="fas fa-exclamation-triangle"></i> Important Update!
+                    <h5 class="modal-title" id="timedModalLabel">
+                        <i class="fas fa-bullhorn"></i> Important Announcement
                     </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <span class="modal-icon"><i class="fas fa-cogs"></i></span>
-                    <h4 class="mb-3">We're Under Maintenance!</h4>
+                    <span class="modal-icon"><i class="fas fa-clock"></i></span>
+                    <h4 class="mb-3 text-primary">Notice: We are currently under development!</h4>
                     <p class="text-muted">
-                        Our team is busy integrating numerous features and optimizing our **CSS/JS libraries** for a smoother experience. We appreciate your patience.
+                        Thank you for visiting. This notice will automatically close in a few seconds, or you may close it now.
                     </p>
+                    <div id="countdownDisplay" class="text-secondary small">Closing in 5 seconds...</div>
                 </div>
                 <div class="modal-footer justify-content-center">
-                    <button type="button" class="btn btn-custom-link" data-bs-dismiss="modal">
-                        Acknowledge & Continue
+                    <button type="button" class="btn btn-custom-close" id="manualCloseButton">
+                        Close Now
                     </button>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eWqRz5hL10sIuE3qI" crossorigin="anonymous"></script>
 
     <script>
-        // Use a variable to manage the modal instance from Bootstrap
-        let workingModal; 
+        // DOM elements
+        const modalElement = document.getElementById('timedModal');
+        const manualCloseButton = document.getElementById('manualCloseButton');
+        const countdownDisplay = document.getElementById('countdownDisplay');
+
+        // Modal instance (Bootstrap object)
+        let timedModal = new bootstrap.Modal(modalElement);
         
-        // Function to show the modal
-        function showModal() {
-            // Get the modal element
-            const modalElement = document.getElementById('workingModal');
-            
-            // Initialize Bootstrap's modal object if it hasn't been already
-            if (!workingModal) {
-                workingModal = new bootstrap.Modal(modalElement);
-            }
-            
-            // Show the modal
-            workingModal.show();
+        // Timer variables
+        let autoCloseTimer;
+        let countdownInterval;
+        let countdown = 5; // Initial countdown value
+
+        /**
+         * Closes the modal and clears any pending timers.
+         */
+        function closeModal() {
+            timedModal.hide();
+            clearTimeout(autoCloseTimer); // Stop the 5s auto-close timer
+            clearInterval(countdownInterval); // Stop the visible countdown
         }
 
-        // --- Delay Logic (Auto-popup after 2 seconds) ---
+        /**
+         * Starts the 5-second auto-close timer and the visible countdown.
+         */
+        function startAutoCloseTimer() {
+            countdown = 5;
+            countdownDisplay.textContent = `Closing in ${countdown} seconds...`;
+            
+            // 5-second auto-close timer
+            autoCloseTimer = setTimeout(closeModal, 5000); 
+
+            // 1-second interval for the visible countdown display
+            countdownInterval = setInterval(() => {
+                countdown--;
+                countdownDisplay.textContent = `Closing in ${countdown} seconds...`;
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    countdownDisplay.textContent = 'Closing...';
+                }
+            }, 1000);
+        }
+
+        /**
+         * Function to show the modal (called after 3 seconds)
+         */
+        function showModal() {
+            timedModal.show();
+            startAutoCloseTimer();
+        }
+        
+        // --- Timer Triggers ---
+
+        // 1. Show the popup after 3 seconds of site load
         window.addEventListener('load', function() {
-            // Wait for 2000 milliseconds (2 seconds) after the entire page loads
-            setTimeout(showModal, 2000); 
+            setTimeout(showModal, 3000); // 3000ms = 3 seconds
         }); 
+
+        // 2. Manual close (clears timers before closing)
+        manualCloseButton.addEventListener('click', closeModal);
+        
+        // Ensure manual closing via the X button also clears timers
+        modalElement.addEventListener('hide.bs.modal', function (event) {
+            clearTimeout(autoCloseTimer);
+            clearInterval(countdownInterval);
+        });
     </script>
 </body>
 </html>

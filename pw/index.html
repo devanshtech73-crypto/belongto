@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>We're Working On It!</title>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
+
+        :root {
+            --primary-color: #2ECC71; /* Emerald Green */
+            --secondary-color: #34495E; /* Wet Asphalt */
+            --text-color: #444444;
+            --background-color: #ECF0F1; /* Clouds */
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: linear-gradient(135deg, #ffffff, #f7f7f7);
+            padding: 60px 40px;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+            max-width: 700px;
+            width: 100%;
+            border-top: 5px solid var(--primary-color);
+        }
+
+        h1 {
+            color: var(--secondary-color);
+            font-size: 2.8em;
+            margin-bottom: 0.2em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            color: #777;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .tech-list {
+            margin: 30px 0;
+            font-size: 1.1em;
+            color: var(--secondary-color);
+            font-weight: 700;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .tech-item {
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 5px;
+            transition: transform 0.2s;
+        }
+
+        .tech-item:hover {
+            transform: scale(1.05);
+            background-color: #27AE60; /* Darker Green */
+        }
+
+        .countdown {
+            font-size: 2em;
+            color: var(--primary-color);
+            margin-top: 30px;
+            font-weight: 700;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #EEEEEE;
+            font-size: 0.85em;
+            color: #AAAAAA;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>⚙️ We're Building Something Special!</h1>
+
+        <p class="subtitle">
+            Our team is currently busy integrating the final pieces to launch an amazing experience for you. We appreciate your patience!
+        </p>
+
+        <div class="tech-list">
+            <span class="tech-item">HTML5</span>
+            <span class="tech-item">CSS Magic</span>
+            <span class="tech-item">JavaScript Power</span>
+            <span class="tech-item">Library Integration</span>
+            <span class="tech-item">Many More!</span>
+        </div>
+
+        <div class="countdown" id="countdown-timer">
+            Launch in: Calculating...
+        </div>
+
+        <footer>
+            <p>&copy; 2025 [Your Company Name]. Follow us for the big reveal!</p>
+        </footer>
+    </div>
+
+    <script>
+        // Set the date we're counting down to (e.g., 5 days from now)
+        const countdownDate = new Date();
+        countdownDate.setDate(countdownDate.getDate() + 5); 
+        
+        // Update the count down every 1 second
+        const x = setInterval(function() {
+
+            // Get today's date and time
+            const now = new Date().getTime();
+            
+            // Find the distance between now and the countdown date
+            const distance = countdownDate.getTime() - now;
+            
+            // Time calculations for days, hours, minutes and seconds
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            // Output the result in an element with id="countdown-timer"
+            document.getElementById("countdown-timer").innerHTML = "Launch in: " + days + "d " + hours + "h "
+            + minutes + "m " + seconds + "s ";
+            
+            // If the count down is finished, write some text 
+            if (distance < 0) {
+                clearInterval(x);
+                document.getElementById("countdown-timer").innerHTML = "🎉 WE ARE LIVE!";
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

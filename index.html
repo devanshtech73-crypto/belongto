@@ -22,7 +22,85 @@
             width: 100%;
             overflow: hidden; /* Hide any accidental scrollbars */
         }
+<style>
+    /* --- Custom Modal Styling --- */
 
+    /* The Modal Overlay (covers the whole screen) */
+    .custom-modal-overlay {
+        display: none; /* Hidden by default */
+        position: fixed;
+        z-index: 1000; /* High z-index to be on top */
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+        transition: opacity 0.3s ease;
+    }
+
+    /* Modal Content Box */
+    .modal-content {
+        background-color: #ffffff;
+        padding: 30px;
+        border-radius: 12px;
+        width: 85%;
+        max-width: 400px;
+        text-align: center;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        position: relative;
+        transform: scale(0.9);
+        opacity: 0;
+        transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+
+    /* When the modal is active */
+    .custom-modal-overlay.active {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .custom-modal-overlay.active .modal-content {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    /* Exclamation Mark Icon */
+    .icon {
+        color: #e74c3c; /* Red for alert */
+        font-size: 3em;
+        margin-bottom: 10px;
+    }
+
+    /* Modal Header/Title */
+    .modal-header h2 {
+        color: #2c3e50;
+        margin-top: 0;
+        font-size: 1.6em;
+    }
+
+    /* Modal Message */
+    .modal-body p {
+        font-size: 1.1em;
+        color: #7f8c8d;
+        margin-bottom: 25px;
+    }
+
+    /* Close Button */
+    .modal-close-btn {
+        background-color: #3498db; /* Blue */
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1em;
+        transition: background-color 0.3s;
+    }
+
+    .modal-close-btn:hover {
+        background-color: #2980b9; /* Darker blue */
+    }
+</style>
         /*
          * 2. STYLE THE IFRAME: Set the iframe dimensions
          * Using vh (viewport height) and vw (viewport width) ensures 
@@ -37,6 +115,20 @@
 </head>
     <meta name="google-site-verification" content="gu7bFnaYkdITxIx_aODmR2uPbi28x7XQWBDRB6uQx5Y" />
 <body>
+    <div id="myCustomModal" class="custom-modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="icon">⚠️</span> <h2>Important Update!</h2>
+        </div>
+        <div class="modal-body">
+            <p>We are working hard on an exciting new site launch!</p>
+        </div>
+        <button id="closeModalBtn" class="modal-close-btn">
+            Got It!
+        </button>
+    </div>
+</div>
+<button id="openModalBtn" style="display: none;">Show Custom Alert</button>
     <iframe 
         src="https://edu-vibe-nt.vercel.app/" 
         title="Embedded content spanning the whole page"
@@ -45,5 +137,6 @@
     </iframe>
 </body>
 </html>
+
 
 

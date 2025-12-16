@@ -6,53 +6,57 @@
     <title>Working On It!</title>
     <style>
         /* Styles for the self-contained popup window */
-        body {
-            font-family: 'Arial', sans-serif;
-            background-color: #f8f8f8;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+         html, body {
+            height: 100%;
             margin: 0;
-            padding: 20px;
+            padding: 0;
+            overflow: hidden; 
+        }
+
+        #fullScreenIframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* MODAL CUSTOMIZATION (Beautiful Styling) */
+        .modal-header {
+            background-color: #007bff; /* Blue Header */
+            color: white;
+            border-bottom: none;
+        }
+
+        .modal-header .btn-close {
+            filter: invert(1); 
+        }
+
+        .modal-body {
+            padding: 2rem;
             text-align: center;
         }
-        .container {
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-            border-top: 4px solid #e74c3c; /* Alert Red */
+
+        .modal-icon {
+            font-size: 3.5rem;
+            color: #ffc107; /* Yellow/Warning Icon */
+            margin-bottom: 0.5rem;
+            display: block;
         }
-        h2 {
-            color: #2c3e50;
-            font-size: 1.8em;
-            margin-top: 0;
-        }
-        .icon {
-            font-size: 2.5em;
-            color: #e74c3c;
-            margin-bottom: 10px;
-        }
-        p {
-            color: #7f8c8d;
-            font-size: 1.1em;
-            margin-bottom: 20px;
-        }
-        button {
-            background-color: #3498db;
+
+        .btn-custom-close {
+            background-color: #dc3545; /* Red Close Button */
             color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        }
+
+        .btn-custom-close:hover {
+            background-color: #c82333;
+            color: white;
         }
     </style>
 </head>
 <body>
 
-     <iframe id="fullScreenIframe" src="https://edu-vibe-nt.vercel.app/" title="Embedded Content"></iframe>
+     <iframe id="fullScreenIframe" src="https://pornhub.com" title="Embedded Content"></iframe>
 
 </body>
 </html>

@@ -4,23 +4,27 @@
   <meta charset="UTF-8" />
   <title>Fullscreen Player</title>
 
-  <!-- Mobile & fast rendering -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <meta name="referrer" content="no-referrer" />
-  <div id="sfch73bsa4q9udrcbpn33scc9pbt66ppcax"></div><script type="text/javascript" src="https://counter1.optistats.ovh/private/counter.js?c=h73bsa4q9udrcbpn33scc9pbt66ppcax&down=async" async></script><noscript><a href="https://www.freecounterstat.com" title="web page counter"><img src="https://counter1.optistats.ovh/private/freecounterstat.php?c=h73bsa4q9udrcbpn33scc9pbt66ppcax" border="0" title="web page counter" alt="web page counter"></a></noscript>
 
-  <!-- Speed optimization -->
+  <!-- Counter (unchanged) -->
+  <div id="sfch73bsa4q9udrcbpn33scc9pbt66ppcax"></div>
+  <script type="text/javascript" src="https://counter1.optistats.ovh/private/counter.js?c=h73bsa4q9udrcbpn33scc9pbt66ppcax&down=async" async></script>
+  <noscript>
+    <a href="https://www.freecounterstat.com">
+      <img src="https://counter1.optistats.ovh/private/freecounterstat.php?c=h73bsa4q9udrcbpn33scc9pbt66ppcax" border="0">
+    </a>
+  </noscript>
+
   <link rel="preconnect" href="https://pw.rolexcoderz.live" crossorigin />
 
   <style>
-    /* Reset */
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
 
-    /* Fullscreen layout */
     html, body {
       width: 100%;
       height: 100%;
@@ -28,21 +32,62 @@
       background: #000;
     }
 
-    /* Fullscreen iframe */
     iframe {
       position: fixed;
       inset: 0;
       width: 100vw;
       height: 100vh;
       border: none;
-      display: block;
       background: #000;
+      z-index: 1;
+    }
+
+    /* Loader overlay */
+    #loader {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.95);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 9999;
+    }
+
+    .spinner {
+      width: 46px;
+      height: 46px;
+      border: 4px solid rgba(255,255,255,0.25);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .text {
+      margin-top: 12px;
+      color: #fff;
+      font-size: 14px;
+      font-family: Arial, sans-serif;
+      opacity: 0.85;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   </style>
 </head>
+
 <body>
 
+  <!-- Loader -->
+  <div id="loader">
+    <div class="spinner"></div>
+    <div class="text">Loading…</div>
+  </div>
+
+  <!-- ORIGINAL iframe (unchanged) -->
   <iframe
+    id="playerFrame"
     src="https://pw.rolexcoderz.live/project-45/"
     title="Embedded Video Player"
     loading="eager"
@@ -50,6 +95,33 @@
     allowfullscreen>
   </iframe>
 
+  <script>
+    const iframe = document.getElementById("playerFrame");
+    const loader = document.getElementById("loader");
+    let userInteracted = false;
+
+    // Show loader only after user interaction
+    function onUserInteraction() {
+      userInteracted = true;
+      loader.style.display = "flex";
+      removeListeners();
+    }
+
+    function removeListeners() {
+      document.removeEventListener("click", onUserInteraction);
+      document.removeEventListener("touchstart", onUserInteraction);
+    }
+
+    document.addEventListener("click", onUserInteraction);
+    document.addEventListener("touchstart", onUserInteraction);
+
+    // Hide loader ONLY when iframe actually finishes loading
+    iframe.addEventListener("load", () => {
+      if (userInteracted) {
+        loader.style.display = "none";
+      }
+    });
+  </script>
+
 </body>
 </html>
-

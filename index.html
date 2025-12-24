@@ -33,7 +33,7 @@ iframe {
   position:fixed;
   inset:0;
   background:rgba(0,0,0,0.95);
-  display:flex;
+  display:none;
   align-items:center;
   justify-content:center;
   flex-direction:column;
@@ -63,13 +63,11 @@ iframe {
 
 <body>
 
-<!-- Loader -->
 <div id="loader">
   <div class="spinner"></div>
   <div class="text">Loading…</div>
 </div>
 
-<!-- Iframe -->
 <iframe
   id="playerFrame"
   src="https://pw.rolexcoderz.live/project-45/"
@@ -82,10 +80,25 @@ iframe {
 const iframe = document.getElementById("playerFrame");
 const loader = document.getElementById("loader");
 
-// Hide loader ONLY when iframe finishes loading
+let firstLoad = true;
+
 iframe.addEventListener("load", () => {
+  if (firstLoad) {
+    // Initial load → hide loader
+    loader.style.display = "none";
+    firstLoad = false;
+    return;
+  }
+
+  // Subsequent navigation finished
   loader.style.display = "none";
 });
+
+// Show loader just before next navigation cycle
+setInterval(() => {
+  // If iframe is navigating, browser will soon fire load
+  loader.style.display = "flex";
+}, 0);
 </script>
 
 </body>

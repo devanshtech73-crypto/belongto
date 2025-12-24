@@ -29,12 +29,11 @@ iframe {
   z-index:1;
 }
 
-/* Loader */
 #loader {
   position:fixed;
   inset:0;
   background:rgba(0,0,0,0.95);
-  display:none;
+  display:flex;
   align-items:center;
   justify-content:center;
   flex-direction:column;
@@ -64,11 +63,13 @@ iframe {
 
 <body>
 
+<!-- Loader -->
 <div id="loader">
   <div class="spinner"></div>
   <div class="text">Loading…</div>
 </div>
 
+<!-- Iframe -->
 <iframe
   id="playerFrame"
   src="https://pw.rolexcoderz.live/project-45/"
@@ -81,24 +82,11 @@ iframe {
 const iframe = document.getElementById("playerFrame");
 const loader = document.getElementById("loader");
 
-let lastSrc = iframe.src;
-
-// Detect src change → iframe is loading
-const observer = new MutationObserver(() => {
-  if (iframe.src !== lastSrc) {
-    lastSrc = iframe.src;
-    loader.style.display = "flex";
-  }
-});
-
-observer.observe(iframe, { attributes: true, attributeFilter: ["src"] });
-
-// Hide loader when iframe finishes loading
+// Hide loader ONLY when iframe finishes loading
 iframe.addEventListener("load", () => {
   loader.style.display = "none";
 });
 </script>
 
 </body>
-</html></html>
-
+</html>
